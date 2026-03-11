@@ -1,7 +1,5 @@
-"use client";
-
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Calendar, Shield, GraduationCap, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
