@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Calendar, Shield, GraduationCap, BookOpen } from "lucide-react";
