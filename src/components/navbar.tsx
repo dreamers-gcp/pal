@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -49,13 +50,13 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={() => router.push("/dashboard")}
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 no-underline text-foreground hover:opacity-80 transition-opacity"
         >
           <Calendar className="h-6 w-6 text-primary" />
           <span className="text-xl font-bold">PAL</span>
-        </div>
+        </Link>
 
         {profile && (
           <div className="flex items-center gap-3">
@@ -81,16 +82,14 @@ export function Navbar() {
                     <p className="text-xs text-muted-foreground">{profile.email}</p>
                   </div>
                   <div className="h-px bg-border my-1" />
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      router.push("/dashboard");
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm no-underline text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     Dashboard
-                  </button>
+                  </Link>
                   <div className="h-px bg-border my-1" />
                   <button
                     onClick={() => {
