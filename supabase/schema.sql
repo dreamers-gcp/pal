@@ -40,7 +40,8 @@ create type public.request_status as enum (
 
 create table public.calendar_requests (
   id uuid primary key default gen_random_uuid(),
-  professor_id uuid not null references public.profiles(id) on delete cascade,
+  professor_id uuid references public.profiles(id) on delete cascade,
+  professor_email text,
   title text not null,
   description text,
   student_group_id uuid not null references public.student_groups(id),
@@ -122,16 +123,33 @@ create policy "Admins can update requests"
     exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
   );
 
--- Students can view approved requests for their group
+-- Students can view approved requests for their groups
 create policy "Students can view approved events for their group"
   on public.calendar_requests for select using (
     status = 'approved'
-    and exists (
-      select 1 from public.profiles p
-      join public.student_groups sg on sg.name = p.student_group
-      where p.id = auth.uid()
-        and p.role = 'student'
-        and sg.id = student_group_id
+    and (
+      exists (
+        select 1
+        from public.profiles p
+        join public.student_enrollments se on se.email = p.email
+        join public.student_groups sg on sg.name = se.subject
+        where p.id = auth.uid()
+          and sg.id = student_group_id
+      )
+      or
+      exists (
+        select 1 from public.student_group_members sgm
+        where sgm.student_id = auth.uid()
+          and sgm.group_id = student_group_id
+      )
+      or
+      exists (
+        select 1 from public.profiles p
+        join public.student_groups sg on sg.name = p.student_group
+        where p.id = auth.uid()
+          and p.role = 'student'
+          and sg.id = student_group_id
+      )
     )
   );
 

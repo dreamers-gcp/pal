@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
@@ -31,38 +31,47 @@ const statusColors: Record<string, string> = {
 };
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
-  const supabase = createClient();
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Booking dialog state — used by both "New Request" button and slot clicks
   const [dialogOpen, setDialogOpen] = useState(false);
   const [prefill, setPrefill] = useState<BookingFormPrefill | undefined>();
-  // Incremented to reset the form component when re-opened
   const [formKey, setFormKey] = useState(0);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  async function fetchData() {
-    const [reqRes, classRes, groupRes] = await Promise.all([
+  const fetchData = useCallback(async () => {
+    const supabase = createClient();
+    const [byIdRes, byEmailRes, classRes, groupRes] = await Promise.all([
       supabase
         .from("calendar_requests")
         .select("*, student_group:student_groups(*), classroom:classrooms(*)")
         .eq("professor_id", profile.id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("calendar_requests")
+        .select("*, student_group:student_groups(*), classroom:classrooms(*)")
+        .eq("professor_email", profile.email)
+        .is("professor_id", null)
+        .order("created_at", { ascending: false }),
       supabase.from("classrooms").select("*").order("name"),
       supabase.from("student_groups").select("*").order("name"),
     ]);
 
-    if (reqRes.data) setRequests(reqRes.data);
+    const byId = byIdRes.data ?? [];
+    const byEmail = byEmailRes.data ?? [];
+    const seenIds = new Set(byId.map((r) => r.id));
+    const merged = [...byId, ...byEmail.filter((r) => !seenIds.has(r.id))];
+    setRequests(merged);
+
     if (classRes.data) setClassrooms(classRes.data);
     if (groupRes.data) setStudentGroups(groupRes.data);
     setLoading(false);
-  }
+  }, [profile.id, profile.email]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   function openNewRequest() {
     setPrefill(undefined);

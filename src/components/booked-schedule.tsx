@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CalendarRequest, Classroom } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
   endOfWeek,
   startOfToday,
   isSameDay,
+  isBefore,
+  isToday as isDateToday,
 } from "date-fns";
 
 const HOUR_START = 8;
@@ -40,6 +42,27 @@ function clampMinutes(mins: number): number {
   return Math.max(HOUR_START * 60, Math.min(HOUR_END * 60, mins));
 }
 
+const STATUS_CARD_COLORS: Record<string, string> = {
+  approved: "bg-green-100 border-green-500 text-green-900",
+  pending: "bg-yellow-100 border-yellow-500 text-yellow-900",
+  rejected: "bg-red-100 border-red-400 text-red-800",
+  clarification_needed: "bg-blue-100 border-blue-400 text-blue-800",
+};
+
+const STATUS_DOT: Record<string, string> = {
+  approved: "bg-green-500",
+  pending: "bg-yellow-500",
+  rejected: "bg-red-500",
+  clarification_needed: "bg-blue-500",
+};
+
+const STATUS_TEXT: Record<string, string> = {
+  approved: "text-green-700",
+  pending: "text-yellow-700",
+  rejected: "text-red-600",
+  clarification_needed: "text-blue-600",
+};
+
 export interface SlotClickInfo {
   classroomId: string;
   classroomName: string;
@@ -50,10 +73,12 @@ export interface SlotClickInfo {
 
 interface BookedScheduleProps {
   onSlotClick?: (info: SlotClickInfo) => void;
+  showAllStatuses?: boolean;
+  onEventClick?: (event: CalendarRequest) => void;
+  refreshKey?: number;
 }
 
-export function BookedSchedule({ onSlotClick }: BookedScheduleProps) {
-  const supabase = createClient();
+export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, refreshKey }: BookedScheduleProps) {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [bookings, setBookings] = useState<CalendarRequest[]>([]);
   const [weekStart, setWeekStart] = useState(
@@ -70,36 +95,38 @@ export function BookedSchedule({ onSlotClick }: BookedScheduleProps) {
   );
 
   useEffect(() => {
-    fetchClassrooms();
+    const supabase = createClient();
+    supabase.from("classrooms").select("*").order("name").then(({ data }) => {
+      if (data) setClassrooms(data);
+    });
   }, []);
 
   useEffect(() => {
-    fetchBookingsForWeek();
-  }, [weekStart]);
-
-  async function fetchClassrooms() {
-    const { data } = await supabase
-      .from("classrooms")
-      .select("*")
-      .order("name");
-    if (data) setClassrooms(data);
-  }
-
-  const fetchBookingsForWeek = useCallback(async () => {
+    const supabase = createClient();
     setLoading(true);
-    const { data } = await supabase
-      .from("calendar_requests")
-      .select(
-        "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
-      )
-      .eq("status", "approved")
-      .gte("event_date", format(weekStart, "yyyy-MM-dd"))
-      .lte("event_date", format(weekEnd, "yyyy-MM-dd"))
-      .order("start_time", { ascending: true });
+    const wsStr = format(weekStart, "yyyy-MM-dd");
+    const weStr = format(endOfWeek(weekStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
 
-    if (data) setBookings(data);
-    setLoading(false);
-  }, [weekStart, weekEnd, supabase]);
+    async function fetchBookings() {
+      const baseQuery = supabase
+        .from("calendar_requests")
+        .select(
+          "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
+        )
+        .gte("event_date", wsStr)
+        .lte("event_date", weStr)
+        .order("start_time", { ascending: true });
+
+      const { data } = showAllStatuses
+        ? await baseQuery
+        : await baseQuery.eq("status", "approved");
+
+      if (data) setBookings(data);
+      setLoading(false);
+    }
+
+    fetchBookings();
+  }, [weekStart, showAllStatuses, refreshKey]);
 
   function getEventsForDay(day: Date): CalendarRequest[] {
     const dayStr = format(day, "yyyy-MM-dd");
@@ -108,6 +135,25 @@ export function BookedSchedule({ onSlotClick }: BookedScheduleProps) {
       if (selectedClassroom !== "all" && b.classroom_id !== selectedClassroom)
         return false;
       return true;
+    });
+  }
+
+  function hasConflict(
+    date: string,
+    classroomId: string,
+    startTime: string,
+    endTime: string
+  ): boolean {
+    const startM = timeToMinutes(startTime);
+    const endM = timeToMinutes(endTime);
+
+    return bookings.some((b) => {
+      if (b.status !== "approved") return false;
+      if (b.event_date !== date) return false;
+      if (b.classroom_id !== classroomId) return false;
+      const bs = timeToMinutes(b.start_time);
+      const be = timeToMinutes(b.end_time);
+      return startM < be && bs < endM;
     });
   }
 
@@ -122,13 +168,21 @@ export function BookedSchedule({ onSlotClick }: BookedScheduleProps) {
   }
 
   function getClassroomForSlot() {
-    const roomId =
-      selectedClassroom !== "all" ? selectedClassroom : classrooms[0]?.id ?? "";
-    const roomName =
-      selectedClassroom !== "all"
-        ? classrooms.find((c) => c.id === selectedClassroom)?.name ?? ""
-        : classrooms[0]?.name ?? "";
-    return { roomId, roomName };
+    if (selectedClassroom !== "all") {
+      const room = classrooms.find((c) => c.id === selectedClassroom);
+      return { roomId: room?.id ?? "", roomName: room?.name ?? "" };
+    }
+    return { roomId: "", roomName: "" };
+  }
+
+  function isSlotInPast(day: Date, endMinutes: number): boolean {
+    const now = new Date();
+    if (isBefore(day, startOfToday())) return true;
+    if (isDateToday(day)) {
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+      return endMinutes <= currentMins;
+    }
+    return false;
   }
 
   const today = startOfToday();
@@ -254,29 +308,48 @@ export function BookedSchedule({ onSlotClick }: BookedScheduleProps) {
             </div>
 
             {/* Day columns */}
-            {weekDays.map((day) => (
-              <DayColumn
-                key={day.toISOString()}
-                day={day}
-                events={getEventsForDay(day)}
-                hours={hours}
-                isToday={isSameDay(day, today)}
-                canDrag={!!onSlotClick}
-                getColorForClassroom={getColorForClassroom}
-                getEventStyle={getEventStyle}
-                onDragCreate={(startMins, endMins) => {
-                  if (!onSlotClick) return;
-                  const { roomId, roomName } = getClassroomForSlot();
-                  onSlotClick({
-                    classroomId: roomId,
-                    classroomName: roomName,
-                    date: format(day, "yyyy-MM-dd"),
-                    startTime: minutesToTime(startMins),
-                    endTime: minutesToTime(endMins),
-                  });
-                }}
-              />
-            ))}
+            {weekDays.map((day) => {
+              const dateStr = format(day, "yyyy-MM-dd");
+              return (
+                <DayColumn
+                  key={day.toISOString()}
+                  day={day}
+                  events={getEventsForDay(day)}
+                  hours={hours}
+                  isToday={isSameDay(day, today)}
+                  canDrag={!!onSlotClick}
+                  showAllStatuses={showAllStatuses}
+                  onEventClick={onEventClick}
+                  getColorForClassroom={getColorForClassroom}
+                  getEventStyle={getEventStyle}
+                  checkPast={(endMins) => isSlotInPast(day, endMins)}
+                  checkOverlap={(startMins, endMins) => {
+                    const { roomId } = getClassroomForSlot();
+                    if (!roomId) return false;
+                    return hasConflict(dateStr, roomId, minutesToTime(startMins), minutesToTime(endMins));
+                  }}
+                  onDragCreate={(startMins, endMins) => {
+                    if (!onSlotClick) return;
+                    if (isSlotInPast(day, endMins)) return;
+                    const { roomId, roomName } = getClassroomForSlot();
+                    const startTime = minutesToTime(startMins);
+                    const endTime = minutesToTime(endMins);
+
+                    if (roomId && hasConflict(dateStr, roomId, startTime, endTime)) {
+                      return;
+                    }
+
+                    onSlotClick({
+                      classroomId: roomId,
+                      classroomName: roomName,
+                      date: dateStr,
+                      startTime,
+                      endTime,
+                    });
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
       )}
@@ -303,9 +376,25 @@ export function BookedSchedule({ onSlotClick }: BookedScheduleProps) {
         </div>
       )}
 
+      {showAllStatuses && (
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="text-muted-foreground font-medium">Status:</span>
+          {(["pending", "approved", "rejected", "clarification_needed"] as const).map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />
+              <span className="text-muted-foreground capitalize">
+                {s === "clarification_needed" ? "Clarification" : s}
+              </span>
+            </span>
+          ))}
+          <span className="text-muted-foreground ml-2">Click any event to review it.</span>
+        </div>
+      )}
+
       {onSlotClick && (
         <p className="text-xs text-muted-foreground">
           Click and drag on the calendar to select a time range (snaps to 15-min increments).
+          {selectedClassroom === "all" && " Tip: filter by a classroom to prefill it in the booking form."}
         </p>
       )}
     </div>
@@ -320,9 +409,13 @@ interface DayColumnProps {
   hours: number[];
   isToday: boolean;
   canDrag: boolean;
+  showAllStatuses?: boolean;
+  onEventClick?: (event: CalendarRequest) => void;
   getColorForClassroom: (id: string) => string;
   getEventStyle: (event: CalendarRequest) => { top: number; height: number };
   onDragCreate: (startMins: number, endMins: number) => void;
+  checkOverlap: (startMins: number, endMins: number) => boolean;
+  checkPast: (endMins: number) => boolean;
 }
 
 function DayColumn({
@@ -331,9 +424,13 @@ function DayColumn({
   hours,
   isToday,
   canDrag,
+  showAllStatuses,
+  onEventClick,
   getColorForClassroom,
   getEventStyle,
   onDragCreate,
+  checkOverlap,
+  checkPast,
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
@@ -343,7 +440,13 @@ function DayColumn({
   const isDragging = useRef(false);
   const dragStartRef = useRef(0);
   const onDragCreateRef = useRef(onDragCreate);
+  const checkOverlapRef = useRef(checkOverlap);
+  const checkPastRef = useRef(checkPast);
+
+  // Keep refs fresh on every render so callbacks always use latest props
   onDragCreateRef.current = onDragCreate;
+  checkOverlapRef.current = checkOverlap;
+  checkPastRef.current = checkPast;
 
   function getMinutesFromY(clientY: number): number {
     if (!columnRef.current) return HOUR_START * 60;
@@ -380,7 +483,6 @@ function DayColumn({
           const start = Math.min(prev.startMins, prev.currentMins);
           let end = Math.max(prev.startMins, prev.currentMins);
           if (end - start < SNAP_MINUTES) end = start + SNAP_MINUTES;
-          // Defer the parent callback to avoid setState-during-render
           setTimeout(() => onDragCreateRef.current(start, end), 0);
         }
         return null;
@@ -402,7 +504,9 @@ function DayColumn({
         const duration = Math.max(end - start, SNAP_MINUTES);
         const top = (start - HOUR_START * 60) * PX_PER_MINUTE;
         const height = duration * PX_PER_MINUTE;
-        return { top, height, startTime: minutesToTime(start), endTime: minutesToTime(start + duration) };
+        const overlap = checkOverlapRef.current(start, start + duration);
+        const isPast = checkPastRef.current(start + duration);
+        return { top, height, startTime: minutesToTime(start), endTime: minutesToTime(start + duration), hasConflict: overlap, isPast };
       })()
     : null;
 
@@ -443,28 +547,52 @@ function DayColumn({
       {/* Existing events */}
       {events.map((event) => {
         const { top, height } = getEventStyle(event);
-        const colorClass = getColorForClassroom(event.classroom_id);
+        const colorClass = showAllStatuses
+          ? STATUS_CARD_COLORS[event.status] ?? getColorForClassroom(event.classroom_id)
+          : getColorForClassroom(event.classroom_id);
+        const clickable = !!onEventClick;
         return (
           <div
             key={event.id}
-            className={`absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 border-l-[3px] overflow-hidden z-10 pointer-events-none ${colorClass}`}
+            className={`absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 border-l-[3px] overflow-hidden z-10 ${
+              clickable
+                ? "pointer-events-auto cursor-pointer hover:brightness-95 transition-all"
+                : canDrag
+                  ? "pointer-events-auto cursor-not-allowed"
+                  : "pointer-events-none"
+            } ${colorClass}`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (clickable) onEventClick(event);
+            }}
             style={{ top, height }}
-            title={`${event.title}\n${event.start_time.slice(0, 5)}–${event.end_time.slice(0, 5)}\n${event.classroom?.name ?? ""}\n${event.student_group?.name ?? ""}\nProf. ${event.professor?.full_name ?? ""}`}
+            title={`${event.title}\n${event.start_time.slice(0, 5)}–${event.end_time.slice(0, 5)}\n${event.classroom?.name ?? ""}\n${event.student_group?.name ?? ""}\nProf. ${event.professor?.full_name ?? ""}\nStatus: ${event.status}`}
           >
-            <div className="text-[10px] font-semibold leading-tight truncate">
-              {event.title}
+            <div className="flex items-center gap-0.5">
+              {showAllStatuses && (
+                <span className={`inline-block shrink-0 w-1.5 h-1.5 rounded-full ${STATUS_DOT[event.status]}`} />
+              )}
+              <span className="text-[10px] font-semibold leading-tight truncate">
+                {event.title}
+              </span>
             </div>
-            {height >= 36 && (
+            {height >= 32 && showAllStatuses && (
+              <div className={`text-[8px] font-bold uppercase tracking-wide mt-0.5 ${STATUS_TEXT[event.status]}`}>
+                {event.status === "clarification_needed" ? "Clarify" : event.status}
+              </div>
+            )}
+            {height >= 44 && (
               <div className="text-[9px] leading-tight truncate opacity-80">
                 {event.start_time.slice(0, 5)}–{event.end_time.slice(0, 5)}
               </div>
             )}
-            {height >= 50 && (
+            {height >= 56 && (
               <div className="text-[9px] leading-tight truncate opacity-70">
                 {event.classroom?.name}
               </div>
             )}
-            {height >= 64 && (
+            {height >= 70 && (
               <div className="text-[9px] leading-tight truncate opacity-70">
                 {event.student_group?.name}
               </div>
@@ -476,11 +604,19 @@ function DayColumn({
       {/* Drag preview */}
       {dragPreview && (
         <div
-          className="absolute left-0.5 right-0.5 rounded bg-primary/20 border-2 border-primary/50 border-dashed z-20 flex flex-col items-center justify-center"
+          className={`absolute left-0.5 right-0.5 rounded border-2 border-dashed z-20 flex flex-col items-center justify-center ${
+            dragPreview.hasConflict || dragPreview.isPast
+              ? "bg-red-100/60 border-red-400"
+              : "bg-primary/20 border-primary/50"
+          }`}
           style={{ top: dragPreview.top, height: dragPreview.height }}
         >
-          <span className="text-[11px] font-semibold text-primary">
-            {dragPreview.startTime} – {dragPreview.endTime}
+          <span className={`text-[11px] font-semibold ${dragPreview.hasConflict || dragPreview.isPast ? "text-red-600" : "text-primary"}`}>
+            {dragPreview.isPast
+              ? "Past time"
+              : dragPreview.hasConflict
+                ? "Slot taken"
+                : `${dragPreview.startTime} – ${dragPreview.endTime}`}
           </span>
         </div>
       )}

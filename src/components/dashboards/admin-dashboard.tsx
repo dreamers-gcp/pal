@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
   CalendarRequest,
   RequestStatus,
   StudentGroup,
+  StudentEnrollment,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +46,11 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { BookedSchedule } from "@/components/booked-schedule";
+import { CsvUpload } from "@/components/csv-upload";
+import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
+import { TimetableGenerator } from "@/components/timetable-generator";
+import { FileSpreadsheet, Filter, BookOpen, Wand2 } from "lucide-react";
+import type { ProfessorAssignment } from "@/lib/types";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -54,7 +60,6 @@ const statusColors: Record<string, string> = {
 };
 
 export function AdminDashboard({ profile }: { profile: Profile }) {
-  const supabase = createClient();
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] =
@@ -62,17 +67,22 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [adminNote, setAdminNote] = useState("");
   const [updating, setUpdating] = useState(false);
 
-  // Student management
   const [students, setStudents] = useState<Profile[]>([]);
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
+  const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
+  const [calendarKey, setCalendarKey] = useState(0);
 
-  useEffect(() => {
-    fetchRequests();
-    fetchStudents();
-  }, []);
+  const [profAssignments, setProfAssignments] = useState<ProfessorAssignment[]>([]);
+  const [profLoading, setProfLoading] = useState(true);
 
-  async function fetchRequests() {
+  const [filterTerm, setFilterTerm] = useState("all");
+  const [filterSubject, setFilterSubject] = useState("all");
+  const [profFilterTerm, setProfFilterTerm] = useState("all");
+  const [profFilterSubject, setProfFilterSubject] = useState("all");
+
+  const fetchRequests = useCallback(async () => {
+    const supabase = createClient();
     const { data } = await supabase
       .from("calendar_requests")
       .select(
@@ -82,57 +92,45 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
     if (data) setRequests(data);
     setLoading(false);
-  }
+  }, []);
 
-  async function fetchStudents() {
-    const [studRes, groupRes] = await Promise.all([
+  const fetchStudents = useCallback(async () => {
+    const supabase = createClient();
+    const [studRes, groupRes, enrollRes] = await Promise.all([
       supabase
         .from("profiles")
         .select("*")
         .eq("role", "student")
         .order("full_name"),
       supabase.from("student_groups").select("*").order("name"),
+      supabase.from("student_enrollments").select("*").order("email"),
     ]);
 
     if (studRes.data) setStudents(studRes.data);
     if (groupRes.data) setStudentGroups(groupRes.data);
+    if (enrollRes.data) setEnrollments(enrollRes.data);
     setStudentsLoading(false);
-  }
+  }, []);
 
-  async function assignGroup(studentId: string, groupName: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        student_group: groupName || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", studentId)
-      .select();
+  const fetchProfAssignments = useCallback(async () => {
+    const supabase = createClient();
+    const [paRes, profRes] = await Promise.all([
+      supabase.from("professor_assignments").select("*").order("email"),
+      supabase.from("profiles").select("*").eq("role", "professor").order("full_name"),
+    ]);
+    if (paRes.data) setProfAssignments(paRes.data);
+    setProfLoading(false);
+  }, []);
 
-    if (error) {
-      toast.error("Failed to assign group: " + error.message);
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      toast.error(
-        "Update blocked — please run the admin policy SQL in Supabase. " +
-          "See supabase/add-admin-update-profiles-policy.sql"
-      );
-      return;
-    }
-
-    toast.success(
-      groupName
-        ? `Student assigned to ${groupName}`
-        : "Student removed from group"
-    );
+  useEffect(() => {
+    fetchRequests();
     fetchStudents();
-  }
+    fetchProfAssignments();
+  }, [fetchRequests, fetchStudents, fetchProfAssignments]);
 
   async function updateRequest(id: string, status: RequestStatus) {
     setUpdating(true);
-
+    const supabase = createClient();
     const { error } = await supabase
       .from("calendar_requests")
       .update({
@@ -159,6 +157,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setSelectedRequest(null);
     setAdminNote("");
     fetchRequests();
+    setCalendarKey((k) => k + 1);
   }
 
   const filterByStatus = (status: string) =>
@@ -166,8 +165,103 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       ? requests
       : requests.filter((r) => r.status === status);
 
-  const unassignedStudents = students.filter((s) => !s.student_group);
-  const assignedStudents = students.filter((s) => s.student_group);
+  const allTerms = [...new Set(enrollments.map((e) => e.term))].sort();
+  const allSubjects = [...new Set(enrollments.map((e) => e.subject))].sort();
+
+  const filteredEmailsSet: Set<string> | null = (() => {
+    if (filterTerm === "all" && filterSubject === "all") return null;
+    return new Set(
+      enrollments
+        .filter((e) => {
+          if (filterTerm !== "all" && e.term !== filterTerm) return false;
+          if (filterSubject !== "all" && e.subject !== filterSubject) return false;
+          return true;
+        })
+        .map((e) => e.email)
+    );
+  })();
+
+  const signedUpEmails = new Set(students.map((s) => s.email));
+
+  // Build a unified roster: all unique emails from enrollments + any signed-up students not in enrollments
+  const rosterMap = new Map<string, { name: string; email: string; subjects: string[]; signedUp: boolean }>();
+  for (const e of enrollments) {
+    const existing = rosterMap.get(e.email);
+    if (existing) {
+      if (!existing.subjects.includes(e.subject)) existing.subjects.push(e.subject);
+    } else {
+      rosterMap.set(e.email, {
+        name: e.student_name,
+        email: e.email,
+        subjects: [e.subject],
+        signedUp: signedUpEmails.has(e.email),
+      });
+    }
+  }
+  // Add signed-up students who are NOT in enrollment CSV
+  for (const s of students) {
+    if (!rosterMap.has(s.email)) {
+      rosterMap.set(s.email, {
+        name: s.full_name || s.email,
+        email: s.email,
+        subjects: s.student_group ? [s.student_group] : [],
+        signedUp: true,
+      });
+    }
+  }
+
+  const fullRoster = [...rosterMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const filteredRoster = filteredEmailsSet
+    ? fullRoster.filter((r) => filteredEmailsSet.has(r.email))
+    : fullRoster;
+
+  const signedUpCount = fullRoster.filter((r) => r.signedUp).length;
+  const notSignedUpCount = fullRoster.filter((r) => !r.signedUp).length;
+
+  // Professor roster
+  const profTerms = [...new Set(profAssignments.map((a) => a.term))].sort();
+  const profSubjects = [...new Set(profAssignments.map((a) => a.subject))].sort();
+
+  const signedUpProfEmails = new Set(
+    students.length > 0 ? [] : [] // we'll get professors from a separate query
+  );
+
+  const profRosterMap = new Map<string, { name: string; email: string; subjects: string[]; terms: string[]; totalCredits: number; signedUp: boolean }>();
+  for (const a of profAssignments) {
+    const existing = profRosterMap.get(a.email);
+    if (existing) {
+      if (!existing.subjects.includes(a.subject)) existing.subjects.push(a.subject);
+      if (!existing.terms.includes(a.term)) existing.terms.push(a.term);
+      existing.totalCredits += a.credits;
+    } else {
+      profRosterMap.set(a.email, {
+        name: a.professor_name,
+        email: a.email,
+        subjects: [a.subject],
+        terms: [a.term],
+        totalCredits: a.credits,
+        signedUp: false,
+      });
+    }
+  }
+
+  const filteredProfEmailsSet: Set<string> | null = (() => {
+    if (profFilterTerm === "all" && profFilterSubject === "all") return null;
+    return new Set(
+      profAssignments
+        .filter((a) => {
+          if (profFilterTerm !== "all" && a.term !== profFilterTerm) return false;
+          if (profFilterSubject !== "all" && a.subject !== profFilterSubject) return false;
+          return true;
+        })
+        .map((a) => a.email)
+    );
+  })();
+
+  const fullProfRoster = [...profRosterMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const filteredProfRoster = filteredProfEmailsSet
+    ? fullProfRoster.filter((r) => filteredProfEmailsSet.has(r.email))
+    : fullProfRoster;
 
   if (loading) {
     return (
@@ -187,7 +281,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       </div>
 
       {/* Top-level tabs: Requests vs Students */}
-      <Tabs defaultValue="requests">
+      <Tabs
+        defaultValue="requests"
+        onValueChange={(tab) => {
+          if (tab === "booked-schedule") setCalendarKey((k) => k + 1);
+          if (tab === "requests") fetchRequests();
+          if (tab === "professors" || tab === "prof-assignments") fetchProfAssignments();
+        }}
+      >
         <TabsList>
           <TabsTrigger value="requests" className="gap-1.5">
             <CalendarDays className="h-4 w-4" />
@@ -197,14 +298,30 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             <LayoutList className="h-4 w-4" />
             Classroom Availability
           </TabsTrigger>
+          <TabsTrigger value="enrollments" className="gap-1.5">
+            <FileSpreadsheet className="h-4 w-4" />
+            Enrollments
+          </TabsTrigger>
           <TabsTrigger value="students" className="gap-1.5">
             <GraduationCap className="h-4 w-4" />
             Manage Students
-            {unassignedStudents.length > 0 && (
-              <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold">
-                {unassignedStudents.length}
+            {notSignedUpCount > 0 && (
+              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white font-bold">
+                {notSignedUpCount}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="prof-assignments" className="gap-1.5">
+            <BookOpen className="h-4 w-4" />
+            Professor Assignments
+          </TabsTrigger>
+          <TabsTrigger value="professors" className="gap-1.5">
+            <Users className="h-4 w-4" />
+            Manage Professors
+          </TabsTrigger>
+          <TabsTrigger value="timetable" className="gap-1.5">
+            <Wand2 className="h-4 w-4" />
+            Timetable
           </TabsTrigger>
         </TabsList>
 
@@ -359,7 +476,19 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
         {/* ========== BOOKED SCHEDULE TAB ========== */}
         <TabsContent value="booked-schedule" className="mt-6">
-          <BookedSchedule />
+          <BookedSchedule
+            showAllStatuses
+            refreshKey={calendarKey}
+            onEventClick={(event) => {
+              setSelectedRequest(event);
+              setAdminNote(event.admin_note ?? "");
+            }}
+          />
+        </TabsContent>
+
+        {/* ========== ENROLLMENTS TAB ========== */}
+        <TabsContent value="enrollments" className="mt-6">
+          <CsvUpload />
         </TabsContent>
 
         {/* ========== STUDENTS TAB ========== */}
@@ -370,53 +499,142 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 Loading students...
               </div>
             </div>
-          ) : students.length === 0 ? (
+          ) : fullRoster.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <GraduationCap className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">
-                  No students have signed up yet.
+                  No students found. Upload an enrollment CSV in the Enrollments tab to get started.
                 </p>
               </CardContent>
             </Card>
           ) : (
             <>
-              {/* Unassigned students alert */}
-              {unassignedStudents.length > 0 && (
+              {/* Not signed up alert */}
+              {notSignedUpCount > 0 && (
                 <Card className="border-amber-200 bg-amber-50">
                   <CardContent className="flex items-start gap-3 pt-6">
                     <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium text-amber-800">
-                        {unassignedStudents.length} student
-                        {unassignedStudents.length > 1 ? "s" : ""} not assigned
-                        to any group
+                        {notSignedUpCount} student{notSignedUpCount > 1 ? "s" : ""} have
+                        not signed up yet
                       </p>
                       <p className="text-sm text-amber-700 mt-1">
-                        These students won&apos;t see any events until you
-                        assign them to a student group below.
+                        These students are in the enrollment roster but haven&apos;t
+                        created an account on the platform yet.
                       </p>
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              {/* Student list */}
+              {/* Filters */}
+              {enrollments.length > 0 && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Term:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={filterTerm}
+                      onChange={(e) => setFilterTerm(e.target.value)}
+                    >
+                      <option value="all">All Terms</option>
+                      {allTerms.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Subject:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={filterSubject}
+                      onChange={(e) => setFilterSubject(e.target.value)}
+                    >
+                      <option value="all">All Subjects</option>
+                      {allSubjects.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(filterTerm !== "all" || filterSubject !== "all") && (
+                    <button
+                      onClick={() => { setFilterTerm("all"); setFilterSubject("all"); }}
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                  {filteredEmailsSet && (
+                    <span className="text-xs text-muted-foreground">
+                      Showing {filteredRoster.length} of {fullRoster.length} students
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Student roster list */}
               <div className="rounded-lg border bg-white">
-                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
                   <span>Name</span>
                   <span>Email</span>
-                  <span>Student Group</span>
-                  <span className="w-20" />
+                  <span>Subjects / Groups</span>
+                  <span className="text-center">Status</span>
                 </div>
-                {students.map((student) => (
-                  <StudentRow
-                    key={student.id}
-                    student={student}
-                    groups={studentGroups}
-                    onAssign={assignGroup}
-                  />
-                ))}
+                {filteredRoster.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No students match the selected filters.
+                  </div>
+                ) : (
+                  filteredRoster.map((entry) => (
+                    <div
+                      key={entry.email}
+                      className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">
+                          {entry.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">
+                          {entry.email}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.subjects.length > 0 ? (
+                          entry.subjects.map((subj) => (
+                            <span
+                              key={subj}
+                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium"
+                            >
+                              {subj}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No groups</span>
+                        )}
+                      </div>
+                      <div className="flex justify-center">
+                        {entry.signedUp ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2.5 py-0.5 text-xs font-medium">
+                            <Check className="h-3 w-3" />
+                            Signed up
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2.5 py-0.5 text-xs font-medium">
+                            <Clock className="h-3 w-3" />
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Summary */}
@@ -424,30 +642,167 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <Card>
                   <CardContent className="pt-6">
                     <p className="text-sm text-muted-foreground">
-                      Total Students
+                      Total in Roster
                     </p>
-                    <p className="text-3xl font-bold">{students.length}</p>
+                    <p className="text-3xl font-bold">{fullRoster.length}</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Assigned</p>
+                    <p className="text-sm text-muted-foreground">Signed Up</p>
                     <p className="text-3xl font-bold text-green-600">
-                      {assignedStudents.length}
+                      {signedUpCount}
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Unassigned</p>
+                    <p className="text-sm text-muted-foreground">Not Signed Up</p>
                     <p className="text-3xl font-bold text-amber-600">
-                      {unassignedStudents.length}
+                      {notSignedUpCount}
                     </p>
                   </CardContent>
                 </Card>
               </div>
             </>
           )}
+        </TabsContent>
+        {/* ========== PROFESSOR ASSIGNMENTS TAB ========== */}
+        <TabsContent value="prof-assignments" className="mt-6">
+          <ProfessorCsvUpload />
+        </TabsContent>
+
+        {/* ========== MANAGE PROFESSORS TAB ========== */}
+        <TabsContent value="professors" className="mt-6 space-y-6">
+          {profLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-pulse text-muted-foreground">Loading professors...</div>
+            </div>
+          ) : fullProfRoster.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No professor assignments found. Upload a CSV in the Professor Assignments tab to get started.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-3">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground font-medium">Term:</label>
+                  <select
+                    className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={profFilterTerm}
+                    onChange={(e) => setProfFilterTerm(e.target.value)}
+                  >
+                    <option value="all">All Terms</option>
+                    {profTerms.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground font-medium">Subject:</label>
+                  <select
+                    className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={profFilterSubject}
+                    onChange={(e) => setProfFilterSubject(e.target.value)}
+                  >
+                    <option value="all">All Subjects</option>
+                    {profSubjects.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                {(profFilterTerm !== "all" || profFilterSubject !== "all") && (
+                  <button
+                    onClick={() => { setProfFilterTerm("all"); setProfFilterSubject("all"); }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                )}
+                {filteredProfEmailsSet && (
+                  <span className="text-xs text-muted-foreground">
+                    Showing {filteredProfRoster.length} of {fullProfRoster.length} professors
+                  </span>
+                )}
+              </div>
+
+              {/* Professor roster list */}
+              <div className="rounded-lg border bg-white">
+                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                  <span>Name</span>
+                  <span>Email</span>
+                  <span>Subjects</span>
+                  <span className="text-right">Total Credits</span>
+                </div>
+                {filteredProfRoster.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No professors match the selected filters.
+                  </div>
+                ) : (
+                  filteredProfRoster.map((entry) => (
+                    <div
+                      key={entry.email}
+                      className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">{entry.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">{entry.email}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.subjects.map((subj) => (
+                          <span
+                            key={subj}
+                            className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium"
+                          >
+                            {subj}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-sm font-medium text-right">{entry.totalCredits}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Summary */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Total Professors</p>
+                    <p className="text-3xl font-bold">{fullProfRoster.length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Subjects</p>
+                    <p className="text-3xl font-bold text-purple-600">{profSubjects.length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Terms</p>
+                    <p className="text-3xl font-bold text-blue-600">{profTerms.length}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        {/* ========== TIMETABLE TAB ========== */}
+        <TabsContent value="timetable" className="mt-6">
+          <TimetableGenerator profile={profile} />
         </TabsContent>
       </Tabs>
 
@@ -572,73 +927,3 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   );
 }
 
-// ─── Student Row Component ───────────────────────────────────────────
-
-function StudentRow({
-  student,
-  groups,
-  onAssign,
-}: {
-  student: Profile;
-  groups: StudentGroup[];
-  onAssign: (studentId: string, groupName: string) => void;
-}) {
-  const [selectedGroup, setSelectedGroup] = useState(
-    student.student_group ?? ""
-  );
-  const [saving, setSaving] = useState(false);
-
-  const hasChanged = selectedGroup !== (student.student_group ?? "");
-
-  async function handleSave() {
-    setSaving(true);
-    await onAssign(student.id, selectedGroup);
-    setSaving(false);
-  }
-
-  return (
-    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
-      <div className="flex items-center gap-2">
-        <User className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="text-sm font-medium truncate">
-          {student.full_name || "—"}
-        </span>
-        {!student.student_group && (
-          <span className="inline-flex h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="text-sm text-muted-foreground truncate">
-          {student.email}
-        </span>
-      </div>
-      <div>
-        <select
-          className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          value={selectedGroup}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-        >
-          <option value="">— No group —</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.name}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="w-20">
-        {hasChanged && (
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full"
-          >
-            {saving ? "..." : "Save"}
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar, LogOut, LayoutDashboard } from "lucide-react";
+import { Notifications } from "@/components/notifications";
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   admin: "destructive",
@@ -63,6 +64,9 @@ export function Navbar() {
             <Badge variant={roleBadgeVariant[profile.role] ?? "outline"}>
               {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
             </Badge>
+            {(profile.role === "professor" || profile.role === "admin") && (
+              <Notifications userId={profile.id} role={profile.role} />
+            )}
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((prev) => !prev)}
