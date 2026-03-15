@@ -16,7 +16,6 @@ export function useAuth() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      setUser(user);
 
       if (user) {
         const { data } = await supabase
@@ -24,7 +23,19 @@ export function useAuth() {
           .select("*")
           .eq("id", user.id)
           .single();
-        setProfile(data);
+
+        if (data) {
+          setUser(user);
+          setProfile(data);
+        } else {
+          // User exists in auth but profile is gone (deleted from DB) — sign out
+          await supabase.auth.signOut();
+          setUser(null);
+          setProfile(null);
+        }
+      } else {
+        setUser(null);
+        setProfile(null);
       }
 
       setLoading(false);
