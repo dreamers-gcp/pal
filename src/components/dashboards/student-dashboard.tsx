@@ -24,6 +24,7 @@ import {
 import { format, isBefore, startOfToday } from "date-fns";
 import { TaskTracker } from "@/components/task-tracker";
 import { StudentCalendar } from "@/components/student-calendar";
+import { ClassCheckIn } from "@/components/class-check-in";
 
 export function StudentDashboard({ profile }: { profile: Profile }) {
   const [events, setEvents] = useState<CalendarRequest[]>([]);
@@ -236,53 +237,15 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {upcoming.map((event) => (
-                  <Card
+                  <ClassCheckIn
                     key={event.id}
-                    className="relative overflow-hidden border-l-4 border-l-green-500"
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{event.title}</CardTitle>
-                        <Badge className="bg-green-100 text-green-800" variant="outline">
-                          Upcoming
-                        </Badge>
-                      </div>
-                      {event.description && (
-                        <CardDescription>{event.description}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <CalendarDays className="h-4 w-4" />
-                        <span>
-                          {format(new Date(event.event_date), "EEEE, MMM d, yyyy")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span>
-                          {event.start_time.slice(0, 5)} -{" "}
-                          {event.end_time.slice(0, 5)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        <span>{event.classroom?.name ?? "—"}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        <span>Prof. {event.professor?.full_name ?? "—"}</span>
-                      </div>
-                      {event.student_group?.name && (
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                          <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
-                            {event.student_group.name}
-                          </span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                    event={event}
+                    studentId={profile.id}
+                    onAttendanceMarked={() => {
+                      // Refresh events - re-fetch to update UI
+                      window.location.reload();
+                    }}
+                  />
                 ))}
               </div>
             )}

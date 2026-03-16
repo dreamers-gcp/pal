@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { UserPlus } from "lucide-react";
+import { FaceEnrollment } from "@/components/face-auth";
 import type { UserRole } from "@/lib/types";
 
 export default function SignupPage() {
@@ -25,6 +26,8 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState("");
+  const [showFaceEnrollment, setShowFaceEnrollment] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -33,7 +36,7 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -50,22 +53,61 @@ export default function SignupPage() {
       return;
     }
 
+    // For students, show face enrollment after signup
+    if (role === "student" && data.user?.id) {
+      setUserId(data.user.id);
+      setShowFaceEnrollment(true);
+      return;
+    }
+
     setSuccess(true);
     setLoading(false);
   }
 
+  const handleFaceEnrollmentSuccess = () => {
+    console.log("Face enrollment successful, showing email verification screen");
+    setSuccess(true);
+  };
+
+  // Face enrollment step for students
+  if (showFaceEnrollment && role === "student") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Set up Face Authentication</CardTitle>
+            <CardDescription>
+              We&apos;ll use your face to verify your attendance in classes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FaceEnrollment
+              studentId={userId}
+              onSuccess={handleFaceEnrollmentSuccess}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show email verification screen after successful signup (with or without face enrollment)
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl text-green-600">Check your email</CardTitle>
+            <CardTitle className="text-2xl text-green-600">✓ Account Created Successfully</CardTitle>
             <CardDescription>
+              {role === "student" && "Face authentication setup complete! "}
               We&apos;ve sent a confirmation link to <strong>{email}</strong>.
               Click it to activate your account, then sign in.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              📧 Check your inbox (and spam folder) for the confirmation email.
+            </p>
             <Button
               className="w-full"
               onClick={() => router.push("/login")}
