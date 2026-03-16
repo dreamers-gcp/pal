@@ -390,7 +390,10 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="task-title">Title</Label>
+              <Label htmlFor="task-title">
+                Title
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="task-title"
                 value={title}
@@ -411,7 +414,10 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="task-importance">Importance</Label>
+                <Label htmlFor="task-importance">
+                  Importance
+                  <span className="text-red-500">*</span>
+                </Label>
                 <select
                   id="task-importance"
                   value={importance}
@@ -419,13 +425,18 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
                     setImportance(e.target.value as ImportanceLevel)
                   }
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  required
                 >
+                  <option value="">Select...</option>
                   <option value="high">High</option>
                   <option value="low">Low</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="task-urgency">Urgency</Label>
+                <Label htmlFor="task-urgency">
+                  Urgency
+                  <span className="text-red-500">*</span>
+                </Label>
                 <select
                   id="task-urgency"
                   value={urgency}
@@ -433,7 +444,9 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
                     setUrgency(e.target.value as UrgencyLevel)
                   }
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  required
                 >
+                  <option value="">Select...</option>
                   <option value="high">High</option>
                   <option value="low">Low</option>
                 </select>
@@ -470,10 +483,14 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="task-due">Due Date</Label>
+              <Label htmlFor="task-due">
+                Due Date
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="task-due"
                 type="date"
+                min={new Date().toISOString().split("T")[0]}
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 required

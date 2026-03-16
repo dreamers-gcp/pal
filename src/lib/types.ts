@@ -126,5 +126,6 @@ export interface CalendarRequest {
   // Joined fields
   professor?: Profile;
   student_group?: StudentGroup;
+  student_groups?: StudentGroup[];
   classroom?: Classroom;
 }

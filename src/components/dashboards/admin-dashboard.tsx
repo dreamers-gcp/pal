@@ -86,11 +86,18 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     const { data } = await supabase
       .from("calendar_requests")
       .select(
-        "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
+        "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*), student_groups:calendar_request_groups(student_group:student_groups(*))"
       )
       .order("created_at", { ascending: false });
 
-    if (data) setRequests(data);
+    if (data) {
+      // Transform the data to extract student_groups from the junction table
+      const transformedData = data.map((req: any) => ({
+        ...req,
+        student_groups: req.student_groups?.map((sg: any) => sg.student_group) || [],
+      }));
+      setRequests(transformedData);
+    }
     setLoading(false);
   }, []);
 
@@ -458,7 +465,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                           </div>
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <Users className="h-4 w-4" />
-                            <span>{req.student_group?.name ?? "—"}</span>
+                            <span>
+                              {req.student_groups && req.student_groups.length > 0
+                                ? req.student_groups.map((sg) => sg.name).join(", ")
+                                : req.student_group?.name ?? "—"}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <MapPin className="h-4 w-4" />
@@ -510,24 +521,33 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <>
-              {/* Not signed up alert */}
-              {notSignedUpCount > 0 && (
-                <Card className="border-amber-200 bg-amber-50">
-                  <CardContent className="flex items-start gap-3 pt-6">
-                    <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-amber-800">
-                        {notSignedUpCount} student{notSignedUpCount > 1 ? "s" : ""} have
-                        not signed up yet
-                      </p>
-                      <p className="text-sm text-amber-700 mt-1">
-                        These students are in the enrollment roster but haven&apos;t
-                        created an account on the platform yet.
-                      </p>
-                    </div>
+              {/* Summary cards */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">
+                      Total in Roster
+                    </p>
+                    <p className="text-3xl font-bold">{fullRoster.length}</p>
                   </CardContent>
                 </Card>
-              )}
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Signed Up</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {signedUpCount}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Not Signed Up</p>
+                    <p className="text-3xl font-bold text-amber-600">
+                      {notSignedUpCount}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Filters */}
               {enrollments.length > 0 && (
@@ -636,34 +656,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   ))
                 )}
               </div>
-
-              {/* Summary */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">
-                      Total in Roster
-                    </p>
-                    <p className="text-3xl font-bold">{fullRoster.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Signed Up</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {signedUpCount}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Not Signed Up</p>
-                    <p className="text-3xl font-bold text-amber-600">
-                      {notSignedUpCount}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
             </>
           )}
         </TabsContent>
@@ -689,6 +681,28 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <>
+              {/* Summary cards */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Total Professors</p>
+                    <p className="text-3xl font-bold">{fullProfRoster.length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Subjects</p>
+                    <p className="text-3xl font-bold text-purple-600">{profSubjects.length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Terms</p>
+                    <p className="text-3xl font-bold text-blue-600">{profTerms.length}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-3">
                 <Filter className="h-4 w-4 text-muted-foreground" />
@@ -774,28 +788,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   ))
                 )}
               </div>
-
-              {/* Summary */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Total Professors</p>
-                    <p className="text-3xl font-bold">{fullProfRoster.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Subjects</p>
-                    <p className="text-3xl font-bold text-purple-600">{profSubjects.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Terms</p>
-                    <p className="text-3xl font-bold text-blue-600">{profTerms.length}</p>
-                  </CardContent>
-                </Card>
-              </div>
             </>
           )}
         </TabsContent>
@@ -837,9 +829,12 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
               <div className="space-y-3 text-sm">
                 {selectedRequest.description && (
-                  <p className="text-muted-foreground">
-                    {selectedRequest.description}
-                  </p>
+                  <div className="border-b pb-3">
+                    <p className="font-medium mb-1">Description</p>
+                    <p className="text-muted-foreground whitespace-pre-wrap">
+                      {selectedRequest.description}
+                    </p>
+                  </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -859,9 +854,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium">Student Group</p>
+                    <p className="font-medium">Student Group(s)</p>
                     <p className="text-muted-foreground">
-                      {selectedRequest.student_group?.name ?? "—"}
+                      {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
+                        ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
+                        : selectedRequest.student_group?.name ?? "—"}
                     </p>
                   </div>
                   <div>

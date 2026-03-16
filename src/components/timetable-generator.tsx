@@ -623,12 +623,17 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label>Term</Label>
+                  <Label>
+                    Term
+                    <span className="text-red-500">*</span>
+                  </Label>
                   <select
                     className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={selectedTerm}
                     onChange={(e) => setSelectedTerm(e.target.value)}
+                    required
                   >
+                    <option value="">Select...</option>
                     {allTerms.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
@@ -636,12 +641,18 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                   <p className="text-xs text-muted-foreground">{termAssignmentCount} assignments</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Term Start Date</Label>
-                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                  <Label>
+                    Term Start Date
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input type="date" min={new Date().toISOString().split("T")[0]} value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Term End Date</Label>
-                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                  <Label>
+                    Term End Date
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input type="date" min={startDate || new Date().toISOString().split("T")[0]} value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label>Max Hours/Day per Prof</Label>

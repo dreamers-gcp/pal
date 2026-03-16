@@ -18,7 +18,7 @@ import {
 } from "date-fns";
 
 const HOUR_START = 8;
-const HOUR_END = 21;
+const HOUR_END = 23;
 const HOUR_HEIGHT = 60;
 const SNAP_MINUTES = 15;
 const PX_PER_MINUTE = HOUR_HEIGHT / 60;
@@ -111,7 +111,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
       const baseQuery = supabase
         .from("calendar_requests")
         .select(
-          "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
+          "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*), student_groups:calendar_request_groups(student_group:student_groups(*))"
         )
         .gte("event_date", wsStr)
         .lte("event_date", weStr)
@@ -121,7 +121,14 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
         ? await baseQuery
         : await baseQuery.eq("status", "approved");
 
-      if (data) setBookings(data);
+      if (data) {
+        // Transform the data to extract student_groups from the junction table
+        const transformedData = data.map((req: any) => ({
+          ...req,
+          student_groups: req.student_groups?.map((sg: any) => sg.student_group) || [],
+        }));
+        setBookings(transformedData);
+      }
       setLoading(false);
     }
 
@@ -250,6 +257,52 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
         </div>
       </div>
 
+      {/* Legends */}
+      <div className="space-y-2 border rounded-lg bg-muted/40 p-3">
+        {/* Classroom color legend - only show in professor view, not admin */}
+        {!showAllStatuses && selectedClassroom === "all" && bookings.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-muted-foreground font-medium">Classrooms:</span>
+            {classrooms
+              .filter((c) => bookings.some((b) => b.classroom_id === c.id))
+              .map((c) => {
+                const colorClass = getColorForClassroom(c.id);
+                const bgColor = colorClass.split(" ")[0];
+                const textColor = colorClass.split(" ")[2];
+                return (
+                  <span
+                    key={c.id}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${bgColor} ${textColor}`}
+                  >
+                    {c.name}
+                  </span>
+                );
+              })}
+          </div>
+        )}
+
+        {showAllStatuses && (
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-muted-foreground font-medium">Status:</span>
+            {(["pending", "approved", "rejected", "clarification_needed"] as const).map((s) => (
+              <span key={s} className="inline-flex items-center gap-1.5">
+                <span className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />
+                <span className="text-muted-foreground capitalize">
+                  {s === "clarification_needed" ? "Clarification" : s}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {onSlotClick && (
+          <p className="text-xs text-muted-foreground">
+            Click and drag on the calendar to select a time range (snaps to 15-min increments).
+            {selectedClassroom === "all" && " Tip: filter by a classroom to prefill it in the booking form."}
+          </p>
+        )}
+      </div>
+
       {/* Calendar */}
       {loading ? (
         <div className="flex justify-center py-16">
@@ -354,49 +407,6 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
         </div>
       )}
 
-      {/* Classroom color legend */}
-      {selectedClassroom === "all" && bookings.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-muted-foreground font-medium">Classrooms:</span>
-          {classrooms
-            .filter((c) => bookings.some((b) => b.classroom_id === c.id))
-            .map((c) => {
-              const colorClass = getColorForClassroom(c.id);
-              const bgColor = colorClass.split(" ")[0];
-              const textColor = colorClass.split(" ")[2];
-              return (
-                <span
-                  key={c.id}
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${bgColor} ${textColor}`}
-                >
-                  {c.name}
-                </span>
-              );
-            })}
-        </div>
-      )}
-
-      {showAllStatuses && (
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-muted-foreground font-medium">Status:</span>
-          {(["pending", "approved", "rejected", "clarification_needed"] as const).map((s) => (
-            <span key={s} className="inline-flex items-center gap-1.5">
-              <span className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />
-              <span className="text-muted-foreground capitalize">
-                {s === "clarification_needed" ? "Clarification" : s}
-              </span>
-            </span>
-          ))}
-          <span className="text-muted-foreground ml-2">Click any event to review it.</span>
-        </div>
-      )}
-
-      {onSlotClick && (
-        <p className="text-xs text-muted-foreground">
-          Click and drag on the calendar to select a time range (snaps to 15-min increments).
-          {selectedClassroom === "all" && " Tip: filter by a classroom to prefill it in the booking form."}
-        </p>
-      )}
     </div>
   );
 }
@@ -442,6 +452,37 @@ function DayColumn({
   const onDragCreateRef = useRef(onDragCreate);
   const checkOverlapRef = useRef(checkOverlap);
   const checkPastRef = useRef(checkPast);
+
+  // Calculate overlapping event positions for Google Calendar-style layout
+  const getEventPositioning = (event: CalendarRequest) => {
+    const eventStart = timeToMinutes(event.start_time);
+    const eventEnd = timeToMinutes(event.end_time);
+
+    // Find all events that overlap with this event
+    const overlappingEvents = events.filter((e) => {
+      const eStart = timeToMinutes(e.start_time);
+      const eEnd = timeToMinutes(e.end_time);
+      return !(eventEnd <= eStart || eventStart >= eEnd);
+    });
+
+    // Sort overlapping events by start time, then by ID for consistent ordering
+    const sortedOverlapping = [...overlappingEvents].sort((a, b) => {
+      const aStart = timeToMinutes(a.start_time);
+      const bStart = timeToMinutes(b.start_time);
+      if (aStart !== bStart) return aStart - bStart;
+      return a.id.localeCompare(b.id);
+    });
+
+    // Find the position of this event in the sorted list
+    const position = sortedOverlapping.findIndex((e) => e.id === event.id);
+    const totalOverlapping = sortedOverlapping.length;
+
+    // Calculate width and left position
+    const width = 100 / totalOverlapping;
+    const left = (position * width);
+
+    return { left, width, totalOverlapping };
+  };
 
   // Keep refs fresh on every render so callbacks always use latest props
   onDragCreateRef.current = onDragCreate;
@@ -547,6 +588,7 @@ function DayColumn({
       {/* Existing events */}
       {events.map((event) => {
         const { top, height } = getEventStyle(event);
+        const { left, width } = getEventPositioning(event);
         const colorClass = showAllStatuses
           ? STATUS_CARD_COLORS[event.status] ?? getColorForClassroom(event.classroom_id)
           : getColorForClassroom(event.classroom_id);
@@ -554,7 +596,7 @@ function DayColumn({
         return (
           <div
             key={event.id}
-            className={`absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 border-l-[3px] overflow-hidden z-10 ${
+            className={`absolute rounded px-1.5 py-0.5 border-l-[3px] overflow-hidden z-10 ${
               clickable
                 ? "pointer-events-auto cursor-pointer hover:brightness-95 transition-all"
                 : canDrag
@@ -566,8 +608,17 @@ function DayColumn({
               e.stopPropagation();
               if (clickable) onEventClick(event);
             }}
-            style={{ top, height }}
-            title={`${event.title}\n${event.start_time.slice(0, 5)}–${event.end_time.slice(0, 5)}\n${event.classroom?.name ?? ""}\n${event.student_group?.name ?? ""}\nProf. ${event.professor?.full_name ?? ""}\nStatus: ${event.status}`}
+            style={{ 
+              top, 
+              height,
+              left: `calc(${left}% + 2px)`,
+              width: `calc(${width}% - 4px)`,
+            }}
+            title={`${event.title}\n${event.start_time.slice(0, 5)}–${event.end_time.slice(0, 5)}\n${event.classroom?.name ?? ""}\n${
+              event.student_groups && event.student_groups.length > 0
+                ? event.student_groups.map((sg) => sg.name).join(", ")
+                : event.student_group?.name ?? ""
+            }\nProf. ${event.professor?.full_name ?? ""}\nStatus: ${event.status}`}
           >
             <div className="flex items-center gap-0.5">
               {showAllStatuses && (
@@ -594,7 +645,9 @@ function DayColumn({
             )}
             {height >= 70 && (
               <div className="text-[9px] leading-tight truncate opacity-70">
-                {event.student_group?.name}
+                {event.student_groups && event.student_groups.length > 0
+                  ? event.student_groups.map((sg) => sg.name).join(", ")
+                  : event.student_group?.name}
               </div>
             )}
           </div>

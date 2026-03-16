@@ -43,6 +43,7 @@ export function BookingForm({
   const [submitting, setSubmitting] = useState(false);
   const [conflictWarning, setConflictWarning] = useState("");
   const [pastWarning, setPastWarning] = useState("");
+  const [timeRangeWarning, setTimeRangeWarning] = useState("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -65,6 +66,31 @@ export function BookingForm({
     );
   }
 
+  function getMinTime(): string {
+    const now = new Date();
+    const today = new Date().toISOString().split("T")[0];
+    // If selected date is today, restrict to current time or 8:00 AM, whichever is later
+    if (eventDate === today) {
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      // If before 8 AM, start from 8 AM
+      if (currentHours < 8) {
+        return "08:00";
+      }
+      // Otherwise use current time
+      const hours = String(currentHours).padStart(2, "0");
+      const minutes = String(currentMinutes).padStart(2, "0");
+      return `${hours}:${minutes}`;
+    }
+    // For future dates, allow from 8:00 AM
+    return "08:00";
+  }
+
+  function getMaxTime(): string {
+    // Maximum booking time is 11:00 PM (23:00)
+    return "23:00";
+  }
+
   useEffect(() => {
     if (!eventDate || !startTime) {
       setPastWarning("");
@@ -73,11 +99,34 @@ export function BookingForm({
     const now = new Date();
     const slotStart = new Date(`${eventDate}T${startTime}`);
     setPastWarning(
-      slotStart < now
+      slotStart <= now
         ? "Cannot book a slot in the past. Please choose a future date/time."
         : ""
     );
   }, [eventDate, startTime]);
+
+  useEffect(() => {
+    if (!startTime || !endTime) {
+      setTimeRangeWarning("");
+      return;
+    }
+    
+    // Check if times are within 8 AM to 11 PM range
+    const [startH, startM] = startTime.split(":").map(Number);
+    const [endH, endM] = endTime.split(":").map(Number);
+    const startTotalMins = startH * 60 + startM;
+    const endTotalMins = endH * 60 + endM;
+    const minMins = 8 * 60; // 8 AM
+    const maxMins = 23 * 60; // 11 PM
+    
+    if (startTotalMins < minMins || endTotalMins > maxMins) {
+      setTimeRangeWarning(
+        "Bookings are restricted to 8:00 AM - 11:00 PM. Please adjust your time."
+      );
+    } else {
+      setTimeRangeWarning("");
+    }
+  }, [startTime, endTime]);
 
   useEffect(() => {
     if (!classroomId || !eventDate || !startTime || !endTime) {
@@ -129,29 +178,48 @@ export function BookingForm({
     setSubmitting(true);
     const supabase = createClient();
 
-    const rows = selectedGroupIds.map((gid) => ({
-      professor_id: profileId,
-      title,
-      description: description || null,
+    // Create a single calendar request
+    const { data: requestData, error: insertError } = await supabase
+      .from("calendar_requests")
+      .insert({
+        professor_id: profileId,
+        title,
+        description: description || null,
+        student_group_id: selectedGroupIds[0], // Keep the first group for backward compatibility
+        classroom_id: classroomId,
+        event_date: eventDate,
+        start_time: startTime,
+        end_time: endTime,
+      })
+      .select()
+      .single();
+
+    if (insertError || !requestData) {
+      toast.error("Failed to create request: " + (insertError?.message || "Unknown error"));
+      setSubmitting(false);
+      return;
+    }
+
+    // Insert all groups into the junction table
+    const groupLinks = selectedGroupIds.map((gid) => ({
+      calendar_request_id: requestData.id,
       student_group_id: gid,
-      classroom_id: classroomId,
-      event_date: eventDate,
-      start_time: startTime,
-      end_time: endTime,
     }));
 
-    const { error } = await supabase.from("calendar_requests").insert(rows);
+    const { error: groupError } = await supabase
+      .from("calendar_request_groups")
+      .insert(groupLinks);
 
-    if (error) {
-      toast.error("Failed to create request: " + error.message);
+    if (groupError) {
+      toast.error("Failed to link groups: " + groupError.message);
       setSubmitting(false);
       return;
     }
 
     toast.success(
-      rows.length === 1
+      selectedGroupIds.length === 1
         ? "Request submitted successfully!"
-        : `${rows.length} requests submitted (one per group)!`
+        : `Request submitted for ${selectedGroupIds.length} student groups!`
     );
     setSubmitting(false);
     onSuccess();
@@ -184,7 +252,10 @@ export function BookingForm({
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="bf-title">Event Title</Label>
+          <Label htmlFor="bf-title">
+            Event Title
+            <span className="text-red-500">*</span>
+          </Label>
           <Input
             id="bf-title"
             placeholder="e.g. Data Structures Lecture"
@@ -212,7 +283,10 @@ export function BookingForm({
         />
 
         <div className="space-y-2">
-          <Label htmlFor="bf-classroom">Classroom</Label>
+          <Label htmlFor="bf-classroom">
+            Classroom
+            <span className="text-red-500">*</span>
+          </Label>
           <select
             id="bf-classroom"
             className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -230,10 +304,14 @@ export function BookingForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="bf-eventDate">Date</Label>
+          <Label htmlFor="bf-eventDate">
+            Date
+            <span className="text-red-500">*</span>
+          </Label>
           <Input
             id="bf-eventDate"
             type="date"
+            min={new Date().toISOString().split("T")[0]}
             value={eventDate}
             onChange={(e) => setEventDate(e.target.value)}
             required
@@ -241,22 +319,32 @@ export function BookingForm({
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="bf-startTime">Start Time</Label>
+            <Label htmlFor="bf-startTime">
+              Start Time
+              <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="bf-startTime"
               type="time"
-              step="1800"
+              step="900"
+              min={getMinTime()}
+              max={getMaxTime()}
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bf-endTime">End Time</Label>
+            <Label htmlFor="bf-endTime">
+              End Time
+              <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="bf-endTime"
               type="time"
-              step="1800"
+              step="900"
+              min={startTime || getMinTime()}
+              max={getMaxTime()}
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               required
@@ -272,8 +360,16 @@ export function BookingForm({
           </div>
         )}
 
+        {/* Time range warning */}
+        {timeRangeWarning && !pastWarning && (
+          <div className="flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+            <p className="text-sm text-orange-700">{timeRangeWarning}</p>
+          </div>
+        )}
+
         {/* Conflict warning */}
-        {conflictWarning && !pastWarning && (
+        {conflictWarning && !pastWarning && !timeRangeWarning && (
           <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
             <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
             <p className="text-sm text-red-700">{conflictWarning}</p>
@@ -283,15 +379,17 @@ export function BookingForm({
         <Button
           type="submit"
           className="w-full"
-          disabled={submitting || !!conflictWarning || !!pastWarning}
+          disabled={submitting || !!conflictWarning || !!pastWarning || !!timeRangeWarning}
         >
           {submitting
             ? "Submitting..."
             : pastWarning
               ? "Past Time"
-              : conflictWarning
-                ? "Slot Unavailable"
-                : "Submit Request"}
+              : timeRangeWarning
+                ? "Invalid Time Range"
+                : conflictWarning
+                  ? "Slot Unavailable"
+                  : "Submit Request"}
         </Button>
       </form>
     </DialogContent>
@@ -311,14 +409,23 @@ function GroupMultiSelect({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+    
+    if (open) {
+      // Use a small delay to avoid capturing the initial click
+      setTimeout(() => {
+        document.addEventListener("click", handleClickOutside);
+      }, 0);
+    }
+    
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [open]);
 
   const selectedNames = groups
     .filter((g) => selectedIds.includes(g.id))
@@ -326,7 +433,10 @@ function GroupMultiSelect({
 
   return (
     <div className="space-y-2" ref={ref}>
-      <Label>Student Groups</Label>
+      <Label>
+        Student Groups
+        <span className="text-red-500">*</span>
+      </Label>
       <div className="relative">
         <button
           type="button"

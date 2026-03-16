@@ -45,12 +45,12 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     const [byIdRes, byEmailRes, classRes, groupRes] = await Promise.all([
       supabase
         .from("calendar_requests")
-        .select("*, student_group:student_groups(*), classroom:classrooms(*)")
+        .select("*, student_group:student_groups(*), student_groups:calendar_request_groups(student_group:student_groups(*)), classroom:classrooms(*)")
         .eq("professor_id", profile.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("calendar_requests")
-        .select("*, student_group:student_groups(*), classroom:classrooms(*)")
+        .select("*, student_group:student_groups(*), student_groups:calendar_request_groups(student_group:student_groups(*)), classroom:classrooms(*)")
         .eq("professor_email", profile.email)
         .is("professor_id", null)
         .order("created_at", { ascending: false }),
@@ -58,8 +58,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       supabase.from("student_groups").select("*").order("name"),
     ]);
 
-    const byId = byIdRes.data ?? [];
-    const byEmail = byEmailRes.data ?? [];
+    const transformData = (data: any[]) =>
+      data.map((req: any) => ({
+        ...req,
+        student_groups: req.student_groups?.map((sg: any) => sg.student_group) || [],
+      }));
+
+    const byId = transformData(byIdRes.data ?? []);
+    const byEmail = transformData(byEmailRes.data ?? []);
     const seenIds = new Set(byId.map((r) => r.id));
     const merged = [...byId, ...byEmail.filter((r) => !seenIds.has(r.id))];
     setRequests(merged);
@@ -179,7 +185,11 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Users className="h-4 w-4" />
-                      <span>{req.student_group?.name ?? "—"}</span>
+                      <span>
+                        {req.student_groups && req.student_groups.length > 0
+                          ? req.student_groups.map((sg) => sg.name).join(", ")
+                          : req.student_group?.name ?? "—"}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <MapPin className="h-4 w-4" />

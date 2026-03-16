@@ -91,7 +91,10 @@ export default function SignupPage() {
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
+              <Label htmlFor="fullName">
+                Full Name
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="fullName"
                 placeholder="John Doe"
@@ -101,7 +104,10 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">
+                Email
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -112,7 +118,10 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">
+                Password
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -124,13 +133,18 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role">I am a</Label>
+              <Label htmlFor="role">
+                I am a
+                <span className="text-red-500">*</span>
+              </Label>
               <select
                 id="role"
                 className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
+                required
               >
+                <option value="">Select...</option>
                 <option value="student">Student</option>
                 <option value="professor">Professor</option>
                 <option value="admin">Admin</option>
