@@ -30,19 +30,15 @@ export interface StudentGroup {
   created_at: string;
 }
 
-export type ImportanceLevel = "low" | "high";
-export type UrgencyLevel = "low" | "high";
-export type Quadrant = "do_first" | "schedule" | "delegate" | "do_later";
+export type TaskStatus = "todo" | "in_progress" | "completed";
 
 export interface StudentTask {
   id: string;
   student_id: string;
   title: string;
   description: string | null;
-  importance: ImportanceLevel;
-  urgency: UrgencyLevel;
+  status: TaskStatus;
   due_date: string;
-  completed: boolean;
   created_at: string;
   updated_at: string;
 }
