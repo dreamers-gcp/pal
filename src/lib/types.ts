@@ -12,8 +12,29 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   student_group: string | null;
+  face_registered: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface FaceEmbedding {
+  id: string;
+  student_id: string;
+  photo_path: string;
+  embedding: number[];
+  created_at: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  student_id: string;
+  event_id: string;
+  photo_path: string;
+  similarity_score: number;
+  verified: boolean;
+  marked_at: string;
+  student?: Profile;
+  event?: CalendarRequest;
 }
 
 export interface Classroom {
@@ -30,19 +51,16 @@ export interface StudentGroup {
   created_at: string;
 }
 
-export type ImportanceLevel = "low" | "high";
-export type UrgencyLevel = "low" | "high";
-export type Quadrant = "do_first" | "schedule" | "delegate" | "do_later";
+export type TaskKanbanStatus = "todo" | "in_progress" | "completed";
 
 export interface StudentTask {
   id: string;
   student_id: string;
   title: string;
   description: string | null;
-  importance: ImportanceLevel;
-  urgency: UrgencyLevel;
   due_date: string;
-  completed: boolean;
+  status: TaskKanbanStatus;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }

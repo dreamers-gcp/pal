@@ -42,6 +42,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const HOUR_START = 8;
@@ -645,14 +646,25 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                     Term Start Date
                     <span className="text-red-500">*</span>
                   </Label>
-                  <Input type="date" min={new Date().toISOString().split("T")[0]} value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                  <DatePicker
+                    value={startDate}
+                    onChange={setStartDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    placeholder="Pick start date"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>
                     Term End Date
                     <span className="text-red-500">*</span>
                   </Label>
-                  <Input type="date" min={startDate || new Date().toISOString().split("T")[0]} value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                  <DatePicker
+                    value={endDate}
+                    onChange={setEndDate}
+                    min={startDate || new Date().toISOString().split("T")[0]}
+                    placeholder="Pick end date"
+                    disabled={!startDate}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Max Hours/Day per Prof</Label>

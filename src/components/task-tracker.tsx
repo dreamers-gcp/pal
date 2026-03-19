@@ -1,13 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
-import type {
-  StudentTask,
-  ImportanceLevel,
-  UrgencyLevel,
-  Quadrant,
-} from "@/lib/types";
+import type { StudentTask, TaskKanbanStatus } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,70 +36,82 @@ import {
   Plus,
   Pencil,
   Trash2,
-  CheckCircle2,
-  Circle,
-  Flame,
   CalendarDays,
-  Users,
-  Coffee,
-  Undo2,
+  GripVertical,
+  ArrowRightLeft,
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
+import { DatePicker } from "@/components/ui/date-picker";
 
-function getQuadrant(importance: ImportanceLevel, urgency: UrgencyLevel): Quadrant {
-  if (importance === "high" && urgency === "high") return "do_first";
-  if (importance === "high" && urgency === "low") return "schedule";
-  if (importance === "low" && urgency === "high") return "delegate";
-  return "do_later";
-}
+const COLUMN_IDS = ["todo", "in_progress", "completed"] as const;
 
-const QUADRANTS: {
-  key: Quadrant;
-  label: string;
+const COLUMNS: {
+  id: TaskKanbanStatus;
+  title: string;
   subtitle: string;
-  icon: typeof Flame;
-  bg: string;
   border: string;
-  iconColor: string;
+  bg: string;
 }[] = [
   {
-    key: "do_first",
-    label: "Do First",
-    subtitle: "Important & Urgent",
-    icon: Flame,
-    bg: "bg-red-50",
-    border: "border-red-200",
-    iconColor: "text-red-500",
+    id: "todo",
+    title: "To do",
+    subtitle: "Not started",
+    border: "border-slate-200",
+    bg: "bg-slate-50/80 dark:bg-slate-950/40",
   },
   {
-    key: "schedule",
-    label: "Schedule",
-    subtitle: "Important & Not Urgent",
-    icon: CalendarDays,
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-    iconColor: "text-blue-500",
+    id: "in_progress",
+    title: "In progress",
+    subtitle: "Active",
+    border: "border-amber-200",
+    bg: "bg-amber-50/80 dark:bg-amber-950/20",
   },
   {
-    key: "delegate",
-    label: "Delegate",
-    subtitle: "Not Important & Urgent",
-    icon: Users,
-    bg: "bg-yellow-50",
-    border: "border-yellow-200",
-    iconColor: "text-yellow-600",
-  },
-  {
-    key: "do_later",
-    label: "Do Later",
-    subtitle: "Not Important & Not Urgent",
-    icon: Coffee,
-    bg: "bg-green-50",
-    border: "border-green-200",
-    iconColor: "text-green-500",
+    id: "completed",
+    title: "Completed",
+    subtitle: "Done",
+    border: "border-emerald-200",
+    bg: "bg-emerald-50/80 dark:bg-emerald-950/20",
   },
 ];
+
+const COLUMN_LABEL: Record<TaskKanbanStatus, string> = {
+  todo: "To do",
+  in_progress: "In progress",
+  completed: "Completed",
+};
+
+function toLocalISODate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function groupTasksToColumns(tasks: StudentTask[]): Record<TaskKanbanStatus, string[]> {
+  const cols: Record<TaskKanbanStatus, string[]> = {
+    todo: [],
+    in_progress: [],
+    completed: [],
+  };
+  const byStatus: Record<TaskKanbanStatus, StudentTask[]> = {
+    todo: [],
+    in_progress: [],
+    completed: [],
+  };
+  for (const t of tasks) {
+    const s = t.status in cols ? t.status : "todo";
+    byStatus[s].push(t);
+  }
+  for (const c of COLUMN_IDS) {
+    byStatus[c].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    );
+    cols[c] = byStatus[c].map((t) => t.id);
+  }
+  return cols;
+}
 
 interface TaskTrackerProps {
   studentId: string;
@@ -96,34 +120,55 @@ interface TaskTrackerProps {
 export function TaskTracker({ studentId }: TaskTrackerProps) {
   const supabase = createClient();
   const [tasks, setTasks] = useState<StudentTask[]>([]);
+  const [columnItems, setColumnItems] = useState<
+    Record<TaskKanbanStatus, string[]>
+  >({
+    todo: [],
+    in_progress: [],
+    completed: [],
+  });
+  const columnItemsRef = useRef(columnItems);
   const [loading, setLoading] = useState(true);
   const [tableReady, setTableReady] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<StudentTask | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [importance, setImportance] = useState<ImportanceLevel>("low");
-  const [urgency, setUrgency] = useState<UrgencyLevel>("low");
+  const [status, setStatus] = useState<TaskKanbanStatus>("todo");
   const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const taskMap = Object.fromEntries(tasks.map((t) => [t.id, t])) as Record<
+    string,
+    StudentTask
+  >;
+
+  const minDueDate = toLocalISODate(new Date());
 
   const fetchTasks = useCallback(async () => {
     const { data, error } = await supabase
       .from("student_tasks")
       .select("*")
-      .eq("student_id", studentId)
-      .order("created_at", { ascending: false });
+      .eq("student_id", studentId);
 
     if (error) {
-      if (error.code === "42P01" || error.message?.includes("does not exist")) {
+      if (
+        error.code === "42P01" ||
+        error.message?.includes("does not exist") ||
+        error.message?.includes("column")
+      ) {
         setTableReady(false);
       } else {
         toast.error("Failed to load tasks");
       }
     } else {
-      setTasks(data ?? []);
+      const rows = (data ?? []) as StudentTask[];
+      setTasks(rows);
+      const grouped = groupTasksToColumns(rows);
+      setColumnItems(grouped);
+      columnItemsRef.current = grouped;
     }
     setLoading(false);
   }, [studentId, supabase]);
@@ -132,12 +177,94 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     fetchTasks();
   }, [fetchTasks]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
+  async function persistKanban(
+    items: Record<TaskKanbanStatus, string[]>
+  ): Promise<boolean> {
+    for (const col of COLUMN_IDS) {
+      for (let index = 0; index < items[col].length; index++) {
+        const taskId = items[col][index];
+        const { error } = await supabase
+          .from("student_tasks")
+          .update({
+            status: col,
+            sort_order: index,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", taskId)
+          .eq("student_id", studentId);
+        if (error) {
+          toast.error("Failed to save board");
+          await fetchTasks();
+          return false;
+        }
+      }
+    }
+    setTasks((prev) => {
+      const map = new Map(prev.map((t) => [t.id, { ...t }]));
+      for (const col of COLUMN_IDS) {
+        items[col].forEach((id, idx) => {
+          const t = map.get(id);
+          if (t) {
+            t.status = col;
+            t.sort_order = idx;
+          }
+        });
+      }
+      return Array.from(map.values());
+    });
+    return true;
+  }
+
+  function handleColumnDragStart(_col: TaskKanbanStatus, event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+
+  async function handleColumnDragEnd(col: TaskKanbanStatus, event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) {
+      await fetchTasks();
+      return;
+    }
+    if (active.id === over.id) return;
+
+    const prev = columnItemsRef.current;
+    const arr = [...prev[col]];
+    const oldIndex = arr.indexOf(String(active.id));
+    const newIndex = arr.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const next = { ...prev, [col]: arrayMove(arr, oldIndex, newIndex) };
+    columnItemsRef.current = next;
+    setColumnItems(next);
+    await persistKanban(next);
+  }
+
+  async function moveTaskToColumn(taskId: string, target: TaskKanbanStatus) {
+    const task = taskMap[taskId];
+    if (!task || task.status === target) return;
+
+    const prev = columnItemsRef.current;
+    const fromCol = task.status;
+    const from = prev[fromCol].filter((id) => id !== taskId);
+    const to = [...prev[target], taskId];
+    const next = { ...prev, [fromCol]: from, [target]: to };
+    columnItemsRef.current = next;
+    setColumnItems(next);
+    await persistKanban(next);
+  }
+
   function openNewTask() {
     setEditingTask(null);
     setTitle("");
     setDescription("");
-    setImportance("low");
-    setUrgency("low");
+    setStatus("todo");
     setDueDate("");
     setDialogOpen(true);
   }
@@ -146,8 +273,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     setEditingTask(task);
     setTitle(task.title);
     setDescription(task.description ?? "");
-    setImportance(task.importance);
-    setUrgency(task.urgency);
+    setStatus(task.status);
     setDueDate(task.due_date);
     setDialogOpen(true);
   }
@@ -156,27 +282,47 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     e.preventDefault();
     setSubmitting(true);
 
-    const payload = {
-      student_id: studentId,
-      title: title.trim(),
-      description: description.trim() || null,
-      importance,
-      urgency,
-      due_date: dueDate,
-      updated_at: new Date().toISOString(),
-    };
-
     if (editingTask) {
       const { error } = await supabase
         .from("student_tasks")
-        .update(payload)
+        .update({
+          title: title.trim(),
+          description: description.trim() || null,
+          status,
+          due_date: dueDate,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", editingTask.id);
       if (error) toast.error("Failed to update task");
-      else toast.success("Task updated");
+      else {
+        toast.success("Task updated");
+        if (editingTask.status !== status) {
+          const others = tasks.filter((t) => t.id !== editingTask.id);
+          const inCol = others.filter((t) => t.status === status);
+          const maxOrder = inCol.reduce((m, t) => Math.max(m, t.sort_order), -1);
+          await supabase
+            .from("student_tasks")
+            .update({ sort_order: maxOrder + 1 })
+            .eq("id", editingTask.id);
+        }
+      }
     } else {
-      const { error } = await supabase
-        .from("student_tasks")
-        .insert({ ...payload, completed: false });
+      if (dueDate && dueDate < minDueDate) {
+        toast.error("Due date cannot be in the past");
+        setSubmitting(false);
+        return;
+      }
+      const colTasks = tasks.filter((t) => t.status === status);
+      const maxOrder = colTasks.reduce((m, t) => Math.max(m, t.sort_order), -1);
+      const { error } = await supabase.from("student_tasks").insert({
+        student_id: studentId,
+        title: title.trim(),
+        description: description.trim() || null,
+        status,
+        sort_order: maxOrder + 1,
+        due_date: dueDate,
+        updated_at: new Date().toISOString(),
+      });
       if (error) toast.error("Failed to create task");
       else toast.success("Task created");
     }
@@ -184,26 +330,6 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     setSubmitting(false);
     setDialogOpen(false);
     fetchTasks();
-  }
-
-  async function toggleComplete(task: StudentTask) {
-    const { error } = await supabase
-      .from("student_tasks")
-      .update({
-        completed: !task.completed,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", task.id);
-
-    if (error) {
-      toast.error("Failed to update task");
-    } else {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id ? { ...t, completed: !t.completed } : t
-        )
-      );
-    }
   }
 
   async function deleteTask(id: string) {
@@ -218,20 +344,6 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     }
   }
 
-  const activeTasks = tasks.filter((t) => !t.completed);
-  const completedTasks = tasks.filter((t) => t.completed);
-
-  const tasksByQuadrant = (q: Quadrant) =>
-    activeTasks.filter((t) => getQuadrant(t.importance, t.urgency) === q);
-
-  const stats = {
-    total: tasks.length,
-    completed: completedTasks.length,
-    overdue: activeTasks.filter(
-      (t) => isPast(new Date(t.due_date)) && !isToday(new Date(t.due_date))
-    ).length,
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -245,14 +357,17 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
   if (!tableReady) {
     return (
       <Card className="border-yellow-200 bg-yellow-50">
-        <CardContent className="py-6">
-          <p className="text-sm text-yellow-800">
-            <strong>Setup required:</strong> The tasks table hasn&apos;t been
-            created yet. Ask your admin to run the{" "}
+        <CardContent className="py-6 space-y-2 text-sm text-yellow-800">
+          <p>
+            <strong>Setup required:</strong> Run{" "}
             <code className="bg-yellow-100 px-1 rounded">
               supabase/add-student-tasks.sql
             </code>{" "}
-            migration in the Supabase SQL Editor.
+            for new projects, or{" "}
+            <code className="bg-yellow-100 px-1 rounded">
+              supabase/migrate-student-tasks-kanban.sql
+            </code>{" "}
+            to upgrade an existing Eisenhower matrix.
           </p>
         </CardContent>
       </Card>
@@ -260,122 +375,38 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-6 text-sm">
-          <span className="text-muted-foreground">
-            <strong className="text-foreground">{stats.total}</strong> total
-          </span>
-          <span className="text-muted-foreground">
-            <strong className="text-green-600">{stats.completed}</strong>{" "}
-            completed
-          </span>
-          {stats.overdue > 0 && (
-            <span className="text-muted-foreground">
-              <strong className="text-red-600">{stats.overdue}</strong> overdue
-            </span>
-          )}
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showCompleted}
-              onChange={(e) => setShowCompleted(e.target.checked)}
-              className="rounded"
-            />
-            Show completed
-          </label>
-          <Button onClick={openNewTask} size="sm">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Task
-          </Button>
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 gap-y-1">
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground/80">Reorder:</span> drag
+          by the grip.{" "}
+          <span className="font-medium text-foreground/80">Change column:</span>{" "}
+          use Move on each card.
+        </p>
+        <Button onClick={openNewTask} size="sm" className="shrink-0">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Task
+        </Button>
       </div>
 
-      {/* Axis labels */}
-      <div className="relative">
-        <div className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-          Urgent → Not Urgent
-        </div>
-
-        <div className="flex gap-1">
-          {/* Y-axis label */}
-          <div className="flex items-center justify-center w-5 shrink-0">
-            <span
-              className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-            >
-              Important → Not Important
-            </span>
-          </div>
-
-          {/* 2x2 matrix */}
-          <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-3">
-            {QUADRANTS.map((q) => {
-              const qTasks = tasksByQuadrant(q.key);
-              const Icon = q.icon;
-              return (
-                <div
-                  key={q.key}
-                  className={`rounded-xl border-2 ${q.border} ${q.bg} p-4 min-h-[200px]`}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <Icon className={`h-4 w-4 ${q.iconColor}`} />
-                    <div>
-                      <h3 className="font-semibold text-sm">{q.label}</h3>
-                      <p className="text-[10px] text-muted-foreground">
-                        {q.subtitle}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-xs ml-auto">
-                      {qTasks.length}
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {qTasks.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-6">
-                        No tasks
-                      </p>
-                    )}
-                    {qTasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        onEdit={() => openEditTask(task)}
-                        onDelete={() => deleteTask(task.id)}
-                        onToggleComplete={() => toggleComplete(task)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        {COLUMNS.map((col) => (
+          <KanbanColumn
+            key={col.id}
+            column={col}
+            taskIds={columnItems[col.id]}
+            taskMap={taskMap}
+            sensors={sensors}
+            activeId={activeId}
+            onDragStart={(e) => handleColumnDragStart(col.id, e)}
+            onDragEnd={(e) => handleColumnDragEnd(col.id, e)}
+            onEdit={openEditTask}
+            onDelete={deleteTask}
+            onMoveToColumn={moveTaskToColumn}
+          />
+        ))}
       </div>
 
-      {/* Completed tasks */}
-      {showCompleted && completedTasks.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-            Completed ({completedTasks.length})
-          </h3>
-          <div className="space-y-2 opacity-60">
-            {completedTasks.map((task) => (
-              <CompletedTaskCard
-                key={task.id}
-                task={task}
-                onUndo={() => toggleComplete(task)}
-                onDelete={() => deleteTask(task.id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Add / Edit dialog */}
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -412,88 +443,35 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="task-importance">
-                  Importance
-                  <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  id="task-importance"
-                  value={importance}
-                  onChange={(e) =>
-                    setImportance(e.target.value as ImportanceLevel)
-                  }
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  required
-                >
-                  <option value="">Select...</option>
-                  <option value="high">High</option>
-                  <option value="low">Low</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-urgency">
-                  Urgency
-                  <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  id="task-urgency"
-                  value={urgency}
-                  onChange={(e) =>
-                    setUrgency(e.target.value as UrgencyLevel)
-                  }
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  required
-                >
-                  <option value="">Select...</option>
-                  <option value="high">High</option>
-                  <option value="low">Low</option>
-                </select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-status">
+                Status
+                <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="task-status"
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as TaskKanbanStatus)
+                }
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                required
+              >
+                <option value="todo">To do</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+              </select>
             </div>
-
-            {/* Quadrant preview */}
-            <div
-              className={`rounded-lg px-3 py-2 text-sm flex items-center gap-2 ${
-                QUADRANTS.find(
-                  (q) => q.key === getQuadrant(importance, urgency)
-                )!.bg
-              } ${
-                QUADRANTS.find(
-                  (q) => q.key === getQuadrant(importance, urgency)
-                )!.border
-              } border`}
-            >
-              {(() => {
-                const q = QUADRANTS.find(
-                  (q) => q.key === getQuadrant(importance, urgency)
-                )!;
-                const Icon = q.icon;
-                return (
-                  <>
-                    <Icon className={`h-4 w-4 ${q.iconColor}`} />
-                    <span className="font-medium">{q.label}</span>
-                    <span className="text-muted-foreground text-xs">
-                      — {q.subtitle}
-                    </span>
-                  </>
-                );
-              })()}
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="task-due">
                 Due Date
                 <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="task-due"
-                type="date"
-                min={new Date().toISOString().split("T")[0]}
+              <DatePicker
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                required
+                onChange={setDueDate}
+                min={editingTask ? undefined : minDueDate}
+                placeholder="Pick due date"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -519,59 +497,219 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
   );
 }
 
-function TaskCard({
+function KanbanColumn({
+  column,
+  taskIds,
+  taskMap,
+  sensors,
+  activeId,
+  onDragStart,
+  onDragEnd,
+  onEdit,
+  onDelete,
+  onMoveToColumn,
+}: {
+  column: (typeof COLUMNS)[number];
+  taskIds: string[];
+  taskMap: Record<string, StudentTask>;
+  sensors: ReturnType<typeof useSensors>;
+  activeId: string | null;
+  onDragStart: (e: DragStartEvent) => void;
+  onDragEnd: (e: DragEndEvent) => void;
+  onEdit: (t: StudentTask) => void;
+  onDelete: (id: string) => void;
+  onMoveToColumn: (taskId: string, target: TaskKanbanStatus) => void;
+}) {
+  const overlayTask =
+    activeId && taskIds.includes(activeId) ? taskMap[activeId] : null;
+
+  return (
+    <div
+      className={`rounded-xl border-2 ${column.border} ${column.bg} p-3 min-h-[280px] flex flex-col`}
+    >
+      <div className="flex items-center gap-2 mb-3 shrink-0">
+        <div>
+          <h3 className="font-semibold text-sm">{column.title}</h3>
+          <p className="text-[10px] text-muted-foreground">{column.subtitle}</p>
+        </div>
+        <Badge variant="outline" className="text-xs ml-auto">
+          {taskIds.length}
+        </Badge>
+      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      >
+        <div className="flex-1 flex flex-col gap-2 min-h-[120px]">
+          <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+            {taskIds.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-8 border border-dashed rounded-lg">
+                No tasks
+              </p>
+            )}
+            {taskIds.map((id) => {
+              const task = taskMap[id];
+              if (!task) return null;
+              return (
+                <SortableTaskCard
+                  key={id}
+                  task={task}
+                  onEdit={() => onEdit(task)}
+                  onDelete={() => onDelete(id)}
+                  onMoveToColumn={onMoveToColumn}
+                />
+              );
+            })}
+          </SortableContext>
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {overlayTask ? (
+            <div className="opacity-95 shadow-lg rounded-lg cursor-grabbing">
+              <TaskCardStatic task={overlayTask} dragging />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
+  );
+}
+
+function SortableTaskCard({
   task,
   onEdit,
   onDelete,
-  onToggleComplete,
+  onMoveToColumn,
 }: {
   task: StudentTask;
   onEdit: () => void;
   onDelete: () => void;
-  onToggleComplete: () => void;
+  onMoveToColumn: (taskId: string, target: TaskKanbanStatus) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCardStatic
+        task={task}
+        dragHandleProps={{ ...attributes, ...listeners }}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onMoveToColumn={onMoveToColumn}
+      />
+    </div>
+  );
+}
+
+function TaskCardStatic({
+  task,
+  onEdit,
+  onDelete,
+  onMoveToColumn,
+  dragHandleProps,
+  dragging,
+}: {
+  task: StudentTask;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onMoveToColumn?: (taskId: string, target: TaskKanbanStatus) => void;
+  dragHandleProps?: Record<string, unknown>;
+  dragging?: boolean;
 }) {
   const isOverdue =
-    !task.completed &&
+    task.status !== "completed" &&
     isPast(new Date(task.due_date)) &&
     !isToday(new Date(task.due_date));
 
   return (
-    <Card className="shadow-sm hover:shadow-md transition-shadow">
-      <CardContent className="p-3 space-y-1">
+    <Card
+      className={`shadow-sm hover:shadow-md transition-shadow ${
+        dragging ? "cursor-grabbing" : ""
+      }`}
+    >
+      <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <button
-            onClick={onToggleComplete}
-            className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary transition-colors"
-            title={task.completed ? "Mark incomplete" : "Mark complete"}
+            type="button"
+            className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-0.5 rounded"
+            aria-label="Drag to reorder in this column"
+            {...dragHandleProps}
           >
-            {task.completed ? (
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-            ) : (
-              <Circle className="h-4 w-4" />
-            )}
+            <GripVertical className="h-4 w-4" />
           </button>
           <span
-            className={`flex-1 text-sm font-medium leading-tight ${
-              task.completed ? "line-through text-muted-foreground" : ""
+            className={`flex-1 text-sm font-medium leading-tight min-w-0 ${
+              task.status === "completed"
+                ? "line-through text-muted-foreground"
+                : ""
             }`}
           >
             {task.title}
           </span>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={onEdit}
-              className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-600"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          {onEdit && onDelete && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={onEdit}
+                className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                aria-label="Edit task"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                className="p-1 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-600"
+                aria-label="Delete task"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
+
+        {onMoveToColumn && (
+          <div className="flex items-center gap-1.5 pl-6 flex-wrap">
+            <ArrowRightLeft className="h-3 w-3 text-muted-foreground shrink-0" />
+            <Label
+              htmlFor={`move-${task.id}`}
+              className="text-[10px] text-muted-foreground sr-only"
+            >
+              Move to column
+            </Label>
+            <select
+              id={`move-${task.id}`}
+              value={task.status}
+              onChange={(e) => {
+                onMoveToColumn(
+                  task.id,
+                  e.target.value as TaskKanbanStatus
+                );
+              }}
+              className="h-7 flex-1 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs"
+            >
+              {COLUMN_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {COLUMN_LABEL[id]}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {task.description && (
           <p className="text-xs text-muted-foreground line-clamp-2 pl-6">
@@ -589,51 +727,6 @@ function TaskCard({
           >
             <CalendarDays className="h-3 w-3" />
             {isOverdue && "Overdue · "}
-            {format(new Date(task.due_date), "MMM d")}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function CompletedTaskCard({
-  task,
-  onUndo,
-  onDelete,
-}: {
-  task: StudentTask;
-  onUndo: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <Card className="shadow-sm">
-      <CardContent className="p-3 space-y-1">
-        <div className="flex items-start justify-between gap-2">
-          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-green-600" />
-          <span className="flex-1 text-sm font-medium leading-tight line-through text-muted-foreground">
-            {task.title}
-          </span>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={onUndo}
-              className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-              title="Undo — move back to matrix"
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-600"
-              title="Delete task"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 pl-6">
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-            <CalendarDays className="h-3 w-3" />
             {format(new Date(task.due_date), "MMM d")}
           </span>
         </div>

@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { AlertTriangle, ChevronDown, X } from "lucide-react";
 import { toast } from "sonner";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimeRangeSelect } from "@/components/ui/time-range-select";
 
 export interface BookingFormPrefill {
   classroomId?: string;
@@ -66,66 +68,12 @@ export function BookingForm({
     );
   }
 
-  function getMinTime(): string {
-    const now = new Date();
-    const today = new Date().toISOString().split("T")[0];
-    // If selected date is today, restrict to current time or 8:00 AM, whichever is later
-    if (eventDate === today) {
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
-      // If before 8 AM, start from 8 AM
-      if (currentHours < 8) {
-        return "08:00";
-      }
-      // Otherwise use current time
-      const hours = String(currentHours).padStart(2, "0");
-      const minutes = String(currentMinutes).padStart(2, "0");
-      return `${hours}:${minutes}`;
-    }
-    // For future dates, allow from 8:00 AM
-    return "08:00";
-  }
-
-  function getMaxTime(): string {
-    // Maximum booking time is 11:00 PM (23:00)
-    return "23:00";
-  }
-
   useEffect(() => {
-    if (!eventDate || !startTime) {
-      setPastWarning("");
-      return;
-    }
-    const now = new Date();
-    const slotStart = new Date(`${eventDate}T${startTime}`);
-    setPastWarning(
-      slotStart <= now
-        ? "Cannot book a slot in the past. Please choose a future date/time."
-        : ""
-    );
+    setPastWarning("");
   }, [eventDate, startTime]);
 
   useEffect(() => {
-    if (!startTime || !endTime) {
-      setTimeRangeWarning("");
-      return;
-    }
-    
-    // Check if times are within 8 AM to 11 PM range
-    const [startH, startM] = startTime.split(":").map(Number);
-    const [endH, endM] = endTime.split(":").map(Number);
-    const startTotalMins = startH * 60 + startM;
-    const endTotalMins = endH * 60 + endM;
-    const minMins = 8 * 60; // 8 AM
-    const maxMins = 23 * 60; // 11 PM
-    
-    if (startTotalMins < minMins || endTotalMins > maxMins) {
-      setTimeRangeWarning(
-        "Bookings are restricted to 8:00 AM - 11:00 PM. Please adjust your time."
-      );
-    } else {
-      setTimeRangeWarning("");
-    }
+    setTimeRangeWarning("");
   }, [startTime, endTime]);
 
   useEffect(() => {
@@ -162,11 +110,6 @@ export function BookingForm({
 
     if (selectedGroupIds.length === 0) {
       toast.error("Please select at least one student group");
-      return;
-    }
-
-    if (pastWarning) {
-      toast.error("Cannot book a slot in the past");
       return;
     }
 
@@ -304,52 +247,42 @@ export function BookingForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="bf-eventDate">
+          <Label>
             Date
             <span className="text-red-500">*</span>
           </Label>
-          <Input
-            id="bf-eventDate"
-            type="date"
-            min={new Date().toISOString().split("T")[0]}
+          <DatePicker
             value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-            required
+            onChange={setEventDate}
+            min={new Date().toISOString().split("T")[0]}
+            placeholder="Pick a date"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="bf-startTime">
-              Start Time
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="bf-startTime"
-              type="time"
-              step="900"
-              min={getMinTime()}
-              max={getMaxTime()}
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bf-endTime">
-              End Time
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="bf-endTime"
-              type="time"
-              step="900"
-              min={startTime || getMinTime()}
-              max={getMaxTime()}
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              required
-            />
-          </div>
+        <div className="space-y-2">
+          <Label className="block">
+            Time
+            <span className="text-red-500">*</span>
+          </Label>
+          <TimeRangeSelect
+            startValue={startTime}
+            endValue={endTime}
+            onStartChange={setStartTime}
+            onEndChange={setEndTime}
+            startLabel={
+              <Label htmlFor="bf-start-time" className="text-muted-foreground font-normal text-sm">
+                Start
+              </Label>
+            }
+            endLabel={
+              <Label htmlFor="bf-end-time" className="text-muted-foreground font-normal text-sm">
+                End
+              </Label>
+            }
+            startPlaceholder="Start time"
+            endPlaceholder="End time"
+            startTriggerId="bf-start-time"
+            endTriggerId="bf-end-time"
+          />
         </div>
 
         {/* Past time warning */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
@@ -8,27 +8,25 @@ import type {
   Classroom,
   StudentGroup,
 } from "@/lib/types";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Clock, CalendarDays, MapPin, Users, LayoutList } from "lucide-react";
-import { format } from "date-fns";
-import { BookedSchedule, type SlotClickInfo } from "@/components/booked-schedule";
+import { Plus, Clock, CalendarDays, MapPin, Users, ScanFace } from "lucide-react";
+import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import type { CalendarSlotInfo } from "@/components/request-calendar";
 import { BookingForm, type BookingFormPrefill } from "@/components/booking-form";
-
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  clarification_needed: "bg-blue-100 text-blue-800",
-};
+import { AttendanceView } from "@/components/attendance-view";
+import { RequestCalendar } from "@/components/request-calendar";
+import { RequestCard } from "@/components/request-card";
+import { toTitleCase } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
@@ -40,17 +38,25 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [prefill, setPrefill] = useState<BookingFormPrefill | undefined>();
   const [formKey, setFormKey] = useState(0);
 
+  /** "all-rooms" = see all events + book; "my-schedule" = see only my requests */
+  const [calendarViewMode, setCalendarViewMode] = useState<"all-rooms" | "my-schedule">("all-rooms");
+  /** When in all-rooms: which room to book (empty = just viewing). When in my-schedule: unused. */
+  const [calendarRoomFilter, setCalendarRoomFilter] = useState<string>("");
+  /** All approved requests across all rooms (for all-rooms view) */
+  const [allApprovedBookings, setAllApprovedBookings] = useState<CalendarRequest[]>([]);
+  const [allApprovedLoading, setAllApprovedLoading] = useState(false);
+
   const fetchData = useCallback(async () => {
     const supabase = createClient();
     const [byIdRes, byEmailRes, classRes, groupRes] = await Promise.all([
       supabase
         .from("calendar_requests")
-        .select("*, student_group:student_groups(*), student_groups:calendar_request_groups(student_group:student_groups(*)), classroom:classrooms(*)")
+        .select("*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), student_groups:calendar_request_groups(student_group:student_groups(*)), classroom:classrooms(*)")
         .eq("professor_id", profile.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("calendar_requests")
-        .select("*, student_group:student_groups(*), student_groups:calendar_request_groups(student_group:student_groups(*)), classroom:classrooms(*)")
+        .select("*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), student_groups:calendar_request_groups(student_group:student_groups(*)), classroom:classrooms(*)")
         .eq("professor_email", profile.email)
         .is("professor_id", null)
         .order("created_at", { ascending: false }),
@@ -79,18 +85,72 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (calendarViewMode !== "all-rooms") return;
+
+    const supabase = createClient();
+    setAllApprovedLoading(true);
+    const from = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd");
+    const to = format(endOfMonth(addMonths(new Date(), 5)), "yyyy-MM-dd");
+
+    supabase
+      .from("calendar_requests")
+      .select(
+        "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*), student_groups:calendar_request_groups(student_group:student_groups(*))"
+      )
+      .eq("status", "approved")
+      .gte("event_date", from)
+      .lte("event_date", to)
+      .order("event_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setAllApprovedBookings([]);
+        } else if (data) {
+          const transformed = data.map((req: any) => ({
+            ...req,
+            student_groups: req.student_groups?.map((sg: any) => sg.student_group) || [],
+          }));
+          setAllApprovedBookings(transformed);
+        }
+        setAllApprovedLoading(false);
+      });
+  }, [calendarViewMode]);
+
+  const calendarBookings = useMemo(() => {
+    if (calendarViewMode === "my-schedule") return requests;
+
+    const approvedIds = new Set(allApprovedBookings.map((r) => r.id));
+    const mineNotInAll = requests.filter((r) => !approvedIds.has(r.id));
+    const byId = new Map<string, CalendarRequest>();
+    allApprovedBookings.forEach((r) => byId.set(r.id, r));
+    mineNotInAll.forEach((r) => byId.set(r.id, r));
+    return Array.from(byId.values()).sort((a, b) => {
+      const d = a.event_date.localeCompare(b.event_date);
+      if (d !== 0) return d;
+      return a.start_time.localeCompare(b.start_time);
+    });
+  }, [calendarViewMode, requests, allApprovedBookings]);
+
   function openNewRequest() {
     setPrefill(undefined);
     setFormKey((k) => k + 1);
     setDialogOpen(true);
   }
 
-  function handleSlotClick(info: SlotClickInfo) {
+  function handleCalendarSlotSelect(slot: CalendarSlotInfo) {
+    const classroomId =
+      calendarViewMode === "all-rooms" && calendarRoomFilter
+        ? calendarRoomFilter
+        : slot.resourceId != null && slot.resourceId !== ""
+          ? String(slot.resourceId)
+          : undefined;
     setPrefill({
-      classroomId: info.classroomId,
-      eventDate: info.date,
-      startTime: info.startTime,
-      endTime: info.endTime,
+      classroomId,
+      eventDate: format(slot.start, "yyyy-MM-dd"),
+      startTime: format(slot.start, "HH:mm"),
+      endTime: format(slot.end, "HH:mm"),
     });
     setFormKey((k) => k + 1);
     setDialogOpen(true);
@@ -119,9 +179,13 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             <CalendarDays className="h-4 w-4" />
             My Requests
           </TabsTrigger>
-          <TabsTrigger value="booked-schedule" className="gap-1.5">
-            <LayoutList className="h-4 w-4" />
-            Classroom Availability
+          <TabsTrigger value="calendar" className="gap-1.5">
+            <CalendarDays className="h-4 w-4" />
+            Calendar
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="gap-1.5">
+            <ScanFace className="h-4 w-4" />
+            Attendance
           </TabsTrigger>
         </TabsList>
 
@@ -147,74 +211,105 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {requests.map((req) => (
-                <Card key={req.id} className="relative overflow-hidden">
-                  <div
-                    className={`absolute top-0 left-0 right-0 h-1 ${
-                      req.status === "approved"
-                        ? "bg-green-500"
-                        : req.status === "rejected"
-                        ? "bg-red-500"
-                        : req.status === "clarification_needed"
-                        ? "bg-blue-500"
-                        : "bg-yellow-500"
-                    }`}
-                  />
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">{req.title}</CardTitle>
-                      <Badge className={statusColors[req.status]} variant="outline">
-                        {req.status === "clarification_needed"
-                          ? "Needs Clarification"
-                          : req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                      </Badge>
-                    </div>
-                    {req.description && (
-                      <CardDescription>{req.description}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <CalendarDays className="h-4 w-4" />
-                      <span>{format(new Date(req.event_date), "MMM d, yyyy")}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      <span>
-                        {req.start_time.slice(0, 5)} - {req.end_time.slice(0, 5)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      <span>
-                        {req.student_groups && req.student_groups.length > 0
-                          ? req.student_groups.map((sg) => sg.name).join(", ")
-                          : req.student_group?.name ?? "—"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span>{req.classroom?.name ?? "—"}</span>
-                    </div>
-                    {req.admin_note && (
-                      <div className="mt-3 rounded-md bg-muted p-3 text-sm">
-                        <p className="font-medium text-foreground">Admin Note:</p>
-                        <p className="text-muted-foreground">{req.admin_note}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <RequestCard
+                  key={req.id}
+                  request={req}
+                  showAdminNote
+                />
               ))}
             </div>
           )}
         </TabsContent>
 
-        {/* ========== CLASSROOM AVAILABILITY TAB ========== */}
-        <TabsContent value="booked-schedule" className="mt-6">
-          <BookedSchedule onSlotClick={handleSlotClick} />
+        {/* ========== CALENDAR TAB (schedule + availability + new requests) ========== */}
+        <TabsContent value="calendar" className="mt-6 space-y-6">
+          <div className="flex flex-wrap items-center gap-3 sm:justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode("all-rooms")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  calendarViewMode === "all-rooms"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                All rooms
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode("my-schedule")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  calendarViewMode === "my-schedule"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                My schedule
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={openNewRequest}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium h-9 gap-1.5 px-3 transition-all hover:bg-primary/80 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Plus className="h-4 w-4" />
+              New request
+            </button>
+          </div>
+
+          {calendarViewMode === "all-rooms" && (
+            <div className="flex flex-col gap-2 sm:max-w-md">
+              <Label htmlFor="calendar-classroom-filter">Book a room</Label>
+              <Select
+                value={calendarRoomFilter || "none"}
+                onValueChange={(v) => setCalendarRoomFilter(v === "none" || !v ? "" : v)}
+              >
+                <SelectTrigger id="calendar-classroom-filter" className="w-full sm:max-w-md">
+                  <span className="flex flex-1 items-center truncate">
+                    {!calendarRoomFilter
+                      ? "Select room to book a slot"
+                      : toTitleCase(
+                          classrooms.find((c) => c.id === calendarRoomFilter)?.name ?? ""
+                        ) || "Select room"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select room to book a slot</SelectItem>
+                  {classrooms.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {toTitleCase(c.name)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <RequestCalendar
+            bookings={calendarBookings}
+            classrooms={classrooms}
+            loading={calendarViewMode === "my-schedule" ? false : allApprovedLoading}
+            colorBy="classroom"
+            bookingClassroomId={
+              calendarViewMode === "all-rooms" && calendarRoomFilter ? calendarRoomFilter : null
+            }
+            onSelectSlot={handleCalendarSlotSelect}
+            emptyMessage={
+              calendarViewMode === "my-schedule"
+                ? "No requests yet. Use New request or switch to All rooms to book."
+                : "No events in this range. Select a room above to book a slot, or use New request."
+            }
+          />
+        </TabsContent>
+
+        {/* ========== ATTENDANCE TAB ========== */}
+        <TabsContent value="attendance" className="mt-6">
+          <AttendanceView profile={profile} />
         </TabsContent>
       </Tabs>
 
-      {/* Shared booking dialog — works from both tabs */}
+      {/* Booking dialog — New request + availability slot clicks */}
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {

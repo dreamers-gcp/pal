@@ -19,11 +19,14 @@ import {
   GraduationCap,
   ListTodo,
   MapPin,
+  ScanFace,
   User,
 } from "lucide-react";
 import { format, isBefore, startOfToday } from "date-fns";
 import { TaskTracker } from "@/components/task-tracker";
 import { StudentCalendar } from "@/components/student-calendar";
+import { FaceRegistration } from "@/components/face-registration";
+import { AttendanceMarker } from "@/components/attendance-marker";
 
 export function StudentDashboard({ profile }: { profile: Profile }) {
   const [events, setEvents] = useState<CalendarRequest[]>([]);
@@ -104,8 +107,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         return;
       }
 
-      // Fetch approved events for all groups
-      const { data } = await supabase
+      // Fetch approved events via direct student_group_id
+      const { data: directEvents } = await supabase
         .from("calendar_requests")
         .select(
           "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
@@ -114,7 +117,35 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         .in("student_group_id", groupIds)
         .order("event_date", { ascending: true });
 
-      if (data) setEvents(data);
+      // Also fetch events linked via the junction table (multi-group support)
+      const { data: junctionLinks } = await supabase
+        .from("calendar_request_groups")
+        .select("calendar_request_id")
+        .in("student_group_id", groupIds);
+
+      const junctionIds = (junctionLinks ?? []).map((l) => l.calendar_request_id);
+      const directIds = new Set((directEvents ?? []).map((e) => e.id));
+      const extraIds = junctionIds.filter((id) => !directIds.has(id));
+
+      let allEvents = directEvents ?? [];
+
+      if (extraIds.length > 0) {
+        const { data: extraEvents } = await supabase
+          .from("calendar_requests")
+          .select(
+            "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
+          )
+          .eq("status", "approved")
+          .in("id", extraIds)
+          .order("event_date", { ascending: true });
+
+        if (extraEvents) allEvents = [...allEvents, ...extraEvents];
+      }
+
+      allEvents.sort(
+        (a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+      );
+      setEvents(allEvents);
       setLoading(false);
     }
 
@@ -171,7 +202,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         </Card>
       )}
 
-      <Tabs defaultValue="events">
+      <Tabs defaultValue="events" className="gap-1">
         <TabsList>
           <TabsTrigger value="events" className="gap-1.5">
             <CalendarDays className="h-4 w-4" />
@@ -181,13 +212,17 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             <CalendarDays className="h-4 w-4" />
             Calendar
           </TabsTrigger>
+          <TabsTrigger value="attendance" className="gap-1.5">
+            <ScanFace className="h-4 w-4" />
+            Attendance
+          </TabsTrigger>
           <TabsTrigger value="tasks" className="gap-1.5">
             <ListTodo className="h-4 w-4" />
             Task Tracker
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="events" className="mt-6 space-y-6">
+        <TabsContent value="events" className="mt-3 space-y-4">
           {/* Subject filter */}
           {studentGroupIds.length > 1 && (
             <div className="flex flex-wrap items-center gap-3">
@@ -220,7 +255,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
 
           {/* Upcoming Events */}
           <div>
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
               <CalendarDays className="h-5 w-5" />
               Upcoming Events ({upcoming.length})
             </h2>
@@ -291,7 +326,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           {/* Past Events */}
           {past.length > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-muted-foreground">
+              <h2 className="text-xl font-semibold mb-2 text-muted-foreground">
                 Past Events ({past.length})
               </h2>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -326,11 +361,18 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           )}
         </TabsContent>
 
-        <TabsContent value="tasks" className="mt-6">
+        <TabsContent value="attendance" className="mt-3 space-y-4">
+          <FaceRegistration studentId={profile.id} />
+          {events.length > 0 && (
+            <AttendanceMarker profile={profile} events={events} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="tasks" className="mt-3">
           <TaskTracker studentId={profile.id} />
         </TabsContent>
 
-        <TabsContent value="calendar" className="mt-6 space-y-4">
+        <TabsContent value="calendar" className="mt-3 space-y-3">
           {/* Subject filter for calendar */}
           {studentGroupIds.length > 1 && (
             <div className="flex flex-wrap items-center gap-3">

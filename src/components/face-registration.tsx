@@ -1,0 +1,262 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { WebcamCapture } from "@/components/webcam-capture";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, Loader2, ScanFace, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+import type { FaceEmbedding } from "@/lib/types";
+
+const MIN_PHOTOS = 3;
+const MAX_PHOTOS = 5;
+
+interface Props {
+  studentId: string;
+  onRegistrationComplete?: () => void;
+}
+
+export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
+  const supabase = createClient();
+  const [embeddings, setEmbeddings] = useState<FaceEmbedding[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [showCapture, setShowCapture] = useState(false);
+
+  const fetchEmbeddings = useCallback(async () => {
+    const { data } = await supabase
+      .from("face_embeddings")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: true });
+    setEmbeddings(data ?? []);
+    setLoading(false);
+  }, [studentId, supabase]);
+
+  useEffect(() => {
+    fetchEmbeddings();
+  }, [fetchEmbeddings]);
+
+  async function handleCapture(blob: Blob) {
+    setUploading(true);
+    setShowCapture(false);
+
+    try {
+      const filename = `${studentId}/${Date.now()}.jpg`;
+      const { error: uploadErr } = await supabase.storage
+        .from("face-photos")
+        .upload(filename, blob, {
+          contentType: "image/jpeg",
+          upsert: false,
+        });
+
+      if (uploadErr) {
+        toast.error("Failed to upload photo: " + uploadErr.message);
+        setUploading(false);
+        return;
+      }
+
+      const form = new FormData();
+      form.append("file", blob, "face.jpg");
+      const embRes = await fetch("/api/face/embedding", { method: "POST", body: form });
+      const embData = await embRes.json();
+
+      if (!embRes.ok) {
+        await supabase.storage.from("face-photos").remove([filename]);
+        toast.error(embData.error || "Could not process face");
+        setUploading(false);
+        return;
+      }
+
+      const { error: dbErr } = await supabase.from("face_embeddings").insert({
+        student_id: studentId,
+        photo_path: filename,
+        embedding: embData.embedding,
+      });
+
+      if (dbErr) {
+        toast.error("Failed to save embedding: " + dbErr.message);
+        setUploading(false);
+        return;
+      }
+
+      toast.success("Face photo registered!");
+      await fetchEmbeddings();
+
+      if (embeddings.length + 1 >= MIN_PHOTOS) {
+        await supabase
+          .from("profiles")
+          .update({ face_registered: true })
+          .eq("id", studentId);
+        onRegistrationComplete?.();
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Unexpected error");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removePhoto(emb: FaceEmbedding) {
+    await supabase.storage.from("face-photos").remove([emb.photo_path]);
+    await supabase.from("face_embeddings").delete().eq("id", emb.id);
+    toast.success("Photo removed");
+    const updated = embeddings.filter((e) => e.id !== emb.id);
+    setEmbeddings(updated);
+
+    if (updated.length < MIN_PHOTOS) {
+      await supabase
+        .from("profiles")
+        .update({ face_registered: false })
+        .eq("id", studentId);
+    }
+  }
+
+  const registered = embeddings.length >= MIN_PHOTOS;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <ScanFace className="h-5 w-5" />
+          <CardTitle className="text-lg">Face Registration</CardTitle>
+          {registered && (
+            <Badge
+              variant="outline"
+              className="ml-auto bg-green-50 text-green-700 border-green-200"
+            >
+              <CheckCircle2 className="h-3 w-3 mr-1" /> Registered
+            </Badge>
+          )}
+        </div>
+        <CardDescription>
+          Take {MIN_PHOTOS}–{MAX_PHOTOS} clear photos of your face from
+          slightly different angles. These will be used to verify your attendance.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Thumbnails */}
+        {embeddings.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {embeddings.map((emb) => (
+              <PhotoThumb
+                key={emb.id}
+                emb={emb}
+                studentId={studentId}
+                onRemove={() => removePhoto(emb)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Progress */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            {embeddings.length}/{MIN_PHOTOS} required photos
+          </span>
+          {embeddings.length < MIN_PHOTOS && (
+            <span className="text-yellow-600 font-medium">
+              — {MIN_PHOTOS - embeddings.length} more needed
+            </span>
+          )}
+        </div>
+
+        {/* Capture controls */}
+        {embeddings.length < MAX_PHOTOS && (
+          <>
+            {uploading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Processing…
+              </div>
+            )}
+
+            {showCapture ? (
+              <WebcamCapture
+                onCapture={handleCapture}
+                onCancel={() => setShowCapture(false)}
+                buttonLabel="Capture face photo"
+              />
+            ) : (
+              !uploading && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowCapture(true)}
+                  className="gap-1.5"
+                >
+                  <ScanFace className="h-4 w-4" />
+                  {embeddings.length === 0
+                    ? "Start face registration"
+                    : "Add another photo"}
+                </Button>
+              )
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PhotoThumb({
+  emb,
+  studentId,
+  onRemove,
+}: {
+  emb: FaceEmbedding;
+  studentId: string;
+  onRemove: () => void;
+}) {
+  const supabase = createClient();
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.storage
+      .from("face-photos")
+      .createSignedUrl(emb.photo_path, 300)
+      .then(({ data }) => {
+        if (data) setUrl(data.signedUrl);
+      });
+  }, [emb.photo_path, supabase, studentId]);
+
+  return (
+    <div className="relative group">
+      <div className="w-20 h-20 rounded-lg overflow-hidden border bg-muted">
+        {url ? (
+          <img
+            src={url}
+            alt="Face"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onRemove}
+        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}

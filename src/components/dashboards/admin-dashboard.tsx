@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
@@ -8,6 +8,7 @@ import type {
   RequestStatus,
   StudentGroup,
   StudentEnrollment,
+  Classroom,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,13 +20,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -34,7 +28,6 @@ import {
   Check,
   Clock,
   HelpCircle,
-  LayoutList,
   MapPin,
   Users,
   X,
@@ -45,8 +38,16 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
-import { BookedSchedule } from "@/components/booked-schedule";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import { RequestCalendar } from "@/components/request-calendar";
+import { RequestCard } from "@/components/request-card";
 import { CsvUpload } from "@/components/csv-upload";
+import { toTitleCase } from "@/lib/utils";
 import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
 import { TimetableGenerator } from "@/components/timetable-generator";
 import { FileSpreadsheet, Filter, BookOpen, Wand2 } from "lucide-react";
@@ -71,7 +72,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
   const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
-  const [calendarKey, setCalendarKey] = useState(0);
 
   const [profAssignments, setProfAssignments] = useState<ProfessorAssignment[]>([]);
   const [profLoading, setProfLoading] = useState(true);
@@ -80,6 +80,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [filterSubject, setFilterSubject] = useState("all");
   const [profFilterTerm, setProfFilterTerm] = useState("all");
   const [profFilterSubject, setProfFilterSubject] = useState("all");
+
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [calendarClassroomFilter, setCalendarClassroomFilter] = useState<string>("");
 
   const fetchRequests = useCallback(async () => {
     const supabase = createClient();
@@ -129,20 +132,31 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setProfLoading(false);
   }, []);
 
+  const fetchClassrooms = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase.from("classrooms").select("*").order("name");
+    if (data) setClassrooms(data);
+  }, []);
+
   useEffect(() => {
     fetchRequests();
     fetchStudents();
     fetchProfAssignments();
-  }, [fetchRequests, fetchStudents, fetchProfAssignments]);
+    fetchClassrooms();
+  }, [fetchRequests, fetchStudents, fetchProfAssignments, fetchClassrooms]);
 
-  async function updateRequest(id: string, status: RequestStatus) {
+  async function updateRequest(
+    id: string,
+    status: RequestStatus,
+    adminNoteOverride?: string
+  ) {
     setUpdating(true);
     const supabase = createClient();
     const { error } = await supabase
       .from("calendar_requests")
       .update({
         status,
-        admin_note: adminNote || null,
+        admin_note: (adminNoteOverride ?? adminNote) || null,
         reviewed_by: profile.id,
         updated_at: new Date().toISOString(),
       })
@@ -164,13 +178,88 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setSelectedRequest(null);
     setAdminNote("");
     fetchRequests();
-    setCalendarKey((k) => k + 1);
+  }
+
+  function CalendarEventActions({
+    request,
+    closeSidebar,
+  }: {
+    request: CalendarRequest;
+    closeSidebar: () => void;
+  }) {
+    const [sidebarNote, setSidebarNote] = useState(request.admin_note ?? "");
+
+    const submitFromSidebar = async (status: RequestStatus) => {
+      await updateRequest(request.id, status, sidebarNote);
+      closeSidebar();
+    };
+
+    return (
+      <div className="space-y-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Review request
+        </p>
+        <div className="space-y-2">
+          <Label
+            htmlFor={`calendar-admin-note-${request.id}`}
+            className="text-sm font-medium text-foreground"
+          >
+            Admin note (optional)
+          </Label>
+          <Textarea
+            id={`calendar-admin-note-${request.id}`}
+            placeholder="Add a note for the professor..."
+            value={sidebarNote}
+            onChange={(e) => setSidebarNote(e.target.value)}
+            rows={3}
+            className="resize-none rounded-lg border-muted-foreground/30 bg-muted/30 focus-visible:ring-2"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => submitFromSidebar("approved")}
+            disabled={updating}
+            variant="outline"
+            size="sm"
+            className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 hover:border-emerald-500 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
+          >
+            <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+            Approve
+          </Button>
+          <Button
+            onClick={() => submitFromSidebar("rejected")}
+            disabled={updating}
+            variant="outline"
+            size="sm"
+            className="flex-1 min-w-[100px] rounded-full border-red-400/60 bg-red-500/10 text-red-700 hover:bg-red-500/20 hover:border-red-500 dark:text-red-400 dark:bg-red-500/15 dark:hover:bg-red-500/25"
+          >
+            <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+            Reject
+          </Button>
+          <Button
+            onClick={() => submitFromSidebar("clarification_needed")}
+            disabled={updating}
+            variant="outline"
+            size="sm"
+            className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+          >
+            <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+            Clarify
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   const filterByStatus = (status: string) =>
     status === "all"
       ? requests
       : requests.filter((r) => r.status === status);
+
+  const calendarBookings = useMemo(() => {
+    if (!calendarClassroomFilter) return requests;
+    return requests.filter((r) => r.classroom_id === calendarClassroomFilter);
+  }, [requests, calendarClassroomFilter]);
 
   const allTerms = [...new Set(enrollments.map((e) => e.term))].sort();
   const allSubjects = [...new Set(enrollments.map((e) => e.subject))].sort();
@@ -291,7 +380,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       <Tabs
         defaultValue="requests"
         onValueChange={(tab) => {
-          if (tab === "booked-schedule") setCalendarKey((k) => k + 1);
           if (tab === "requests") fetchRequests();
           if (tab === "professors" || tab === "prof-assignments") fetchProfAssignments();
         }}
@@ -301,9 +389,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             <CalendarDays className="h-4 w-4" />
             Calendar Requests
           </TabsTrigger>
-          <TabsTrigger value="booked-schedule" className="gap-1.5">
-            <LayoutList className="h-4 w-4" />
-            Classroom Availability
+          <TabsTrigger value="calendar" className="gap-1.5">
+            <CalendarDays className="h-4 w-4" />
+            Calendar
           </TabsTrigger>
           <TabsTrigger value="enrollments" className="gap-1.5">
             <FileSpreadsheet className="h-4 w-4" />
@@ -402,81 +490,15 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {filterByStatus(tab).map((req) => (
-                      <Card
+                      <RequestCard
                         key={req.id}
-                        className="cursor-pointer hover:shadow-md transition-shadow relative overflow-hidden"
+                        request={req}
+                        showProfessor
                         onClick={() => {
                           setSelectedRequest(req);
                           setAdminNote(req.admin_note ?? "");
                         }}
-                      >
-                        <div
-                          className={`absolute top-0 left-0 right-0 h-1 ${
-                            req.status === "approved"
-                              ? "bg-green-500"
-                              : req.status === "rejected"
-                              ? "bg-red-500"
-                              : req.status === "clarification_needed"
-                              ? "bg-blue-500"
-                              : "bg-yellow-500"
-                          }`}
-                        />
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <CardTitle className="text-lg">
-                              {req.title}
-                            </CardTitle>
-                            <Badge
-                              className={statusColors[req.status]}
-                              variant="outline"
-                            >
-                              {req.status === "clarification_needed"
-                                ? "Clarification"
-                                : req.status.charAt(0).toUpperCase() +
-                                  req.status.slice(1)}
-                            </Badge>
-                          </div>
-                          {req.description && (
-                            <CardDescription>{req.description}</CardDescription>
-                          )}
-                        </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <User className="h-4 w-4" />
-                            <span>
-                              {req.professor?.full_name ?? req.professor_id}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <CalendarDays className="h-4 w-4" />
-                            <span>
-                              {format(
-                                new Date(req.event_date),
-                                "MMM d, yyyy"
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            <span>
-                              {req.start_time.slice(0, 5)} -{" "}
-                              {req.end_time.slice(0, 5)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Users className="h-4 w-4" />
-                            <span>
-                              {req.student_groups && req.student_groups.length > 0
-                                ? req.student_groups.map((sg) => sg.name).join(", ")
-                                : req.student_group?.name ?? "—"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <MapPin className="h-4 w-4" />
-                            <span>{req.classroom?.name ?? "—"}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      />
                     ))}
                   </div>
                 )}
@@ -485,15 +507,50 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           </Tabs>
         </TabsContent>
 
-        {/* ========== BOOKED SCHEDULE TAB ========== */}
-        <TabsContent value="booked-schedule" className="mt-6">
-          <BookedSchedule
-            showAllStatuses
-            refreshKey={calendarKey}
-            onEventClick={(event) => {
-              setSelectedRequest(event);
-              setAdminNote(event.admin_note ?? "");
-            }}
+        {/* ========== CALENDAR TAB ========== */}
+        <TabsContent value="calendar" className="mt-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Classroom:</span>
+            <Select
+              value={calendarClassroomFilter || "all"}
+              onValueChange={(v) => setCalendarClassroomFilter(v === "all" || !v ? "" : v)}
+            >
+              <SelectTrigger className="w-full sm:max-w-[220px] rounded-lg">
+                <span className="truncate">
+                  {!calendarClassroomFilter
+                    ? "All classrooms"
+                    : toTitleCase(
+                        classrooms.find((c) => c.id === calendarClassroomFilter)?.name ?? ""
+                      ) || "Select classroom"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All classrooms</SelectItem>
+                {classrooms.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {toTitleCase(c.name)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <RequestCalendar
+            bookings={calendarBookings}
+            loading={loading}
+            colorBy="status"
+            alwaysShowCalendar
+            emptyMessage={
+              calendarClassroomFilter
+                ? "No requests for this classroom."
+                : "No calendar requests yet."
+            }
+            eventDetailActions={(request, closeSidebar) => (
+              <CalendarEventActions
+                key={request.id}
+                request={request}
+                closeSidebar={closeSidebar}
+              />
+            )}
           />
         </TabsContent>
 
@@ -798,128 +855,144 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         </TabsContent>
       </Tabs>
 
-      {/* Review dialog */}
-      <Dialog
-        open={!!selectedRequest}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedRequest(null);
-            setAdminNote("");
-          }
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          {selectedRequest && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedRequest.title}</DialogTitle>
-                <DialogDescription>
-                  Submitted by{" "}
-                  <strong>
-                    {selectedRequest.professor?.full_name ??
-                      selectedRequest.professor_id}
-                  </strong>{" "}
-                  on{" "}
-                  {format(
-                    new Date(selectedRequest.created_at),
-                    "MMM d, yyyy"
-                  )}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3 text-sm">
-                {selectedRequest.description && (
-                  <div className="border-b pb-3">
-                    <p className="font-medium mb-1">Description</p>
-                    <p className="text-muted-foreground whitespace-pre-wrap">
-                      {selectedRequest.description}
-                    </p>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="font-medium">Date</p>
-                    <p className="text-muted-foreground">
-                      {format(
-                        new Date(selectedRequest.event_date),
-                        "EEEE, MMM d, yyyy"
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Time</p>
-                    <p className="text-muted-foreground">
-                      {selectedRequest.start_time.slice(0, 5)} -{" "}
-                      {selectedRequest.end_time.slice(0, 5)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Student Group(s)</p>
-                    <p className="text-muted-foreground">
-                      {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
-                        ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
-                        : selectedRequest.student_group?.name ?? "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Classroom</p>
-                    <p className="text-muted-foreground">
-                      {selectedRequest.classroom?.name ?? "—"}
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2 pt-2">
-                  <Label>Admin Note (optional)</Label>
-                  <Textarea
-                    placeholder="Add a note for the professor..."
-                    value={adminNote}
-                    onChange={(e) => setAdminNote(e.target.value)}
-                    rows={3}
+      {/* Review sidebar (from request card click) */}
+      {selectedRequest && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/20"
+            aria-hidden
+            onClick={() => {
+              setSelectedRequest(null);
+              setAdminNote("");
+            }}
+          />
+          <aside
+            className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            role="dialog"
+            aria-label="Review request"
+          >
+            <div className="flex items-center justify-end p-2 border-b shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setAdminNote("");
+                }}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-4">
+              <div className="pt-2">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="mt-1.5 h-3 w-3 shrink-0 rounded-sm"
+                    style={{
+                      backgroundColor:
+                        selectedRequest.status === "approved"
+                          ? "#22c55e"
+                          : selectedRequest.status === "rejected"
+                            ? "#ef4444"
+                            : selectedRequest.status === "clarification_needed"
+                              ? "#3b82f6"
+                              : "#eab308",
+                    }}
                   />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-semibold leading-tight text-foreground">
+                      {selectedRequest.title}
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {format(new Date(selectedRequest.event_date), "EEEE, MMMM d")}
+                    </p>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex gap-2 pt-2">
+              <div className="mt-4 space-y-2.5">
+                <div className="flex items-center gap-3 text-sm text-foreground">
+                  <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>{selectedRequest.classroom?.name ?? "—"}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-foreground">
+                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>
+                    {selectedRequest.professor?.full_name ??
+                      selectedRequest.professor_id}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-foreground">
+                  <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>
+                    {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
+                      ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
+                      : selectedRequest.student_group?.name ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-foreground">
+                  <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>
+                    {selectedRequest.start_time.slice(0, 5)} –{" "}
+                    {selectedRequest.end_time.slice(0, 5)}
+                  </span>
+                </div>
+                {selectedRequest.description && (
+                  <div className="flex items-start gap-3 text-sm pt-1 border-t">
+                    <span className="text-muted-foreground">{selectedRequest.description}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="shrink-0 border-t p-4 bg-background space-y-4">
+              <div className="space-y-2">
+                <Label>Admin note (optional)</Label>
+                <Textarea
+                  placeholder="Add a note for the professor..."
+                  value={adminNote}
+                  onChange={(e) => setAdminNote(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <Button
-                  onClick={() =>
-                    updateRequest(selectedRequest.id, "approved")
-                  }
+                  onClick={() => updateRequest(selectedRequest.id, "approved")}
                   disabled={updating}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
                 >
-                  <Check className="mr-2 h-4 w-4" />
+                  <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                   Approve
                 </Button>
                 <Button
-                  onClick={() =>
-                    updateRequest(selectedRequest.id, "rejected")
-                  }
+                  onClick={() => updateRequest(selectedRequest.id, "rejected")}
                   disabled={updating}
-                  variant="destructive"
-                  className="flex-1"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 min-w-[100px] rounded-full border-red-400/60 bg-red-500/10 text-red-700 hover:bg-red-500/20 dark:text-red-400 dark:bg-red-500/15 dark:hover:bg-red-500/25"
                 >
-                  <X className="mr-2 h-4 w-4" />
+                  <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                   Reject
                 </Button>
                 <Button
                   onClick={() =>
-                    updateRequest(
-                      selectedRequest.id,
-                      "clarification_needed"
-                    )
+                    updateRequest(selectedRequest.id, "clarification_needed")
                   }
                   disabled={updating}
                   variant="outline"
-                  className="flex-1"
+                  size="sm"
+                  className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
                 >
-                  <HelpCircle className="mr-2 h-4 w-4" />
+                  <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                   Clarify
                 </Button>
               </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   );
 }
