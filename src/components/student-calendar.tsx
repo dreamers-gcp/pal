@@ -82,6 +82,8 @@ export function StudentCalendar({ studentGroupIds }: StudentCalendarProps) {
         classrooms={classrooms}
         loading={loading}
         colorBy="classroom"
+        showDescription={false}
+        showStatus={false}
       />
     </div>
   );

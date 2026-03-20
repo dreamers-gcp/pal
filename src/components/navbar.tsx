@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, LogOut, LayoutDashboard } from "lucide-react";
+import { Calendar, LogOut, LayoutDashboard, Menu } from "lucide-react";
 import { useNotifications, NotificationList } from "@/components/notifications";
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -41,6 +41,10 @@ export function Navbar() {
     router.refresh();
   }
 
+  function openTabMenu() {
+    window.dispatchEvent(new CustomEvent("pal:open-tab-menu"));
+  }
+
   const initials = profile?.full_name
     ? profile.full_name
         .split(" ")
@@ -53,13 +57,26 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 no-underline text-foreground hover:opacity-80 transition-opacity"
-        >
-          <Calendar className="h-6 w-6 text-primary" />
-          <span className="text-xl font-bold">PAL</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {profile && (
+            <button
+              type="button"
+              onClick={openTabMenu}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Open tab menu"
+              title="Open menu"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+          )}
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 no-underline text-foreground hover:opacity-80 transition-opacity"
+          >
+            <Calendar className="h-6 w-6 text-primary" />
+            <span className="text-xl font-bold">PAL</span>
+          </Link>
+        </div>
 
         {profile && (
           <div className="flex items-center gap-3">

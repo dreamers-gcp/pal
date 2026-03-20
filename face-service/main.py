@@ -55,7 +55,11 @@ def read_image(data: bytes) -> np.ndarray:
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
-def extract_embedding(img: np.ndarray) -> np.ndarray:
+def extract_single_embedding(img: np.ndarray) -> np.ndarray:
+    """
+    Extract embedding when exactly one face should be present.
+    Used for /embedding (face registration).
+    """
     faces = face_app.get(img)
     if len(faces) == 0:
         raise HTTPException(status_code=422, detail="No face detected in the image")
@@ -65,6 +69,17 @@ def extract_embedding(img: np.ndarray) -> np.ndarray:
             detail="Multiple faces detected — please ensure only your face is visible",
         )
     return faces[0].normed_embedding
+
+
+def extract_face_embeddings(img: np.ndarray) -> list[np.ndarray]:
+    """
+    Extract embeddings for all detected faces.
+    Used for /compare (attendance verification) where we allow multi-face images.
+    """
+    faces = face_app.get(img)
+    if len(faces) == 0:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    return [f.normed_embedding for f in faces]
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -80,7 +95,7 @@ async def health():
 async def get_embedding(file: UploadFile = File(...)):
     data = await file.read()
     img = read_image(data)
-    emb = extract_embedding(img)
+    emb = extract_single_embedding(img)
     return {"embedding": emb.tolist()}
 
 
@@ -98,7 +113,7 @@ async def compare(
 
     data = await file.read()
     img = read_image(data)
-    probe_emb = extract_embedding(img)
+    probe_embs = extract_face_embeddings(img)
 
     try:
         known = json.loads(embeddings_json)
@@ -111,13 +126,15 @@ async def compare(
     best_id = None
     best_score = -1.0
 
-    for item in known:
-        emb_id = item[0]
-        emb_vec = np.array(item[1], dtype=np.float64)
-        score = cosine_similarity(probe_emb, emb_vec)
-        if score > best_score:
-            best_score = score
-            best_id = emb_id
+    # Allow multi-face images: accept if any detected face matches.
+    for probe_emb in probe_embs:
+        for item in known:
+            emb_id = item[0]
+            emb_vec = np.array(item[1], dtype=np.float64)
+            score = cosine_similarity(probe_emb, emb_vec)
+            if score > best_score:
+                best_score = score
+                best_id = emb_id
 
     return {
         "match": best_score >= SIMILARITY_THRESHOLD,

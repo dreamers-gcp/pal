@@ -32,6 +32,8 @@ interface BookingFormProps {
   prefill?: BookingFormPrefill;
   onSuccess: () => void;
   onClose: () => void;
+  /** Use inside a sidebar/panel instead of Radix Dialog (no DialogContent). */
+  variant?: "dialog" | "panel";
 }
 
 export function BookingForm({
@@ -41,6 +43,7 @@ export function BookingForm({
   prefill,
   onSuccess,
   onClose,
+  variant = "dialog",
 }: BookingFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [conflictWarning, setConflictWarning] = useState("");
@@ -171,29 +174,39 @@ export function BookingForm({
 
   const selectedRoom = classrooms.find((c) => c.id === classroomId);
 
-  return (
-    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  const descriptionText =
+    selectedRoom && eventDate ? (
+      <>
+        Booking <strong>{selectedRoom.name}</strong> on <strong>{eventDate}</strong>
+        {startTime && (
+          <>
+            {" "}
+            at <strong>{startTime}</strong>
+          </>
+        )}
+        . Fill in the remaining details.
+      </>
+    ) : (
+      "Request to block a time slot for student groups and a classroom. An admin will review your request."
+    );
+
+  const header =
+    variant === "dialog" ? (
       <DialogHeader>
         <DialogTitle>Create Calendar Block Request</DialogTitle>
-        <DialogDescription>
-          {selectedRoom && eventDate ? (
-            <>
-              Booking <strong>{selectedRoom.name}</strong> on{" "}
-              <strong>{eventDate}</strong>
-              {startTime && (
-                <>
-                  {" "}
-                  at <strong>{startTime}</strong>
-                </>
-              )}
-              . Fill in the remaining details.
-            </>
-          ) : (
-            "Request to block a time slot for student groups and a classroom. An admin will review your request."
-          )}
-        </DialogDescription>
+        <DialogDescription>{descriptionText}</DialogDescription>
       </DialogHeader>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    ) : (
+      <div className="space-y-1.5 pb-4">
+        <h2 className="text-lg font-semibold leading-tight text-foreground">
+          Create Calendar Block Request
+        </h2>
+        <p className="text-sm text-muted-foreground">{descriptionText}</p>
+      </div>
+    );
+
+  const form = (
+    <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="bf-title">
             Event Title
@@ -325,6 +338,21 @@ export function BookingForm({
                   : "Submit Request"}
         </Button>
       </form>
+  );
+
+  if (variant === "panel") {
+    return (
+      <div className="flex flex-col min-h-0">
+        {header}
+        {form}
+      </div>
+    );
+  }
+
+  return (
+    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      {header}
+      {form}
     </DialogContent>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, CalendarRequest } from "@/lib/types";
 import {
@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  ClipboardList,
   CalendarDays,
   Clock,
   Filter,
@@ -25,7 +26,6 @@ import {
 import { format, isBefore, startOfToday } from "date-fns";
 import { TaskTracker } from "@/components/task-tracker";
 import { StudentCalendar } from "@/components/student-calendar";
-import { FaceRegistration } from "@/components/face-registration";
 import { AttendanceMarker } from "@/components/attendance-marker";
 
 export function StudentDashboard({ profile }: { profile: Profile }) {
@@ -35,6 +35,15 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [studentGroupNames, setStudentGroupNames] = useState<string[]>([]);
   const [groupIdToName, setGroupIdToName] = useState<Record<string, string>>({});
   const [filterSubject, setFilterSubject] = useState("all");
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
+
+  useEffect(() => {
+    function handleOpenTabMenu() {
+      setTabMenuOpen(true);
+    }
+    window.addEventListener("pal:open-tab-menu", handleOpenTabMenu);
+    return () => window.removeEventListener("pal:open-tab-menu", handleOpenTabMenu);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -169,6 +178,14 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const filteredGroupIds =
     filterSubject === "all" ? studentGroupIds : [filterSubject];
 
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    if (hour < 21) return "Good evening";
+    return "Good night";
+  }, []);
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -180,13 +197,9 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Student Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Welcome, {profile.full_name}.
-          {studentGroupNames.length > 0
-            ? ` You belong to: ${studentGroupNames.join(", ")}.`
-            : " Your groups haven't been assigned yet — contact your admin."}
-        </p>
+        <h1 className="text-3xl font-bold">
+          {greeting}, {profile.full_name}!
+        </h1>
       </div>
 
       {!loading && studentGroupIds.length === 0 && (
@@ -203,9 +216,56 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       )}
 
       <Tabs defaultValue="events" className="gap-1">
-        <TabsList>
+        {tabMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/20"
+              aria-hidden
+              onClick={() => setTabMenuOpen(false)}
+            />
+            <aside className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200">
+              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Navigate</h2>
+              <TabsList className="flex h-auto w-full flex-col items-stretch">
+                <TabsTrigger
+                  value="events"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Events
+                </TabsTrigger>
+                <TabsTrigger
+                  value="calendar"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Calendar
+                </TabsTrigger>
+                <TabsTrigger
+                  value="attendance"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <ScanFace className="h-4 w-4" />
+                  Attendance
+                </TabsTrigger>
+                <TabsTrigger
+                  value="tasks"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <ListTodo className="h-4 w-4" />
+                  Task Tracker
+                </TabsTrigger>
+              </TabsList>
+            </aside>
+          </>
+        )}
+
+        <TabsList className="hidden">
           <TabsTrigger value="events" className="gap-1.5">
-            <CalendarDays className="h-4 w-4" />
+            <ClipboardList className="h-4 w-4" />
             Events
           </TabsTrigger>
           <TabsTrigger value="calendar" className="gap-1.5">
@@ -362,7 +422,6 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         </TabsContent>
 
         <TabsContent value="attendance" className="mt-3 space-y-4">
-          <FaceRegistration studentId={profile.id} />
           {events.length > 0 && (
             <AttendanceMarker profile={profile} events={events} />
           )}

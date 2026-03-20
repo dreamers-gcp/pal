@@ -9,9 +9,9 @@ import type {
   StudentGroup,
 } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Clock, CalendarDays, MapPin, Users, ScanFace } from "lucide-react";
+import { ClipboardList, Plus, CalendarDays, ScanFace, X } from "lucide-react";
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import type { CalendarSlotInfo } from "@/components/request-calendar";
 import { BookingForm, type BookingFormPrefill } from "@/components/booking-form";
@@ -34,9 +34,18 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [bookingSidebarOpen, setBookingSidebarOpen] = useState(false);
   const [prefill, setPrefill] = useState<BookingFormPrefill | undefined>();
   const [formKey, setFormKey] = useState(0);
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
+
+  useEffect(() => {
+    function handleOpenTabMenu() {
+      setTabMenuOpen(true);
+    }
+    window.addEventListener("pal:open-tab-menu", handleOpenTabMenu);
+    return () => window.removeEventListener("pal:open-tab-menu", handleOpenTabMenu);
+  }, []);
 
   /** "all-rooms" = see all events + book; "my-schedule" = see only my requests */
   const [calendarViewMode, setCalendarViewMode] = useState<"all-rooms" | "my-schedule">("all-rooms");
@@ -133,10 +142,18 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     });
   }, [calendarViewMode, requests, allApprovedBookings]);
 
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    if (hour < 21) return "Good evening";
+    return "Good night";
+  }, []);
+
   function openNewRequest() {
     setPrefill(undefined);
     setFormKey((k) => k + 1);
-    setDialogOpen(true);
+    setBookingSidebarOpen(true);
   }
 
   function handleCalendarSlotSelect(slot: CalendarSlotInfo) {
@@ -153,7 +170,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       endTime: format(slot.end, "HH:mm"),
     });
     setFormKey((k) => k + 1);
-    setDialogOpen(true);
+    setBookingSidebarOpen(true);
   }
 
   if (loading) {
@@ -167,16 +184,53 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Professor Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Welcome, {profile.full_name}. Manage your calendar block requests.
-        </p>
+        <h1 className="text-3xl font-bold">
+          {greeting}, {profile.full_name}!
+        </h1>
       </div>
 
       <Tabs defaultValue="my-requests">
-        <TabsList>
+        {tabMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/20"
+              aria-hidden
+              onClick={() => setTabMenuOpen(false)}
+            />
+            <aside className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200">
+              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Navigate</h2>
+              <TabsList className="flex h-auto w-full flex-col items-stretch">
+                <TabsTrigger
+                  value="my-requests"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  My Requests
+                </TabsTrigger>
+                <TabsTrigger
+                  value="calendar"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Calendar
+                </TabsTrigger>
+                <TabsTrigger
+                  value="attendance"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <ScanFace className="h-4 w-4" />
+                  Attendance
+                </TabsTrigger>
+              </TabsList>
+            </aside>
+          </>
+        )}
+        <TabsList className="hidden">
           <TabsTrigger value="my-requests" className="gap-1.5">
-            <CalendarDays className="h-4 w-4" />
+            <ClipboardList className="h-4 w-4" />
             My Requests
           </TabsTrigger>
           <TabsTrigger value="calendar" className="gap-1.5">
@@ -265,7 +319,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                 value={calendarRoomFilter || "none"}
                 onValueChange={(v) => setCalendarRoomFilter(v === "none" || !v ? "" : v)}
               >
-                <SelectTrigger id="calendar-classroom-filter" className="w-full sm:max-w-md">
+                <SelectTrigger id="calendar-classroom-filter" className="w-full sm:max-w-[220px]">
                   <span className="flex flex-1 items-center truncate">
                     {!calendarRoomFilter
                       ? "Select room to book a slot"
@@ -309,23 +363,44 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         </TabsContent>
       </Tabs>
 
-      {/* Booking dialog — New request + availability slot clicks */}
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          if (!open) setDialogOpen(false);
-        }}
-      >
-        <BookingForm
-          key={formKey}
-          profileId={profile.id}
-          classrooms={classrooms}
-          studentGroups={studentGroups}
-          prefill={prefill}
-          onSuccess={fetchData}
-          onClose={() => setDialogOpen(false)}
-        />
-      </Dialog>
+      {/* Booking sidebar — New request + calendar slot selection (matches admin review panel) */}
+      {bookingSidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/20"
+            aria-hidden
+            onClick={() => setBookingSidebarOpen(false)}
+          />
+          <aside
+            className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            role="dialog"
+            aria-label="New calendar request"
+          >
+            <div className="flex items-center justify-end p-2 border-b shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setBookingSidebarOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-4 pt-2">
+              <BookingForm
+                key={formKey}
+                variant="panel"
+                profileId={profile.id}
+                classrooms={classrooms}
+                studentGroups={studentGroups}
+                prefill={prefill}
+                onSuccess={fetchData}
+                onClose={() => setBookingSidebarOpen(false)}
+              />
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   );
 }

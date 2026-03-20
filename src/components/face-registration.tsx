@@ -18,6 +18,17 @@ import type { FaceEmbedding } from "@/lib/types";
 
 const MIN_PHOTOS = 3;
 const MAX_PHOTOS = 5;
+// Registration hardening: every captured photo must match the previously captured face(s).
+// This prevents mixing two different people during registration.
+const REGISTRATION_MATCH_THRESHOLD = 0.35;
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  // Matches face-service logic (cosine similarity on normalized embeddings)
+  const dot = a.reduce((acc, v, i) => acc + v * b[i], 0);
+  const normA = Math.sqrt(a.reduce((acc, v) => acc + v * v, 0));
+  const normB = Math.sqrt(b.reduce((acc, v) => acc + v * v, 0));
+  return dot / (normA * normB + 1e-10);
+}
 
 interface Props {
   studentId: string;
@@ -76,10 +87,27 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
         return;
       }
 
+      const newEmbedding = embData.embedding as number[];
+      if (embeddings.length > 0) {
+        const bestSim = Math.max(
+          ...embeddings.map((e) => cosineSimilarity(newEmbedding, e.embedding))
+        );
+
+        if (bestSim < REGISTRATION_MATCH_THRESHOLD) {
+          // Mismatch: likely a different person/photo mix. Reject this capture.
+          await supabase.storage.from("face-photos").remove([filename]);
+          toast.error(
+            "This photo does not match your earlier captures. Please retake while only your face is visible."
+          );
+          setUploading(false);
+          return;
+        }
+      }
+
       const { error: dbErr } = await supabase.from("face_embeddings").insert({
         student_id: studentId,
         photo_path: filename,
-        embedding: embData.embedding,
+        embedding: newEmbedding,
       });
 
       if (dbErr) {
@@ -91,7 +119,8 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
       toast.success("Face photo registered!");
       await fetchEmbeddings();
 
-      if (embeddings.length + 1 >= MIN_PHOTOS) {
+      const nextCount = embeddings.length + 1;
+      if (nextCount >= MIN_PHOTOS) {
         await supabase
           .from("profiles")
           .update({ face_registered: true })

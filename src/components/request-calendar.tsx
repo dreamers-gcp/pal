@@ -50,6 +50,10 @@ export interface RequestCalendarProps {
   emptyMessage?: string;
   /** When true, always show the calendar grid even with no bookings (show emptyMessage as a hint) */
   alwaysShowCalendar?: boolean;
+  /** When false, hide the professor-submitted request description in the sidebar */
+  showDescription?: boolean;
+  /** When false, hide the approval status line in the sidebar */
+  showStatus?: boolean;
   /** Optional actions to show in the event detail sidebar (e.g. "Review request" for admin) */
   eventDetailActions?: (request: CalendarRequest, closeSidebar: () => void) => React.ReactNode;
 }
@@ -71,9 +75,13 @@ const VIEWS: View[] = ["month", "week", "day"];
 function EventDetailCard({
   request,
   eventColor,
+  showDescription,
+  showStatus,
 }: {
   request: CalendarRequest;
   eventColor: string;
+  showDescription: boolean;
+  showStatus: boolean;
 }) {
   const professorDisplay =
     request.professor?.full_name ?? request.professor_email ?? "—";
@@ -123,11 +131,13 @@ function EventDetailCard({
             {request.start_time?.slice(0, 5)} – {request.end_time?.slice(0, 5)}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-sm text-foreground">
-          <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span>{toTitleCase(statusLabel)}</span>
-        </div>
-        {request.description && (
+        {showStatus && (
+          <div className="flex items-center gap-3 text-sm text-foreground">
+            <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span>{toTitleCase(statusLabel)}</span>
+          </div>
+        )}
+        {showDescription && request.description && (
           <div className="flex items-start gap-3 text-sm text-foreground pt-1 border-t">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <span className="text-muted-foreground">{request.description}</span>
@@ -148,6 +158,8 @@ export function RequestCalendar({
   bookingClassroomId = null,
   emptyMessage,
   alwaysShowCalendar = false,
+  showDescription = true,
+  showStatus = true,
   eventDetailActions,
 }: RequestCalendarProps) {
   const [view, setView] = useState<View>("week");
@@ -321,6 +333,8 @@ export function RequestCalendar({
                     ? statusColors[selectedEventRequest.status]
                     : colorForClassroom(selectedEventRequest.classroom_id)
                 }
+                showDescription={showDescription}
+                showStatus={showStatus}
               />
             </div>
             {eventDetailActions && (

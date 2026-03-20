@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { WebcamCapture } from "@/components/webcam-capture";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,15 @@ import {
   Loader2,
   MapPin,
   ScanFace,
+  Filter,
   User,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, parse, addMinutes, subMinutes, isWithinInterval } from "date-fns";
+import { format, parse, addMinutes, isWithinInterval } from "date-fns";
 import type { CalendarRequest, AttendanceRecord, Profile } from "@/lib/types";
 
-const ATTENDANCE_WINDOW_MINUTES = 30;
+const ATTENDANCE_WINDOW_MINUTES = 15;
 
 function isEventToday(dateStr: string): boolean {
   const now = new Date();
@@ -85,18 +86,24 @@ export function AttendanceMarker({ profile, events }: Props) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startTime = parse(event.start_time, "HH:mm:ss", today);
-    const windowStart = subMinutes(startTime, ATTENDANCE_WINDOW_MINUTES);
+    const windowStart = startTime; // only after class start
     const windowEnd = addMinutes(startTime, ATTENDANCE_WINDOW_MINUTES);
     return isWithinInterval(now, { start: windowStart, end: windowEnd });
   }
 
-  async function handleCapture(eventId: string, blob: Blob) {
+  async function handleCapture(event: CalendarRequest, blob: Blob) {
     setCaptureFor(null);
-    setVerifying(eventId);
+    setVerifying(event.id);
 
     try {
+      // Double-check the time window at the moment we verify (prevents front-end tampering).
+      if (!isWithinAttendanceWindow(event)) {
+        toast.error("Attendance window not active for this class. Please try again within 15 minutes of start time.");
+        return;
+      }
+
       // Path must start with student_id/ to satisfy storage RLS
-      const filename = `${profile.id}/attendance-${eventId}-${Date.now()}.jpg`;
+      const filename = `${profile.id}/attendance-${event.id}-${Date.now()}.jpg`;
       const { error: upErr } = await supabase.storage
         .from("face-photos")
         .upload(filename, blob, { contentType: "image/jpeg" });
@@ -117,6 +124,7 @@ export function AttendanceMarker({ profile, events }: Props) {
 
       if (!res.ok) {
         toast.error(data.error || "Verification failed");
+        await supabase.storage.from("face-photos").remove([filename]);
         setVerifying(null);
         return;
       }
@@ -133,7 +141,7 @@ export function AttendanceMarker({ profile, events }: Props) {
       // Save attendance record
       const { error: dbErr } = await supabase.from("attendance_records").insert({
         student_id: profile.id,
-        event_id: eventId,
+        event_id: event.id,
         photo_path: filename,
         similarity_score: data.similarity,
         verified: true,
@@ -174,7 +182,7 @@ export function AttendanceMarker({ profile, events }: Props) {
         <CardContent className="py-4">
           <p className="text-sm text-yellow-800">
             <strong>Face not registered.</strong> Go to the{" "}
-            <strong>Face ID</strong> tab to register your face before marking
+            <strong>Face Registration</strong> page to register your face before marking
             attendance.
           </p>
         </CardContent>
@@ -190,7 +198,7 @@ export function AttendanceMarker({ profile, events }: Props) {
           Today&apos;s Attendance
         </h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Mark attendance within ±{ATTENDANCE_WINDOW_MINUTES} minutes of class start
+          Mark attendance within {ATTENDANCE_WINDOW_MINUTES} minutes after class start
         </p>
       </div>
 
@@ -267,7 +275,7 @@ export function AttendanceMarker({ profile, events }: Props) {
                   ) : captureFor === event.id ? (
                     <div className="pt-2">
                       <WebcamCapture
-                        onCapture={(blob) => handleCapture(event.id, blob)}
+                        onCapture={(blob) => handleCapture(event, blob)}
                         onCancel={() => setCaptureFor(null)}
                         buttonLabel="Take attendance photo"
                       />
@@ -308,6 +316,9 @@ function AttendanceHistory({
   attendanceMap: Record<string, AttendanceRecord>;
   events: CalendarRequest[];
 }) {
+  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [dayFilter, setDayFilter] = useState("");
+
   const pastEvents = events.filter(
     (e) => new Date(e.event_date) <= new Date() && !isEventToday(e.event_date)
   );
@@ -318,24 +329,141 @@ function AttendanceHistory({
     (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   );
 
-  const totalPast = sortedPast.length;
-  const attended = sortedPast.filter((e) => attendanceMap[e.id]).length;
+  const subjectOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        sortedPast.map((e) => e.student_group?.name ?? "Unknown subject")
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [sortedPast]);
+
+  const filteredPast = sortedPast.filter((event) => {
+    const subject = event.student_group?.name ?? "Unknown subject";
+    const day = format(new Date(event.event_date), "yyyy-MM-dd");
+
+    if (subjectFilter !== "all" && subject !== subjectFilter) return false;
+    if (dayFilter && day !== dayFilter) return false;
+    return true;
+  });
+
+  const totalPast = filteredPast.length;
+  const attended = filteredPast.filter((e) => attendanceMap[e.id]).length;
+  const subjectSummary = useMemo(() => {
+    const bucket = new Map<string, { total: number; attended: number }>();
+
+    for (const event of sortedPast) {
+      const subject = event.student_group?.name ?? "Unknown subject";
+      const row = bucket.get(subject) ?? { total: 0, attended: 0 };
+      row.total += 1;
+      if (attendanceMap[event.id]) row.attended += 1;
+      bucket.set(subject, row);
+    }
+
+    return Array.from(bucket.entries())
+      .map(([subject, stats]) => ({
+        subject,
+        total: stats.total,
+        attended: stats.attended,
+        percentage:
+          stats.total > 0 ? Math.round((stats.attended / stats.total) * 100) : 0,
+      }))
+      .sort((a, b) => a.subject.localeCompare(b.subject));
+  }, [sortedPast, attendanceMap]);
 
   return (
-    <div className="space-y-3 pt-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Attendance History</h3>
-        <Badge variant="outline">
-          {attended}/{totalPast} attended ({totalPast > 0 ? Math.round((attended / totalPast) * 100) : 0}%)
-        </Badge>
+    <div className="space-y-4 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-xl font-semibold tracking-tight">Attendance History</h3>
       </div>
-      <div className="space-y-1.5">
-        {sortedPast.slice(0, 20).map((event) => {
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border bg-card p-3.5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium text-foreground">Overall Attendance</p>
+            <span className="text-sm font-semibold text-primary">
+              {totalPast > 0 ? Math.round((attended / totalPast) * 100) : 0}%
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {attended}/{totalPast} classes attended
+          </p>
+          <div className="mt-2 h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{
+                width: `${totalPast > 0 ? Math.round((attended / totalPast) * 100) : 0}%`,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-base font-semibold text-foreground">Subject Summary</h4>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {subjectSummary.map((item) => (
+            <div key={item.subject} className="rounded-lg border bg-card p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-medium text-foreground truncate">{item.subject}</p>
+                <span className="text-sm font-semibold text-primary">{item.percentage}%</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {item.attended}/{item.total} classes attended
+              </p>
+              <div className="mt-2 h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${item.percentage}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Filter className="h-4 w-4" />
+          Filters
+        </div>
+        <select
+          className="h-9 min-w-[180px] rounded-md border border-input bg-background px-3 text-sm"
+          value={subjectFilter}
+          onChange={(e) => setSubjectFilter(e.target.value)}
+        >
+          <option value="all">All subjects</option>
+          {subjectOptions.map((subject) => (
+            <option key={subject} value={subject}>
+              {subject}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          className="h-9 min-w-[170px] rounded-md border border-input bg-background px-3 text-sm"
+          value={dayFilter}
+          onChange={(e) => setDayFilter(e.target.value)}
+        />
+        {(subjectFilter !== "all" || dayFilter) && (
+          <button
+            onClick={() => {
+              setSubjectFilter("all");
+              setDayFilter("");
+            }}
+            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {filteredPast.slice(0, 30).map((event) => {
           const att = attendanceMap[event.id];
           return (
             <div
               key={event.id}
-              className="flex items-center gap-3 py-1.5 px-2 rounded text-sm"
+              className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-base"
             >
               {att ? (
                 <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
@@ -343,17 +471,30 @@ function AttendanceHistory({
                 <XCircle className="h-4 w-4 text-red-400 shrink-0" />
               )}
               <span className="truncate flex-1">{event.title}</span>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {format(new Date(event.event_date), "MMM d")}
+              <span className="text-sm text-muted-foreground shrink-0">
+                {event.student_group?.name ?? "Unknown subject"}
+              </span>
+              <span className="text-sm text-muted-foreground shrink-0">
+                {format(new Date(event.event_date), "MMM d, yyyy")}
+              </span>
+              <span
+                className={`text-sm font-medium shrink-0 ${att ? "text-green-600" : "text-red-500"}`}
+              >
+                {att ? "Present" : "Absent"}
               </span>
               {att && (
-                <span className="text-xs text-green-600 shrink-0">
+                <span className="text-sm font-medium text-green-600 shrink-0">
                   {(att.similarity_score * 100).toFixed(0)}%
                 </span>
               )}
             </div>
           );
         })}
+        {filteredPast.length === 0 && (
+          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+            No attendance history for selected filters.
+          </div>
+        )}
       </div>
     </div>
   );

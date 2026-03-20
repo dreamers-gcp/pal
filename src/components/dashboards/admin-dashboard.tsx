@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
+  ClipboardList,
   CalendarDays,
   Check,
   Clock,
@@ -83,6 +84,15 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [calendarClassroomFilter, setCalendarClassroomFilter] = useState<string>("");
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
+
+  useEffect(() => {
+    function handleOpenTabMenu() {
+      setTabMenuOpen(true);
+    }
+    window.addEventListener("pal:open-tab-menu", handleOpenTabMenu);
+    return () => window.removeEventListener("pal:open-tab-menu", handleOpenTabMenu);
+  }, []);
 
   const fetchRequests = useCallback(async () => {
     const supabase = createClient();
@@ -384,9 +394,56 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           if (tab === "professors" || tab === "prof-assignments") fetchProfAssignments();
         }}
       >
-        <TabsList>
+        {tabMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/20"
+              aria-hidden
+              onClick={() => setTabMenuOpen(false)}
+            />
+            <aside className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200">
+              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Navigate</h2>
+              <TabsList className="flex h-auto w-full flex-col items-stretch">
+                <TabsTrigger value="requests" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <ClipboardList className="h-4 w-4" />
+                  Calendar Requests
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <CalendarDays className="h-4 w-4" />
+                  Calendar
+                </TabsTrigger>
+                <TabsTrigger value="enrollments" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Enrollments
+                </TabsTrigger>
+                <TabsTrigger value="students" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <GraduationCap className="h-4 w-4" />
+                  Manage Students
+                  {notSignedUpCount > 0 && (
+                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white font-bold">
+                      {notSignedUpCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="prof-assignments" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <BookOpen className="h-4 w-4" />
+                  Professor Assignments
+                </TabsTrigger>
+                <TabsTrigger value="professors" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <Users className="h-4 w-4" />
+                  Manage Professors
+                </TabsTrigger>
+                <TabsTrigger value="timetable" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
+                  <Wand2 className="h-4 w-4" />
+                  Timetable
+                </TabsTrigger>
+              </TabsList>
+            </aside>
+          </>
+        )}
+        <TabsList className="hidden">
           <TabsTrigger value="requests" className="gap-1.5">
-            <CalendarDays className="h-4 w-4" />
+            <ClipboardList className="h-4 w-4" />
             Calendar Requests
           </TabsTrigger>
           <TabsTrigger value="calendar" className="gap-1.5">
@@ -400,11 +457,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           <TabsTrigger value="students" className="gap-1.5">
             <GraduationCap className="h-4 w-4" />
             Manage Students
-            {notSignedUpCount > 0 && (
-              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white font-bold">
-                {notSignedUpCount}
-              </span>
-            )}
           </TabsTrigger>
           <TabsTrigger value="prof-assignments" className="gap-1.5">
             <BookOpen className="h-4 w-4" />
@@ -458,7 +510,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           </div>
 
           <Tabs defaultValue="pending">
-            <TabsList>
+            <TabsList className="w-fit">
               <TabsTrigger value="pending">
                 Pending ({filterByStatus("pending").length})
               </TabsTrigger>

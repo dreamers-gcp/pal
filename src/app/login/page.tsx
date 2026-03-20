@@ -29,7 +29,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -40,8 +40,24 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    const user = data.user;
+    if (user) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("role, face_registered")
+        .eq("id", user.id)
+        .single();
+
+      if (prof?.role === "student" && !prof.face_registered) {
+        router.push("/face-registration");
+      } else {
+        router.push("/dashboard");
+      }
+      router.refresh();
+    } else {
+      router.push("/dashboard");
+      router.refresh();
+    }
   }
 
   return (
