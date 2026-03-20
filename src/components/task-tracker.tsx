@@ -375,15 +375,16 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 gap-y-1">
-        <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/80">Reorder:</span> drag
-          by the grip.{" "}
-          <span className="font-medium text-foreground/80">Change column:</span>{" "}
-          use Move on each card.
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Reorder tasks by dragging the grip. Move tasks using the Move selector on each card.
         </p>
-        <Button onClick={openNewTask} size="sm" className="shrink-0">
+        <Button
+          onClick={openNewTask}
+          size="lg"
+          className="shrink-0 text-base"
+        >
           <Plus className="h-4 w-4 mr-1" />
           Add Task
         </Button>
@@ -415,15 +416,15 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editingTask ? "Edit Task" : "New Task"}
-            </DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
+            {editingTask ? "Edit Task" : "New Task"}
+          </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="task-title">
+            <Label htmlFor="task-title" className="text-base">
                 Title
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="task-title"
@@ -431,22 +432,26 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Complete assignment 3"
                 required
+              className="text-base"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-desc">Description (optional)</Label>
+            <Label htmlFor="task-desc" className="text-base">
+              Description (optional)
+            </Label>
               <Textarea
                 id="task-desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Add details..."
                 rows={3}
+              className="text-base"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-status">
+            <Label htmlFor="task-status" className="text-base">
                 Status
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <select
                 id="task-status"
@@ -454,7 +459,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
                 onChange={(e) =>
                   setStatus(e.target.value as TaskKanbanStatus)
                 }
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              className="w-full h-10 rounded-md border border-input bg-background px-3 text-base"
                 required
               >
                 <option value="todo">To do</option>
@@ -463,9 +468,9 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-due">
+            <Label htmlFor="task-due" className="text-base">
                 Due Date
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <DatePicker
                 value={dueDate}
@@ -525,14 +530,14 @@ function KanbanColumn({
 
   return (
     <div
-      className={`rounded-xl border-2 ${column.border} ${column.bg} p-3 min-h-[280px] flex flex-col`}
+      className={`rounded-xl border-2 ${column.border} ${column.bg} p-4 min-h-[320px] flex flex-col`}
     >
       <div className="flex items-center gap-2 mb-3 shrink-0">
         <div>
-          <h3 className="font-semibold text-sm">{column.title}</h3>
-          <p className="text-[10px] text-muted-foreground">{column.subtitle}</p>
+          <h3 className="font-semibold text-base">{column.title}</h3>
+          <p className="text-xs text-muted-foreground">{column.subtitle}</p>
         </div>
-        <Badge variant="outline" className="text-xs ml-auto">
+        <Badge variant="outline" className="text-sm ml-auto">
           {taskIds.length}
         </Badge>
       </div>
@@ -545,7 +550,7 @@ function KanbanColumn({
         <div className="flex-1 flex flex-col gap-2 min-h-[120px]">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {taskIds.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-8 border border-dashed rounded-lg">
+              <p className="text-sm text-muted-foreground text-center py-10 border border-dashed rounded-lg">
                 No tasks
               </p>
             )}
@@ -641,7 +646,7 @@ function TaskCardStatic({
         dragging ? "cursor-grabbing" : ""
       }`}
     >
-      <CardContent className="p-3 space-y-2">
+      <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <button
             type="button"
@@ -649,10 +654,10 @@ function TaskCardStatic({
             aria-label="Drag to reorder in this column"
             {...dragHandleProps}
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-5 w-5" />
           </button>
           <span
-            className={`flex-1 text-sm font-medium leading-tight min-w-0 ${
+            className={`flex-1 text-base font-medium leading-tight min-w-0 ${
               task.status === "completed"
                 ? "line-through text-muted-foreground"
                 : ""
@@ -673,7 +678,7 @@ function TaskCardStatic({
               <button
                 type="button"
                 onClick={onDelete}
-                className="p-1 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-600"
+                className="p-1 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
                 aria-label="Delete task"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -687,7 +692,7 @@ function TaskCardStatic({
             <ArrowRightLeft className="h-3 w-3 text-muted-foreground shrink-0" />
             <Label
               htmlFor={`move-${task.id}`}
-              className="text-[10px] text-muted-foreground sr-only"
+                className="text-xs text-muted-foreground sr-only"
             >
               Move to column
             </Label>
@@ -700,7 +705,7 @@ function TaskCardStatic({
                   e.target.value as TaskKanbanStatus
                 );
               }}
-              className="h-7 flex-1 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs"
+              className="h-9 flex-1 min-w-0 max-w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               {COLUMN_IDS.map((id) => (
                 <option key={id} value={id}>
@@ -712,20 +717,20 @@ function TaskCardStatic({
         )}
 
         {task.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2 pl-6">
+          <p className="text-sm text-muted-foreground line-clamp-2 pl-6">
             {task.description}
           </p>
         )}
 
         <div className="flex items-center gap-2 pl-6">
           <span
-            className={`inline-flex items-center gap-1 text-[10px] ${
+            className={`inline-flex items-center gap-1 text-sm ${
               isOverdue
-                ? "text-red-600 font-medium"
+                ? "text-destructive font-medium"
                 : "text-muted-foreground"
             }`}
           >
-            <CalendarDays className="h-3 w-3" />
+            <CalendarDays className="h-4 w-4" />
             {isOverdue && "Overdue · "}
             {format(new Date(task.due_date), "MMM d")}
           </span>

@@ -103,7 +103,7 @@ export function WebcamCapture({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 space-y-2">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive space-y-2">
         <p>{error}</p>
         <Button size="sm" variant="outline" onClick={startCamera}>
           Try again

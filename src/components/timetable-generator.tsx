@@ -49,8 +49,8 @@ const HOUR_START = 8;
 const HOUR_END = 18;
 
 const SLOT_COLORS = [
-  "bg-blue-100 border-blue-300 text-blue-900",
-  "bg-green-100 border-green-300 text-green-900",
+  "bg-primary/10 border-primary/30 text-primary",
+  "bg-accent/15 border-accent/30 text-accent-foreground",
   "bg-purple-100 border-purple-300 text-purple-900",
   "bg-orange-100 border-orange-300 text-orange-900",
   "bg-pink-100 border-pink-300 text-pink-900",
@@ -626,7 +626,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                 <div className="space-y-2">
                   <Label>
                     Term
-                    <span className="text-red-500">*</span>
+                    <span className="text-destructive">*</span>
                   </Label>
                   <select
                     className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -644,7 +644,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                 <div className="space-y-2">
                   <Label>
                     Term Start Date
-                    <span className="text-red-500">*</span>
+                    <span className="text-destructive">*</span>
                   </Label>
                   <DatePicker
                     value={startDate}
@@ -656,7 +656,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                 <div className="space-y-2">
                   <Label>
                     Term End Date
-                    <span className="text-red-500">*</span>
+                    <span className="text-destructive">*</span>
                   </Label>
                   <DatePicker
                     value={endDate}
@@ -755,9 +755,9 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                       <Badge
                         className={
                           tt.status === "approved"
-                            ? "bg-green-100 text-green-800"
+                            ? "bg-accent/15 text-accent-foreground"
                             : tt.status === "rejected"
-                            ? "bg-red-100 text-red-800"
+                            ? "bg-destructive/10 text-destructive"
                             : "bg-yellow-100 text-yellow-800"
                         }
                         variant="outline"
@@ -793,7 +793,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                       <Button
                         size="sm"
                         onClick={() => viewTimetable(tt.id).then(() => setViewTimetableId(tt.id))}
-                        className="gap-1 bg-green-600 hover:bg-green-700"
+                        className="gap-1 bg-primary hover:bg-primary/90"
                       >
                         <Check className="h-3.5 w-3.5" /> Review & Approve
                       </Button>
@@ -803,7 +803,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                         variant="outline"
                         size="sm"
                         onClick={() => deleteTimetable(tt.id)}
-                        className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -886,7 +886,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                     <Button
                       onClick={() => approveTimetable(viewTimetableId!)}
                       disabled={approving}
-                      className="gap-2 bg-green-600 hover:bg-green-700"
+                      className="gap-2 bg-primary hover:bg-primary/90"
                     >
                       {approving ? (
                         <><Loader2 className="h-4 w-4 animate-spin" /> Approving...</>

@@ -56,9 +56,9 @@ import type { ProfessorAssignment } from "@/lib/types";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  clarification_needed: "bg-blue-100 text-blue-800",
+  approved: "bg-accent/15 text-accent-foreground",
+  rejected: "bg-destructive/10 text-destructive",
+  clarification_needed: "bg-primary/10 text-primary",
 };
 
 export function AdminDashboard({ profile }: { profile: Profile }) {
@@ -241,7 +241,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             disabled={updating}
             variant="outline"
             size="sm"
-            className="flex-1 min-w-[100px] rounded-full border-red-400/60 bg-red-500/10 text-red-700 hover:bg-red-500/20 hover:border-red-500 dark:text-red-400 dark:bg-red-500/15 dark:hover:bg-red-500/25"
+            className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
           >
             <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
             Reject
@@ -420,7 +420,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   <GraduationCap className="h-4 w-4" />
                   Manage Students
                   {notSignedUpCount > 0 && (
-                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white font-bold">
+                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-white font-bold">
                       {notSignedUpCount}
                     </span>
                   )}
@@ -485,17 +485,17 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               {
                 label: "Approved",
                 count: filterByStatus("approved").length,
-                color: "text-green-600",
+                color: "text-accent-foreground",
               },
               {
                 label: "Rejected",
                 count: filterByStatus("rejected").length,
-                color: "text-red-600",
+                color: "text-destructive",
               },
               {
                 label: "Needs Clarification",
                 count: filterByStatus("clarification_needed").length,
-                color: "text-blue-600",
+                color: "text-primary",
               },
             ].map((stat) => (
               <Card key={stat.label}>
@@ -643,7 +643,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <Card>
                   <CardContent className="pt-6">
                     <p className="text-sm text-muted-foreground">Signed Up</p>
-                    <p className="text-3xl font-bold text-green-600">
+                    <p className="text-3xl font-bold text-accent-foreground">
                       {signedUpCount}
                     </p>
                   </CardContent>
@@ -750,7 +750,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       </div>
                       <div className="flex justify-center">
                         {entry.signedUp ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2.5 py-0.5 text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent-foreground px-2.5 py-0.5 text-xs font-medium">
                             <Check className="h-3 w-3" />
                             Signed up
                           </span>
@@ -807,7 +807,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <Card>
                   <CardContent className="pt-6">
                     <p className="text-sm text-muted-foreground">Terms</p>
-                    <p className="text-3xl font-bold text-blue-600">{profTerms.length}</p>
+                    <p className="text-3xl font-bold text-primary">{profTerms.length}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1023,7 +1023,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   disabled={updating}
                   variant="outline"
                   size="sm"
-                  className="flex-1 min-w-[100px] rounded-full border-red-400/60 bg-red-500/10 text-red-700 hover:bg-red-500/20 dark:text-red-400 dark:bg-red-500/15 dark:hover:bg-red-500/25"
+                  className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
                 >
                   <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                   Reject

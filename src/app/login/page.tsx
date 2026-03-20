@@ -61,21 +61,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
             <LogIn className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in to your PAL account</CardDescription>
+          <CardDescription>Sign in to your Planova account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">
                 Email
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="email"
@@ -89,7 +89,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <Label htmlFor="password">
                 Password
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="password"

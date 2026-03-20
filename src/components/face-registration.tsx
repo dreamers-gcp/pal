@@ -168,7 +168,7 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
           {registered && (
             <Badge
               variant="outline"
-              className="ml-auto bg-green-50 text-green-700 border-green-200"
+              className="ml-auto bg-accent/15 text-accent-foreground border-accent/30"
             >
               <CheckCircle2 className="h-3 w-3 mr-1" /> Registered
             </Badge>
@@ -282,7 +282,7 @@ function PhotoThumb({
       </div>
       <button
         onClick={onRemove}
-        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <X className="h-3 w-3" />
       </button>

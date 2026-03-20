@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, LogOut, LayoutDashboard, Menu } from "lucide-react";
+import { LogOut, LayoutDashboard, Menu } from "lucide-react";
 import { useNotifications, NotificationList } from "@/components/notifications";
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -73,8 +73,12 @@ export function Navbar() {
             href="/dashboard"
             className="flex items-center gap-2 no-underline text-foreground hover:opacity-80 transition-opacity"
           >
-            <Calendar className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">PAL</span>
+            <img
+              src="/planova-logo.png"
+              alt="Planova"
+              className="h-8 w-auto select-none"
+              draggable={false}
+            />
           </Link>
         </div>
 

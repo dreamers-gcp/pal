@@ -130,9 +130,7 @@ export function AttendanceMarker({ profile, events }: Props) {
       }
 
       if (!data.match) {
-        toast.error(
-          `Face not recognized (similarity: ${(data.similarity * 100).toFixed(1)}%). Please try again with better lighting.`
-        );
+        toast.error("Face not recognized. Please try again with better lighting.");
         await supabase.storage.from("face-photos").remove([filename]);
         setVerifying(null);
         return;
@@ -157,9 +155,7 @@ export function AttendanceMarker({ profile, events }: Props) {
         return;
       }
 
-      toast.success(
-        `Attendance marked! (confidence: ${(data.similarity * 100).toFixed(1)}%)`
-      );
+      toast.success("Attendance marked!");
       await fetchAttendance();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Unexpected error");
@@ -221,11 +217,11 @@ export function AttendanceMarker({ profile, events }: Props) {
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base">{event.title}</CardTitle>
                     {att ? (
-                      <Badge className="bg-green-50 text-green-700 border-green-200 gap-1">
+                      <Badge className="bg-accent/15 text-accent-foreground border-accent/30 gap-1">
                         <CheckCircle2 className="h-3 w-3" /> Present
                       </Badge>
                     ) : inWindow ? (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-200 animate-pulse">
+                      <Badge className="bg-primary/10 text-primary border-primary/30 animate-pulse">
                         Open
                       </Badge>
                     ) : (
@@ -264,9 +260,8 @@ export function AttendanceMarker({ profile, events }: Props) {
 
                   {/* Attendance action */}
                   {att ? (
-                    <div className="pt-2 text-xs text-green-700">
-                      Marked at {format(new Date(att.marked_at), "h:mm a")} —
-                      confidence {(att.similarity_score * 100).toFixed(1)}%
+                    <div className="pt-2 text-xs text-accent-foreground">
+                      Marked at {format(new Date(att.marked_at), "h:mm a")}
                     </div>
                   ) : verifying === event.id ? (
                     <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
@@ -466,9 +461,9 @@ function AttendanceHistory({
               className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-base"
             >
               {att ? (
-                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-accent-foreground shrink-0" />
               ) : (
-                <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+                <XCircle className="h-4 w-4 text-destructive shrink-0" />
               )}
               <span className="truncate flex-1">{event.title}</span>
               <span className="text-sm text-muted-foreground shrink-0">
@@ -478,15 +473,10 @@ function AttendanceHistory({
                 {format(new Date(event.event_date), "MMM d, yyyy")}
               </span>
               <span
-                className={`text-sm font-medium shrink-0 ${att ? "text-green-600" : "text-red-500"}`}
+                className={`text-sm font-medium shrink-0 ${att ? "text-accent-foreground" : "text-destructive"}`}
               >
                 {att ? "Present" : "Absent"}
               </span>
-              {att && (
-                <span className="text-sm font-medium text-green-600 shrink-0">
-                  {(att.similarity_score * 100).toFixed(0)}%
-                </span>
-              )}
             </div>
           );
         })}

@@ -268,10 +268,10 @@ export function AttendanceView({ profile }: Props) {
                     variant="outline"
                     className={
                       pct >= 75
-                        ? "bg-green-50 text-green-700 border-green-200"
+                        ? "bg-accent/15 text-accent-foreground border-accent/30"
                         : pct >= 50
                         ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : "bg-red-50 text-red-700 border-red-200"
+                        : "bg-destructive/10 text-destructive border-destructive/30"
                     }
                   >
                     {attendedCount}/{totalStudents} ({pct}%)
@@ -320,9 +320,9 @@ export function AttendanceView({ profile }: Props) {
                           >
                             <div className="min-w-0 flex items-center gap-2">
                               {present ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                <CheckCircle2 className="h-3.5 w-3.5 text-accent-foreground shrink-0" />
                               ) : (
-                                <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
                               )}
                               <span className="truncate">{student.full_name || student.email}</span>
                             </div>
@@ -331,8 +331,8 @@ export function AttendanceView({ profile }: Props) {
                                 variant="outline"
                                 className={
                                   present
-                                    ? "bg-green-50 text-green-700 border-green-200"
-                                    : "bg-red-50 text-red-700 border-red-200"
+                                    ? "bg-accent/15 text-accent-foreground border-accent/30"
+                                    : "bg-destructive/10 text-destructive border-destructive/30"
                                 }
                               >
                                 {present ? "Present" : "Absent"}

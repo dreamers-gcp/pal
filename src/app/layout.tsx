@@ -13,8 +13,9 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PAL - Calendar Management",
-  description: "Professor-Admin-Learner calendar blocking and scheduling platform",
+  title: "Planova - Calendar Management",
+  description:
+    "Planova helps Professors, Admins, and Learners manage calendar requests and attendance.",
 };
 
 export default function RootLayout({

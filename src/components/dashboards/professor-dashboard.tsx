@@ -135,12 +135,19 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     const byId = new Map<string, CalendarRequest>();
     allApprovedBookings.forEach((r) => byId.set(r.id, r));
     mineNotInAll.forEach((r) => byId.set(r.id, r));
-    return Array.from(byId.values()).sort((a, b) => {
+    const sorted = Array.from(byId.values()).sort((a, b) => {
       const d = a.event_date.localeCompare(b.event_date);
       if (d !== 0) return d;
       return a.start_time.localeCompare(b.start_time);
     });
-  }, [calendarViewMode, requests, allApprovedBookings]);
+
+    // When professor selects a specific classroom, render only events for that room.
+    if (calendarRoomFilter) {
+      return sorted.filter((r) => String(r.classroom_id ?? "") === calendarRoomFilter);
+    }
+
+    return sorted;
+  }, [calendarViewMode, calendarRoomFilter, requests, allApprovedBookings]);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();

@@ -338,7 +338,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <CardTitle className="text-lg">{event.title}</CardTitle>
-                        <Badge className="bg-green-100 text-green-800" variant="outline">
+                        <Badge className="bg-accent/15 text-accent-foreground" variant="outline">
                           Upcoming
                         </Badge>
                       </div>

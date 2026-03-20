@@ -43,24 +43,24 @@ function clampMinutes(mins: number): number {
 }
 
 const STATUS_CARD_COLORS: Record<string, string> = {
-  approved: "bg-green-100 border-green-500 text-green-900",
+  approved: "bg-accent/15 border-accent/40 text-accent-foreground",
   pending: "bg-yellow-100 border-yellow-500 text-yellow-900",
-  rejected: "bg-red-100 border-red-400 text-red-800",
-  clarification_needed: "bg-blue-100 border-blue-400 text-blue-800",
+  rejected: "bg-destructive/10 border-destructive/30 text-destructive",
+  clarification_needed: "bg-primary/10 border-primary/30 text-primary",
 };
 
 const STATUS_DOT: Record<string, string> = {
-  approved: "bg-green-500",
+  approved: "bg-accent",
   pending: "bg-yellow-500",
-  rejected: "bg-red-500",
-  clarification_needed: "bg-blue-500",
+  rejected: "bg-destructive",
+  clarification_needed: "bg-primary",
 };
 
 const STATUS_TEXT: Record<string, string> = {
-  approved: "text-green-700",
+  approved: "text-accent-foreground",
   pending: "text-yellow-700",
-  rejected: "text-red-600",
-  clarification_needed: "text-blue-600",
+  rejected: "text-destructive",
+  clarification_needed: "text-primary",
 };
 
 export interface SlotClickInfo {
@@ -199,7 +199,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
   );
 
   const eventColors = [
-    "bg-blue-100 border-blue-400 text-blue-800",
+    "bg-primary/10 border-primary/30 text-primary",
     "bg-purple-100 border-purple-400 text-purple-800",
     "bg-teal-100 border-teal-400 text-teal-800",
     "bg-orange-100 border-orange-400 text-orange-800",
@@ -659,12 +659,12 @@ function DayColumn({
         <div
           className={`absolute left-0.5 right-0.5 rounded border-2 border-dashed z-20 flex flex-col items-center justify-center ${
             dragPreview.hasConflict || dragPreview.isPast
-              ? "bg-red-100/60 border-red-400"
+              ? "bg-destructive/10/60 border-destructive/30"
               : "bg-primary/20 border-primary/50"
           }`}
           style={{ top: dragPreview.top, height: dragPreview.height }}
         >
-          <span className={`text-[11px] font-semibold ${dragPreview.hasConflict || dragPreview.isPast ? "text-red-600" : "text-primary"}`}>
+          <span className={`text-[11px] font-semibold ${dragPreview.hasConflict || dragPreview.isPast ? "text-destructive" : "text-primary"}`}>
             {dragPreview.isPast
               ? "Past time"
               : dragPreview.hasConflict
@@ -715,8 +715,8 @@ function CurrentTimeLine({
       style={{ top }}
     >
       <div className="relative flex items-center">
-        <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1 shadow-sm" />
-        <div className="flex-1 border-t-2 border-red-500" />
+        <div className="w-2.5 h-2.5 rounded-full bg-destructive -ml-1 shadow-sm" />
+        <div className="flex-1 border-t-2 border-destructive" />
       </div>
     </div>
   );

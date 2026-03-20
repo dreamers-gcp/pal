@@ -18,18 +18,18 @@ const statusConfig: Record<
   },
   approved: {
     label: "Approved",
-    className: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-500/20",
-    accent: "bg-emerald-500",
+    className: "bg-accent/15 text-accent-foreground dark:bg-accent/25",
+    accent: "bg-accent",
   },
   rejected: {
     label: "Rejected",
-    className: "bg-red-500/12 text-red-700 dark:text-red-400 dark:bg-red-500/20",
-    accent: "bg-red-500",
+    className: "bg-destructive/10 text-destructive dark:bg-destructive/20",
+    accent: "bg-destructive",
   },
   clarification_needed: {
     label: "Clarification",
-    className: "bg-sky-500/12 text-sky-700 dark:text-sky-400 dark:bg-sky-500/20",
-    accent: "bg-sky-500",
+    className: "bg-primary/10 text-primary dark:bg-primary/20",
+    accent: "bg-primary",
   },
 };
 

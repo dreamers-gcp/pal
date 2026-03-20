@@ -247,16 +247,16 @@ export function CsvUpload() {
           </div>
 
           {parseErrors.length > 0 && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
-              <p className="text-sm font-medium text-red-800 flex items-center gap-1.5">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-1">
+              <p className="text-sm font-medium text-destructive flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4" />
                 {parseErrors.length} parsing issue(s)
               </p>
               {parseErrors.slice(0, 5).map((err, i) => (
-                <p key={i} className="text-xs text-red-700">{err}</p>
+                <p key={i} className="text-xs text-destructive">{err}</p>
               ))}
               {parseErrors.length > 5 && (
-                <p className="text-xs text-red-600 font-medium">...and {parseErrors.length - 5} more</p>
+                <p className="text-xs text-destructive font-medium">...and {parseErrors.length - 5} more</p>
               )}
             </div>
           )}
@@ -264,7 +264,7 @@ export function CsvUpload() {
           {preview && preview.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-green-700 flex items-center gap-1.5">
+                <p className="text-sm font-medium text-accent-foreground flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" />
                   {preview.length} valid row(s) ready to upload
                 </p>
@@ -341,7 +341,7 @@ export function CsvUpload() {
                   variant="outline"
                   size="sm"
                   onClick={handleClearAll}
-                  className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Clear All
                 </Button>

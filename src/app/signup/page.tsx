@@ -56,10 +56,10 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl text-green-600">Check your email</CardTitle>
+            <CardTitle className="text-2xl text-accent-foreground">Check your email</CardTitle>
             <CardDescription>
               We&apos;ve sent a confirmation link to <strong>{email}</strong>.
               Click it to activate your account, then sign in.
@@ -79,21 +79,21 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
             <UserPlus className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Create your account</CardTitle>
-          <CardDescription>Join PAL to manage your calendar</CardDescription>
+          <CardDescription>Join Planova to manage your calendar</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="fullName">
                 Full Name
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="fullName"
@@ -106,7 +106,7 @@ export default function SignupPage() {
             <div className="space-y-2">
               <Label htmlFor="email">
                 Email
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="email"
@@ -120,7 +120,7 @@ export default function SignupPage() {
             <div className="space-y-2">
               <Label htmlFor="password">
                 Password
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="password"
@@ -135,7 +135,7 @@ export default function SignupPage() {
             <div className="space-y-2">
               <Label htmlFor="role">
                 I am a
-                <span className="text-red-500">*</span>
+                <span className="text-destructive">*</span>
               </Label>
               <select
                 id="role"
