@@ -1,14 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CalendarRequest, Classroom } from "@/lib/types";
+import type { CalendarRequest, Classroom, StudentTask } from "@/lib/types";
 import type { RequestStatus } from "@/lib/types";
 import { Calendar as BigCalendar, dateFnsLocalizer, type View, type Event as RBCEvent } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./student-calendar.css";
 import { toTitleCase } from "@/lib/utils";
-import { CalendarDays, Clock, MapPin, User, Users, FileText, X } from "lucide-react";
+import {
+  CalendarDays,
+  Clock,
+  ListTodo,
+  MapPin,
+  User,
+  Users,
+  FileText,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const statusColors: Record<RequestStatus, string> = {
@@ -30,6 +39,8 @@ export type CalendarSlotInfo = {
 
 export interface RequestCalendarProps {
   bookings: CalendarRequest[];
+  /** Personal tasks (e.g. from Task Tracker) shown on the same calendar. */
+  studentTasks?: StudentTask[];
   classrooms?: Classroom[];
   loading?: boolean;
   /** "classroom" = color by room (default); "status" = color by request status (e.g. admin) */
@@ -58,17 +69,118 @@ export interface RequestCalendarProps {
   eventDetailActions?: (request: CalendarRequest, closeSidebar: () => void) => React.ReactNode;
 }
 
-type CalMeta = {
-  request: CalendarRequest;
-  classroomId: string;
-  classroomName: string;
-  professorName: string;
-  status: RequestStatus;
-};
+type CalMeta =
+  | {
+      kind: "class";
+      request: CalendarRequest;
+      classroomId: string;
+      classroomName: string;
+      professorName: string;
+      status: RequestStatus;
+    }
+  | { kind: "task"; task: StudentTask };
 
 type CalEvent = RBCEvent & {
   meta: CalMeta;
 };
+
+const TASK_STATUS_COLORS = {
+  todo: "#64748b",
+  in_progress: "#f59e0b",
+  completed: "#94a3b8",
+} as const;
+
+/**
+ * Tasks only store a due *date* (no time). We show them as **all-day** events on that day
+ * so they sit in the all-day row (week/day) and read as “due this date”, not a fake 9:00 slot.
+ * RBC uses an exclusive end at midnight the next day.
+ */
+function taskDueAllDayRange(dueDateStr: string): { start: Date; end: Date } {
+  const day = dueDateStr.split("T")[0];
+  const [y, m, d] = day.split("-").map(Number);
+  if (!y || !m || !d) {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  return { start, end };
+}
+
+/** Calendar event body: icon + label so timetable vs task is obvious at a glance. */
+function CalendarEventLabel({
+  event,
+  title,
+}: {
+  event: RBCEvent;
+  title: string;
+}) {
+  const cal = event as CalEvent;
+  if (cal.meta?.kind === "task") {
+    return (
+      <span className="flex items-center gap-1 min-w-0 w-full">
+        <ListTodo className="h-3 w-3 shrink-0 opacity-95" aria-hidden />
+        <span className="truncate font-medium">{cal.meta.task.title}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 min-w-0 w-full">
+      <CalendarDays className="h-3 w-3 shrink-0 opacity-95" aria-hidden />
+      <span className="truncate">{title}</span>
+    </span>
+  );
+}
+
+function TaskDetailCard({ task, eventColor }: { task: StudentTask; eventColor: string }) {
+  const statusLabel =
+    task.status === "in_progress"
+      ? "In progress"
+      : task.status === "completed"
+        ? "Completed"
+        : "To do";
+  return (
+    <div className="rounded-2xl overflow-hidden h-full flex flex-col">
+      <div className="p-4 pb-2">
+        <div className="flex items-start gap-3">
+          <div
+            className="mt-1.5 h-3 w-3 shrink-0 rounded-sm"
+            style={{ backgroundColor: eventColor }}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              My task
+            </p>
+            <h2 className="text-lg font-semibold leading-tight text-foreground mt-0.5">
+              {task.title}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Due {format(new Date(task.due_date), "EEEE, MMMM d, yyyy")}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 pb-4 space-y-2.5">
+        <div className="flex items-center gap-3 text-sm text-foreground">
+          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span>{statusLabel}</span>
+        </div>
+        {task.description && (
+          <div className="flex items-start gap-3 text-sm text-foreground pt-1 border-t">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            <span className="text-muted-foreground">{task.description}</span>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground pt-2">
+          Manage this task in the <strong>Task Tracker</strong> tab.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 const VIEWS: View[] = ["month", "week", "day"];
 
@@ -150,6 +262,7 @@ function EventDetailCard({
 
 export function RequestCalendar({
   bookings,
+  studentTasks,
   classrooms = [],
   loading = false,
   colorBy = "classroom",
@@ -164,7 +277,11 @@ export function RequestCalendar({
 }: RequestCalendarProps) {
   const [view, setView] = useState<View>("week");
   const [date, setDate] = useState<Date>(() => new Date());
-  const [selectedEventRequest, setSelectedEventRequest] = useState<CalendarRequest | null>(null);
+  const [selectedPanel, setSelectedPanel] = useState<
+    | { kind: "class"; request: CalendarRequest }
+    | { kind: "task"; task: StudentTask }
+    | null
+  >(null);
 
   const canBookSlots = Boolean(onSelectSlot && bookingClassroomId);
   const slotSelectionActive = canBookSlots && (view === "week" || view === "day");
@@ -188,23 +305,36 @@ export function RequestCalendar({
     locales: {},
   });
 
-  const events: CalEvent[] = useMemo(
-    () =>
-      bookings.map((b) => ({
-        title: b.title,
-        start: new Date(`${b.event_date}T${b.start_time}`),
-        end: new Date(`${b.event_date}T${b.end_time}`),
-        allDay: false,
-        meta: {
-          request: b,
-          classroomId: b.classroom_id,
-          classroomName: b.classroom?.name ?? "—",
-          professorName: b.professor?.full_name ?? b.professor_email ?? "—",
-          status: b.status,
-        },
-      })),
-    [bookings]
-  );
+  const events: CalEvent[] = useMemo(() => {
+    const classEvents: CalEvent[] = bookings.map((b) => ({
+      title: b.title,
+      start: new Date(`${b.event_date}T${b.start_time}`),
+      end: new Date(`${b.event_date}T${b.end_time}`),
+      allDay: false,
+      meta: {
+        kind: "class" as const,
+        request: b,
+        classroomId: b.classroom_id,
+        classroomName: b.classroom?.name ?? "—",
+        professorName: b.professor?.full_name ?? b.professor_email ?? "—",
+        status: b.status,
+      },
+    }));
+
+    const tasks = studentTasks ?? [];
+    const taskEvents: CalEvent[] = tasks.map((t) => {
+      const { start, end } = taskDueAllDayRange(t.due_date);
+      return {
+        title: t.title,
+        start,
+        end,
+        allDay: true,
+        meta: { kind: "task" as const, task: t },
+      };
+    });
+
+    return [...classEvents, ...taskEvents];
+  }, [bookings, studentTasks]);
 
   function colorForClassroom(classroomId: string): string {
     const idx = classrooms.findIndex((c) => c.id === classroomId);
@@ -212,22 +342,30 @@ export function RequestCalendar({
   }
 
   function colorForEvent(event: CalEvent): string {
-    if (colorBy === "status" && event.meta?.status) {
+    if (event.meta.kind === "task") {
+      const s = event.meta.task.status;
+      return TASK_STATUS_COLORS[s] ?? TASK_STATUS_COLORS.todo;
+    }
+    if (colorBy === "status") {
       return statusColors[event.meta.status];
     }
-    return event.meta?.classroomId
+    return event.meta.classroomId
       ? colorForClassroom(event.meta.classroomId)
       : classroomPalette[0];
   }
 
   function handleSelectEvent(e: RBCEvent) {
     const calEvent = e as CalEvent;
-    const request = calEvent.meta?.request;
-    if (onSelectEvent && request) {
+    if (calEvent.meta.kind === "task") {
+      setSelectedPanel({ kind: "task", task: calEvent.meta.task });
+      return;
+    }
+    const request = calEvent.meta.request;
+    if (onSelectEvent) {
       onSelectEvent(e, request);
       return;
     }
-    if (request) setSelectedEventRequest(request);
+    setSelectedPanel({ kind: "class", request });
   }
 
   function handleSelectSlot(slotInfo: {
@@ -253,8 +391,13 @@ export function RequestCalendar({
     );
   }
 
+  const taskCount = studentTasks?.length ?? 0;
   const showEmptyOnly =
-    !alwaysShowCalendar && bookings.length === 0 && emptyMessage && !onSelectSlot;
+    !alwaysShowCalendar &&
+    bookings.length === 0 &&
+    taskCount === 0 &&
+    emptyMessage &&
+    !onSelectSlot;
   if (showEmptyOnly) {
     return (
       <div className="flex justify-center py-16">
@@ -265,7 +408,7 @@ export function RequestCalendar({
 
   return (
     <div className="space-y-2 relative">
-      {alwaysShowCalendar && bookings.length === 0 && emptyMessage && (
+      {alwaysShowCalendar && bookings.length === 0 && taskCount === 0 && emptyMessage && (
         <p className="text-center text-sm text-muted-foreground">{emptyMessage}</p>
       )}
       <div className="rounded-lg border bg-background overflow-hidden p-2">
@@ -288,13 +431,21 @@ export function RequestCalendar({
             selectable={slotSelectionActive ? "ignoreEvents" : false}
             onSelectSlot={slotSelectionActive ? handleSelectSlot : undefined}
             onSelectEvent={handleSelectEvent}
+            components={{
+              event: CalendarEventLabel,
+            }}
             eventPropGetter={(event: RBCEvent) => {
-              const color = colorForEvent(event as CalEvent);
+              const cal = event as CalEvent;
+              const color = colorForEvent(cal);
+              const isTask = cal.meta.kind === "task";
               return {
+                className: isTask ? "rbc-calendar-event-task" : "rbc-calendar-event-class",
                 style: {
                   backgroundColor: color,
-                  borderColor: color,
+                  borderColor: isTask ? "rgba(255,255,255,0.55)" : color,
                   color: "white",
+                  borderStyle: isTask ? "dashed" : "solid",
+                  borderWidth: isTask ? 2 : 1,
                 },
               };
             }}
@@ -302,44 +453,56 @@ export function RequestCalendar({
         </div>
       </div>
 
-      {/* Event detail side panel — slides in from right, no overlay */}
-      {selectedEventRequest && (
+      {/* Event / task detail side panel — slides in from right, no overlay */}
+      {selectedPanel && (
         <>
           <div
             className="fixed inset-0 z-40"
             aria-hidden
-            onClick={() => setSelectedEventRequest(null)}
+            onClick={() => setSelectedPanel(null)}
           />
           <aside
             className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
             role="dialog"
-            aria-label="Event details"
+            aria-label={
+              selectedPanel.kind === "task" ? "Task details" : "Event details"
+            }
           >
             <div className="flex items-center justify-end p-2 border-b shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setSelectedEventRequest(null)}
+                onClick={() => setSelectedPanel(null)}
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              <EventDetailCard
-                request={selectedEventRequest}
-                eventColor={
-                  colorBy === "status"
-                    ? statusColors[selectedEventRequest.status]
-                    : colorForClassroom(selectedEventRequest.classroom_id)
-                }
-                showDescription={showDescription}
-                showStatus={showStatus}
-              />
+              {selectedPanel.kind === "class" ? (
+                <EventDetailCard
+                  request={selectedPanel.request}
+                  eventColor={
+                    colorBy === "status"
+                      ? statusColors[selectedPanel.request.status]
+                      : colorForClassroom(selectedPanel.request.classroom_id)
+                  }
+                  showDescription={showDescription}
+                  showStatus={showStatus}
+                />
+              ) : (
+                <TaskDetailCard
+                  task={selectedPanel.task}
+                  eventColor={
+                    TASK_STATUS_COLORS[selectedPanel.task.status] ??
+                    TASK_STATUS_COLORS.todo
+                  }
+                />
+              )}
             </div>
-            {eventDetailActions && (
+            {eventDetailActions && selectedPanel.kind === "class" && (
               <div className="shrink-0 border-t p-4 bg-background">
-                {eventDetailActions(selectedEventRequest, () => setSelectedEventRequest(null))}
+                {eventDetailActions(selectedPanel.request, () => setSelectedPanel(null))}
               </div>
             )}
           </aside>

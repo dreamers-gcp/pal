@@ -82,6 +82,12 @@ const COLUMN_LABEL: Record<TaskKanbanStatus, string> = {
   completed: "Completed",
 };
 
+function notifyStudentTasksCalendarChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("pal:student-tasks-changed"));
+  }
+}
+
 function toLocalISODate(d: Date): string {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -201,6 +207,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
         if (error) {
           toast.error("Failed to save board");
           await fetchTasks();
+          notifyStudentTasksCalendarChanged();
           return false;
         }
       }
@@ -218,6 +225,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
       }
       return Array.from(map.values());
     });
+    notifyStudentTasksCalendarChanged();
     return true;
   }
 
@@ -230,6 +238,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     const { active, over } = event;
     if (!over) {
       await fetchTasks();
+      notifyStudentTasksCalendarChanged();
       return;
     }
     if (active.id === over.id) return;
@@ -281,6 +290,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    let success = false;
 
     if (editingTask) {
       const { error } = await supabase
@@ -296,6 +306,7 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
       if (error) toast.error("Failed to update task");
       else {
         toast.success("Task updated");
+        success = true;
         if (editingTask.status !== status) {
           const others = tasks.filter((t) => t.id !== editingTask.id);
           const inCol = others.filter((t) => t.status === status);
@@ -324,12 +335,18 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
         updated_at: new Date().toISOString(),
       });
       if (error) toast.error("Failed to create task");
-      else toast.success("Task created");
+      else {
+        toast.success("Task created");
+        success = true;
+      }
     }
 
     setSubmitting(false);
-    setDialogOpen(false);
-    fetchTasks();
+    if (success) {
+      setDialogOpen(false);
+      await fetchTasks();
+      notifyStudentTasksCalendarChanged();
+    }
   }
 
   async function deleteTask(id: string) {
@@ -340,7 +357,8 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
     if (error) toast.error("Failed to delete task");
     else {
       toast.success("Task deleted");
-      fetchTasks();
+      await fetchTasks();
+      notifyStudentTasksCalendarChanged();
     }
   }
 

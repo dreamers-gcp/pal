@@ -319,8 +319,27 @@ export function AttendanceView({ profile }: Props) {
     fd.append("eventId", event.id);
     if (apply) fd.append("apply", "true");
 
-    const res = await fetch("/api/face/class-photo", { method: "POST", body: fd });
-    const json = (await res.json()) as Record<string, unknown>;
+    const res = await fetch("/api/face/class-photo", {
+      method: "POST",
+      body: fd,
+      credentials: "same-origin",
+    });
+
+    const raw = await res.text();
+    let json: Record<string, unknown>;
+    try {
+      json = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      const snippet = raw.replace(/\s+/g, " ").slice(0, 160);
+      if (res.status === 401 || res.status === 302 || res.status === 307) {
+        throw new Error("Session expired or not signed in. Refresh the page and try again.");
+      }
+      throw new Error(
+        snippet
+          ? `Server returned non-JSON (${res.status}): ${snippet}`
+          : `Request failed (${res.status}). Check the face service and try again.`
+      );
+    }
 
     if (!res.ok) {
       const err =
@@ -330,7 +349,7 @@ export function AttendanceView({ profile }: Props) {
       throw new Error(err);
     }
 
-    return json as Record<string, unknown>;
+    return json;
   }
 
   async function onClassPhotoSelected(

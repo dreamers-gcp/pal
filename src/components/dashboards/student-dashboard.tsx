@@ -527,18 +527,21 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             </div>
           )}
 
-          {studentGroupIds.length > 0 ? (
-            <StudentCalendar studentGroupIds={filteredGroupIds} />
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <GraduationCap className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  Your groups haven&apos;t been assigned yet. Calendar will appear once an admin uploads the roster.
+          {studentGroupIds.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="py-4">
+                <p className="text-sm text-muted-foreground">
+                  <GraduationCap className="inline h-4 w-4 mr-1 align-text-bottom" />
+                  No class groups yet — you&apos;ll see scheduled classes here once an admin assigns your roster.
+                  Your personal tasks from the Task Tracker still appear below.
                 </p>
               </CardContent>
             </Card>
           )}
+          <StudentCalendar
+            studentGroupIds={filteredGroupIds}
+            studentId={profile.id}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -23,6 +23,8 @@
 # python
 **/__pycache__/
 *.py[cod]
+face-service/.venv/
+face-service/models/*.onnx
 
 # misc
 .DS_Store

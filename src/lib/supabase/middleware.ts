@@ -30,13 +30,16 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Redirect unauthenticated users to login (except for public pages)
+  // Never redirect API routes — let Route Handlers return JSON 401; otherwise
+  // client fetch() follows redirect to /login and gets HTML → "not valid JSON".
   const isPublicPath =
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup") ||
     request.nextUrl.pathname.startsWith("/auth");
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 
-  if (!user && !isPublicPath) {
+  if (!user && !isPublicPath && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

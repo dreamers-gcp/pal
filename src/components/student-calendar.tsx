@@ -1,18 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { CalendarRequest, Classroom } from "@/lib/types";
+import type { CalendarRequest, Classroom, StudentTask } from "@/lib/types";
 import { RequestCalendar } from "@/components/request-calendar";
 
 interface StudentCalendarProps {
   studentGroupIds: string[];
+  studentId: string;
 }
 
-export function StudentCalendar({ studentGroupIds }: StudentCalendarProps) {
+export function StudentCalendar({
+  studentGroupIds,
+  studentId,
+}: StudentCalendarProps) {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [bookings, setBookings] = useState<CalendarRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+
+  const fetchStudentTasks = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("student_tasks")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("due_date", { ascending: true, nullsFirst: false });
+    setStudentTasks((data ?? []) as StudentTask[]);
+  }, [studentId]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -26,13 +42,33 @@ export function StudentCalendar({ studentGroupIds }: StudentCalendarProps) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoadingTasks(true);
+    fetchStudentTasks().finally(() => {
+      if (!cancelled) setLoadingTasks(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchStudentTasks]);
+
+  useEffect(() => {
+    const onTasksChanged = () => {
+      void fetchStudentTasks();
+    };
+    window.addEventListener("pal:student-tasks-changed", onTasksChanged);
+    return () =>
+      window.removeEventListener("pal:student-tasks-changed", onTasksChanged);
+  }, [fetchStudentTasks]);
+
+  useEffect(() => {
     if (studentGroupIds.length === 0) {
       setBookings([]);
-      setLoading(false);
+      setLoadingBookings(false);
       return;
     }
     const supabase = createClient();
-    setLoading(true);
+    setLoadingBookings(true);
     async function fetchBookings() {
       const { data: direct } = await supabase
         .from("calendar_requests")
@@ -69,16 +105,19 @@ export function StudentCalendar({ studentGroupIds }: StudentCalendarProps) {
       }
 
       setBookings(all);
-      setLoading(false);
+      setLoadingBookings(false);
     }
 
     fetchBookings();
   }, [studentGroupIds]);
 
+  const loading = loadingBookings || loadingTasks;
+
   return (
     <div className="space-y-3">
       <RequestCalendar
         bookings={bookings}
+        studentTasks={studentTasks}
         classrooms={classrooms}
         loading={loading}
         colorBy="classroom"

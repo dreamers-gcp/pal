@@ -69,6 +69,7 @@ def extract_single_embedding(img: np.ndarray) -> np.ndarray:
             status_code=422,
             detail="Multiple faces detected — please ensure only your face is visible",
         )
+    assert_faces_live(img, faces)
     return faces[0].normed_embedding
 
 

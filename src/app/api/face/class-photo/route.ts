@@ -29,6 +29,19 @@ function groupIdsForEvent(event: CalendarRequestRow): string[] {
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleClassPhotoPost(req);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[class-photo]", e);
+    return NextResponse.json(
+      { error: msg || "Unexpected error processing class photo" },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleClassPhotoPost(req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
