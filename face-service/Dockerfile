@@ -14,6 +14,13 @@ RUN if [ "$INSTALL_SYSTEM_DEPS" = "true" ]; then \
   fi
 
 WORKDIR /app
+
+# insightface builds Cython extensions from source on some platforms (e.g. linux/arm64);
+# python:3.11-slim has no compiler unless we install it.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

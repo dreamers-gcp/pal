@@ -1,9 +1,10 @@
 """
 InsightFace microservice for PAL face attendance.
 Endpoints:
-  POST /embedding   — receive an image, return 512-dim face embedding
-  POST /compare     — receive an image + list of known embeddings, return best match + score
-  GET  /health      — liveness check
+  POST /embedding        — receive an image, return 512-dim face embedding
+  POST /compare          — receive an image + list of known embeddings, return best match + score
+  POST /identify_class   — multi-face image + per-student embeddings; one-to-one greedy matching
+  GET  /health           — liveness check
 """
 
 import io
@@ -140,5 +141,89 @@ async def compare(
         "match": best_score >= SIMILARITY_THRESHOLD,
         "best_id": best_id,
         "similarity": round(best_score, 4),
+        "threshold": SIMILARITY_THRESHOLD,
+    }
+
+
+@app.post("/identify_class")
+async def identify_class(
+    file: UploadFile = File(...),
+    candidates_json: str = Form(...),
+):
+    """
+    Detect all faces in the class photo and match them to enrolled students (one-to-one).
+
+    candidates_json: JSON array of objects:
+      [{"student_id": "<uuid>", "embeddings": [[<embedding_row_id>, [512 floats]], ...]}, ...]
+
+    Matching: for each (face, student) pair take max similarity over that student's embeddings;
+    collect triples (score, face_index, student_id) where score >= SIMILARITY_THRESHOLD;
+    sort by score descending; greedy assign each face and student at most once.
+    """
+    import json
+
+    data = await file.read()
+    img = read_image(data)
+    probe_embs = extract_face_embeddings(img)
+
+    try:
+        candidates = json.loads(candidates_json)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid candidates_json")
+
+    if not isinstance(candidates, list):
+        raise HTTPException(status_code=400, detail="candidates_json must be a list")
+
+    triples: list[tuple[float, int, str]] = []
+
+    for fi, probe_emb in enumerate(probe_embs):
+        probe_emb = np.asarray(probe_emb, dtype=np.float64)
+        for cand in candidates:
+            if not isinstance(cand, dict):
+                continue
+            sid = cand.get("student_id")
+            embs = cand.get("embeddings")
+            if not sid or not isinstance(embs, list):
+                continue
+            best_for_student = -1.0
+            for item in embs:
+                if not isinstance(item, (list, tuple)) or len(item) < 2:
+                    continue
+                emb_vec = np.array(item[1], dtype=np.float64)
+                best_for_student = max(
+                    best_for_student, cosine_similarity(probe_emb, emb_vec)
+                )
+            if best_for_student >= SIMILARITY_THRESHOLD:
+                triples.append((best_for_student, fi, str(sid)))
+
+    triples.sort(key=lambda t: t[0], reverse=True)
+
+    used_face: set[int] = set()
+    used_student: set[str] = set()
+    matches: list[dict] = []
+
+    for score, fi, sid in triples:
+        if fi in used_face or sid in used_student:
+            continue
+        used_face.add(fi)
+        used_student.add(sid)
+        matches.append(
+            {
+                "student_id": sid,
+                "face_index": fi,
+                "similarity": round(float(score), 4),
+            }
+        )
+
+    matched_face_indices = used_face
+    unmatched_face_indices = [
+        i for i in range(len(probe_embs)) if i not in matched_face_indices
+    ]
+
+    return {
+        "face_count": len(probe_embs),
+        "matches": matches,
+        "unmatched_face_indices": unmatched_face_indices,
+        "matched_student_ids": list(used_student),
         "threshold": SIMILARITY_THRESHOLD,
     }

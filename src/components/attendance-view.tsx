@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays,
+  Camera,
   ChevronDown,
   CheckCircle2,
   Clock,
@@ -33,6 +34,35 @@ interface EventAttendanceInfo {
   enrolledStudents: Profile[];
 }
 
+type CalendarRequestWithGroups = CalendarRequest & {
+  student_groups?: { student_group?: { id: string } | null }[] | null;
+};
+
+function groupIdsForCalendarEvent(e: CalendarRequestWithGroups): string[] {
+  const ids = new Set<string>();
+  if (e.student_group_id) ids.add(e.student_group_id);
+  for (const row of e.student_groups ?? []) {
+    const id = row?.student_group?.id;
+    if (id) ids.add(id);
+  }
+  return Array.from(ids);
+}
+
+interface ClassPhotoPreview {
+  face_count: number;
+  threshold: number;
+  matches: {
+    student_id: string;
+    face_index: number;
+    similarity: number;
+    student_name: string;
+  }[];
+  unmatched_face_indices: number[];
+  enrolled_count: number;
+  students_with_face: number;
+  students_missing_face: { student_id: string; student_name: string }[];
+}
+
 export function AttendanceView({ profile }: Props) {
   const supabase = createClient();
   const [data, setData] = useState<EventAttendanceInfo[]>([]);
@@ -44,11 +74,21 @@ export function AttendanceView({ profile }: Props) {
   >("all");
   const [subjectFilter, setSubjectFilter] = useState("all");
 
+  const [classPhotoEventId, setClassPhotoEventId] = useState<string | null>(
+    null
+  );
+  const [classPhotoFile, setClassPhotoFile] = useState<File | null>(null);
+  const [classPhotoPreview, setClassPhotoPreview] =
+    useState<ClassPhotoPreview | null>(null);
+  const [classPhotoLoading, setClassPhotoLoading] = useState(false);
+  const [classPhotoApplying, setClassPhotoApplying] = useState(false);
+  const [classPhotoError, setClassPhotoError] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
     const { data: events } = await supabase
       .from("calendar_requests")
       .select(
-        "*, student_group:student_groups(*), classroom:classrooms(*)"
+        "*, student_group:student_groups(*), classroom:classrooms(*), student_groups:calendar_request_groups(student_group:student_groups(id))"
       )
       .eq("status", "approved")
       .or(`professor_id.eq.${profile.id},professor_email.eq.${profile.email}`)
@@ -73,27 +113,42 @@ export function AttendanceView({ profile }: Props) {
       recordsByEvent[r.event_id].push(r);
     }
 
-    const groupIds = [...new Set(events.map((e) => e.student_group_id).filter(Boolean))];
-    const { data: members } = await supabase
-      .from("student_group_members")
-      .select("group_id, student:profiles!student_group_members_student_id_fkey(*)")
-      .in("group_id", groupIds);
+    const allGroupIds = [
+      ...new Set(
+        events.flatMap((e) =>
+          groupIdsForCalendarEvent(e as CalendarRequestWithGroups)
+        )
+      ),
+    ];
 
-    const studentsByGroup: Record<string, Profile[]> = {};
-    for (const m of members ?? []) {
-      const groupId = (m as unknown as { group_id: string }).group_id;
-      const student = (m as unknown as { student?: Profile | null }).student;
-      if (!groupId || !student) continue;
-      if (!studentsByGroup[groupId]) studentsByGroup[groupId] = [];
-      if (!studentsByGroup[groupId].some((s) => s.id === student.id)) {
-        studentsByGroup[groupId].push(student);
+    type MemberRow = { group_id: string; student?: Profile | null };
+    let members: MemberRow[] = [];
+    if (allGroupIds.length > 0) {
+      const { data: m } = await supabase
+        .from("student_group_members")
+        .select("group_id, student:profiles!student_group_members_student_id_fkey(*)")
+        .in("group_id", allGroupIds);
+      members = (m ?? []) as unknown as MemberRow[];
+    }
+
+    function enrolledForEvent(ev: CalendarRequestWithGroups): Profile[] {
+      const gids = new Set(groupIdsForCalendarEvent(ev));
+      const seen = new Set<string>();
+      const out: Profile[] = [];
+      for (const row of members) {
+        if (!gids.has(row.group_id)) continue;
+        const student = row.student;
+        if (!student || seen.has(student.id)) continue;
+        seen.add(student.id);
+        out.push(student);
       }
+      return out;
     }
 
     const infos: EventAttendanceInfo[] = events.map((e) => ({
-      event: e,
+      event: e as CalendarRequest,
       records: recordsByEvent[e.id] ?? [],
-      enrolledStudents: studentsByGroup[e.student_group_id] ?? [],
+      enrolledStudents: enrolledForEvent(e as CalendarRequestWithGroups),
     }));
 
     setData(infos);
@@ -103,6 +158,13 @@ export function AttendanceView({ profile }: Props) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    setClassPhotoFile(null);
+    setClassPhotoPreview(null);
+    setClassPhotoError(null);
+    setClassPhotoEventId(null);
+  }, [expanded]);
 
   async function setStudentAttendance(
     event: CalendarRequest,
@@ -147,6 +209,94 @@ export function AttendanceView({ profile }: Props) {
       console.error(msg);
     } finally {
       setOverridingKey(null);
+    }
+  }
+
+  async function runClassPhotoScan(
+    event: CalendarRequest,
+    file: File,
+    apply: boolean
+  ) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("eventId", event.id);
+    if (apply) fd.append("apply", "true");
+
+    const res = await fetch("/api/face/class-photo", { method: "POST", body: fd });
+    const json = (await res.json()) as Record<string, unknown>;
+
+    if (!res.ok) {
+      const err =
+        typeof json.error === "string"
+          ? json.error
+          : "Could not process class photo";
+      throw new Error(err);
+    }
+
+    return json as Record<string, unknown>;
+  }
+
+  async function onClassPhotoSelected(
+    event: CalendarRequest,
+    file: File | undefined
+  ) {
+    if (!file) return;
+    setClassPhotoEventId(event.id);
+    setClassPhotoFile(file);
+    setClassPhotoPreview(null);
+    setClassPhotoError(null);
+    setClassPhotoLoading(true);
+    try {
+      const json = await runClassPhotoScan(event, file, false);
+      if (json.preview) {
+        setClassPhotoPreview({
+          face_count: Number(json.face_count),
+          threshold: Number(json.threshold),
+          matches: (json.matches ?? []) as ClassPhotoPreview["matches"],
+          unmatched_face_indices: (json.unmatched_face_indices ?? []) as number[],
+          enrolled_count: Number(json.enrolled_count),
+          students_with_face: Number(json.students_with_face),
+          students_missing_face: (json.students_missing_face ??
+            []) as ClassPhotoPreview["students_missing_face"],
+        });
+      }
+    } catch (e: unknown) {
+      setClassPhotoError(
+        e instanceof Error ? e.message : "Failed to scan class photo"
+      );
+    } finally {
+      setClassPhotoLoading(false);
+    }
+  }
+
+  async function applyClassPhotoAttendance(event: CalendarRequest) {
+    if (!classPhotoFile || classPhotoEventId !== event.id || !classPhotoPreview) {
+      return;
+    }
+    setClassPhotoApplying(true);
+    setClassPhotoError(null);
+    try {
+      const json = await runClassPhotoScan(event, classPhotoFile, true);
+      if (json.applied === true) {
+        setClassPhotoPreview(null);
+        setClassPhotoFile(null);
+        setClassPhotoEventId(null);
+        if (
+          Array.isArray(json.attendance_errors) &&
+          json.attendance_errors.length > 0
+        ) {
+          setClassPhotoError(
+            `Some rows failed: ${(json.attendance_errors as string[]).join("; ")}`
+          );
+        }
+        await fetchData();
+      }
+    } catch (e: unknown) {
+      setClassPhotoError(
+        e instanceof Error ? e.message : "Failed to apply attendance"
+      );
+    } finally {
+      setClassPhotoApplying(false);
     }
   }
 
@@ -359,6 +509,115 @@ export function AttendanceView({ profile }: Props) {
                         )
                       })
                   )}
+                </div>
+
+                <div
+                  className="border-t mt-3 pt-3 space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    Class photo attendance
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Upload a group photo; we match faces to enrolled students who
+                    registered their face (similarity ≥{" "}
+                    {classPhotoPreview?.threshold ?? 0.35}).
+                  </p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    id={`class-photo-${event.id}`}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      void onClassPhotoSelected(event, f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted/60 disabled:opacity-50"
+                      disabled={classPhotoLoading && classPhotoEventId === event.id}
+                      onClick={() =>
+                        document.getElementById(`class-photo-${event.id}`)?.click()
+                      }
+                    >
+                      {classPhotoLoading && classPhotoEventId === event.id ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Scanning…
+                        </span>
+                      ) : (
+                        "Choose class photo"
+                      )}
+                    </button>
+                  </div>
+                  {classPhotoError && classPhotoEventId === event.id && (
+                    <p className="text-sm text-destructive">{classPhotoError}</p>
+                  )}
+                  {classPhotoPreview &&
+                    classPhotoEventId === event.id &&
+                    expanded === event.id && (
+                      <div className="rounded-md border bg-muted/20 p-3 space-y-2 text-sm">
+                        <p>
+                          Detected <strong>{classPhotoPreview.face_count}</strong>{" "}
+                          face(s). Matched{" "}
+                          <strong>{classPhotoPreview.matches.length}</strong>{" "}
+                          enrolled student(s) (
+                          {classPhotoPreview.students_with_face} with face data
+                          / {classPhotoPreview.enrolled_count} enrolled).
+                        </p>
+                        {classPhotoPreview.unmatched_face_indices.length > 0 && (
+                          <p className="text-muted-foreground text-xs">
+                            Unmatched face slot(s):{" "}
+                            {classPhotoPreview.unmatched_face_indices
+                              .map((i) => `#${i + 1}`)
+                              .join(", ")}
+                          </p>
+                        )}
+                        {classPhotoPreview.students_missing_face.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            No face registration:{" "}
+                            {classPhotoPreview.students_missing_face
+                              .map((s) => s.student_name)
+                              .join(", ")}
+                          </p>
+                        )}
+                        {classPhotoPreview.matches.length > 0 && (
+                          <ul className="list-disc pl-5 space-y-0.5 max-h-40 overflow-y-auto">
+                            {classPhotoPreview.matches.map((m) => (
+                              <li key={`${m.student_id}-${m.face_index}`}>
+                                {m.student_name}{" "}
+                                <span className="text-muted-foreground">
+                                  (face #{m.face_index + 1},{" "}
+                                  {(m.similarity * 100).toFixed(1)}%)
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <button
+                          type="button"
+                          className="text-sm rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 disabled:opacity-50"
+                          disabled={
+                            classPhotoApplying ||
+                            classPhotoPreview.matches.length === 0
+                          }
+                          onClick={() => void applyClassPhotoAttendance(event)}
+                        >
+                          {classPhotoApplying ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Applying…
+                            </span>
+                          ) : (
+                            "Apply attendance"
+                          )}
+                        </button>
+                      </div>
+                    )}
                 </div>
               </CardContent>
             )}
