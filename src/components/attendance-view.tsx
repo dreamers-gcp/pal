@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -18,7 +18,9 @@ import {
   Filter,
   Loader2,
   MapPin,
+  Upload,
   Users,
+  X,
   XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -83,6 +85,11 @@ export function AttendanceView({ profile }: Props) {
   const [classPhotoLoading, setClassPhotoLoading] = useState(false);
   const [classPhotoApplying, setClassPhotoApplying] = useState(false);
   const [classPhotoError, setClassPhotoError] = useState<string | null>(null);
+  /** Live camera for class photo (getUserMedia — works on desktop; file+capture often opens picker). */
+  const [cameraEvent, setCameraEvent] = useState<CalendarRequest | null>(null);
+  const [cameraStreamReady, setCameraStreamReady] = useState(false);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
 
   const fetchData = useCallback(async () => {
     const { data: events } = await supabase
@@ -164,7 +171,97 @@ export function AttendanceView({ profile }: Props) {
     setClassPhotoPreview(null);
     setClassPhotoError(null);
     setClassPhotoEventId(null);
+    setCameraEvent(null);
   }, [expanded]);
+
+  useEffect(() => {
+    if (!cameraEvent) {
+      setCameraStreamReady(false);
+      cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+      return;
+    }
+
+    setCameraStreamReady(false);
+    let cancelled = false;
+
+    async function start() {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia
+      ) {
+        setClassPhotoError(
+          "Camera is not available in this browser. Use Upload photo instead."
+        );
+        setCameraEvent(null);
+        return;
+      }
+
+      try {
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        cameraStreamRef.current = stream;
+        const el = cameraVideoRef.current;
+        if (el) {
+          el.srcObject = stream;
+          await el.play().catch(() => {});
+        }
+      } catch {
+        setClassPhotoError(
+          "Could not open camera. Allow permission or use Upload photo."
+        );
+        setCameraEvent(null);
+      }
+    }
+
+    void start();
+
+    return () => {
+      cancelled = true;
+      cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    };
+  }, [cameraEvent]);
+
+  function captureClassPhotoFromCamera() {
+    const event = cameraEvent;
+    const video = cameraVideoRef.current;
+    if (!event || !video || video.videoWidth < 2) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `class-photo-${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+        setCameraEvent(null);
+        void onClassPhotoSelected(event, file);
+      },
+      "image/jpeg",
+      0.92
+    );
+  }
 
   async function setStudentAttendance(
     event: CalendarRequest,
@@ -520,15 +617,16 @@ export function AttendanceView({ profile }: Props) {
                     Class photo attendance
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Upload a group photo; we match faces to enrolled students who
-                    registered their face (similarity ≥{" "}
+                    Upload a file, or use Capture photo to open your device camera
+                    (browser will ask for permission). We match faces to enrolled
+                    students who registered their face (similarity ≥{" "}
                     {classPhotoPreview?.threshold ?? 0.35}).
                   </p>
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    id={`class-photo-${event.id}`}
+                    id={`class-photo-upload-${event.id}`}
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       void onClassPhotoSelected(event, f);
@@ -538,10 +636,12 @@ export function AttendanceView({ profile }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted/60 disabled:opacity-50"
+                      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted/60 disabled:opacity-50 inline-flex items-center gap-1.5"
                       disabled={classPhotoLoading && classPhotoEventId === event.id}
                       onClick={() =>
-                        document.getElementById(`class-photo-${event.id}`)?.click()
+                        document
+                          .getElementById(`class-photo-upload-${event.id}`)
+                          ?.click()
                       }
                     >
                       {classPhotoLoading && classPhotoEventId === event.id ? (
@@ -550,8 +650,23 @@ export function AttendanceView({ profile }: Props) {
                           Scanning…
                         </span>
                       ) : (
-                        "Choose class photo"
+                        <>
+                          <Upload className="h-3.5 w-3.5" />
+                          Upload photo
+                        </>
                       )}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted/60 disabled:opacity-50 inline-flex items-center gap-1.5"
+                      disabled={classPhotoLoading && classPhotoEventId === event.id}
+                      onClick={() => {
+                        setClassPhotoError(null);
+                        setCameraEvent(event);
+                      }}
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      Capture photo
                     </button>
                   </div>
                   {classPhotoError && classPhotoEventId === event.id && (
@@ -630,6 +745,57 @@ export function AttendanceView({ profile }: Props) {
             No classes match the selected filters.
           </CardContent>
         </Card>
+      )}
+
+      {cameraEvent && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Capture class photo"
+        >
+          <div className="relative w-full max-w-lg overflow-hidden rounded-lg border bg-background shadow-xl">
+            <div className="flex items-center justify-between border-b px-3 py-2">
+              <span className="text-sm font-medium">Camera</span>
+              <button
+                type="button"
+                className="rounded-md p-1.5 hover:bg-muted"
+                aria-label="Close"
+                onClick={() => setCameraEvent(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="relative aspect-video w-full bg-black">
+              <video
+                ref={cameraVideoRef}
+                className="h-full w-full object-cover"
+                playsInline
+                muted
+                autoPlay
+                onLoadedData={() => setCameraStreamReady(true)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t p-3">
+              <button
+                type="button"
+                className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted"
+                onClick={() => setCameraEvent(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="text-sm rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 inline-flex items-center gap-1.5 disabled:opacity-50"
+                disabled={!cameraStreamReady}
+                onClick={() => captureClassPhotoFromCamera()}
+              >
+                <Camera className="h-3.5 w-3.5" />
+                Use photo
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
