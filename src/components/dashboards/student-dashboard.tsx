@@ -23,10 +23,49 @@ import {
   ScanFace,
   User,
 } from "lucide-react";
-import { format, isBefore, startOfToday } from "date-fns";
+import { format } from "date-fns";
 import { TaskTracker } from "@/components/task-tracker";
 import { StudentCalendar } from "@/components/student-calendar";
 import { AttendanceMarker } from "@/components/attendance-marker";
+
+/** Local calendar day for an event (no UTC shift from date-only strings). */
+function eventBaseLocalDate(e: CalendarRequest): Date | null {
+  const dateOnly = String(e.event_date).split("T")[0];
+  const [y, mo, d] = dateOnly.split("-").map((x) => parseInt(x, 10));
+  if (Number.isNaN(y) || Number.isNaN(mo) || Number.isNaN(d)) return null;
+  return new Date(y, mo - 1, d);
+}
+
+function withTimeOnDate(base: Date, timeStr: string, fallback: string): Date {
+  const t = timeStr?.trim() || fallback;
+  const parts = t.split(":");
+  const hh = parseInt(parts[0] ?? "0", 10);
+  const mm = parseInt(parts[1] ?? "0", 10);
+  const ss = parseInt(parts[2] ?? "0", 10);
+  const out = new Date(base.getTime());
+  out.setHours(hh, mm, ss, 0);
+  return out;
+}
+
+function eventStartDateTime(e: CalendarRequest): Date {
+  const b = eventBaseLocalDate(e);
+  if (!b) return new Date(0);
+  return withTimeOnDate(b, e.start_time, "00:00:00");
+}
+
+/** Local end instant (event_date + end_time). */
+function eventEndDateTime(e: CalendarRequest): Date {
+  const b = eventBaseLocalDate(e);
+  if (!b) return new Date(0);
+  return withTimeOnDate(b, e.end_time, "23:59:59");
+}
+
+/** Class is in session (between start and end, local time). */
+function isEventOngoing(now: Date, e: CalendarRequest): boolean {
+  const s = eventStartDateTime(e);
+  const end = eventEndDateTime(e);
+  return now >= s && now < end;
+}
 
 export function StudentDashboard({ profile }: { profile: Profile }) {
   const [events, setEvents] = useState<CalendarRequest[]>([]);
@@ -36,6 +75,13 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [groupIdToName, setGroupIdToName] = useState<Record<string, string>>({});
   const [filterSubject, setFilterSubject] = useState("all");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  /** Tick so "Upcoming" → "Ongoing" updates without navigating away. */
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     function handleOpenTabMenu() {
@@ -161,19 +207,24 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     fetchEvents();
   }, [profile.id, profile.email, profile.student_group]);
 
-  const today = startOfToday();
-
   const filteredEvents =
     filterSubject === "all"
       ? events
       : events.filter((e) => e.student_group_id === filterSubject);
 
-  const upcoming = filteredEvents.filter(
-    (e) => !isBefore(new Date(e.event_date), today)
-  );
-  const past = filteredEvents.filter((e) =>
-    isBefore(new Date(e.event_date), today)
-  );
+  const upcoming = filteredEvents.filter((e) => now < eventEndDateTime(e));
+  const past = filteredEvents.filter((e) => now >= eventEndDateTime(e));
+
+  const upcomingSorted = useMemo(() => {
+    const list = [...upcoming];
+    list.sort((a, b) => {
+      const ao = isEventOngoing(now, a) ? 0 : 1;
+      const bo = isEventOngoing(now, b) ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      return eventStartDateTime(a).getTime() - eventStartDateTime(b).getTime();
+    });
+    return list;
+  }, [upcoming, now]);
 
   const filteredGroupIds =
     filterSubject === "all" ? studentGroupIds : [filterSubject];
@@ -313,34 +364,47 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             </div>
           )}
 
-          {/* Upcoming Events */}
+          {/* Upcoming & ongoing (not yet ended) */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
               <CalendarDays className="h-5 w-5" />
-              Upcoming Events ({upcoming.length})
+              Upcoming &amp; ongoing ({upcoming.length})
             </h2>
             {upcoming.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <GraduationCap className="h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">
-                    No upcoming events scheduled for your group.
+                    No upcoming or ongoing events scheduled for your group.
                   </p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {upcoming.map((event) => (
+                {upcomingSorted.map((event) => {
+                  const ongoing = isEventOngoing(now, event);
+                  return (
                   <Card
                     key={event.id}
-                    className="relative overflow-hidden border-l-4 border-l-green-500"
+                    className={`relative overflow-hidden border-l-4 ${
+                      ongoing ? "border-l-blue-500" : "border-l-green-500"
+                    }`}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <CardTitle className="text-lg">{event.title}</CardTitle>
-                        <Badge className="bg-accent/15 text-accent-foreground" variant="outline">
-                          Upcoming
-                        </Badge>
+                        {ongoing ? (
+                          <Badge
+                            className="bg-blue-500/15 text-blue-800 border-blue-500/40 dark:text-blue-200"
+                            variant="outline"
+                          >
+                            Ongoing
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-accent/15 text-accent-foreground" variant="outline">
+                            Upcoming
+                          </Badge>
+                        )}
                       </div>
                       {event.description && (
                         <CardDescription>{event.description}</CardDescription>
@@ -378,7 +442,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       )}
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

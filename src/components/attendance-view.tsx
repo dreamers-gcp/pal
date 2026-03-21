@@ -493,7 +493,7 @@ export function AttendanceView({ profile }: Props) {
                                   disabled={busy}
                                   onClick={() => setStudentAttendance(event, student, false)}
                                 >
-                                  Mark absent
+                                  Mark Absent
                                 </button>
                               ) : (
                                 <button
@@ -501,7 +501,7 @@ export function AttendanceView({ profile }: Props) {
                                   disabled={busy}
                                   onClick={() => setStudentAttendance(event, student, true)}
                                 >
-                                  Mark present
+                                  Mark Present
                                 </button>
                               )}
                             </div>
