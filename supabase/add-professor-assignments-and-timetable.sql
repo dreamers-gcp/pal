@@ -3,14 +3,20 @@
 -- Run this in your Supabase SQL Editor
 -- ============================================================
 
--- 1. PROFESSOR ASSIGNMENTS TABLE (CSV data: which professor teaches what)
+-- 1. PROFESSOR ASSIGNMENTS TABLE
+-- Columns: Course ID, Term, Subject, Professor, Email, CrPoints, Preferred Slot 1–3, Max Hours per Day
 create table if not exists public.professor_assignments (
   id uuid primary key default gen_random_uuid(),
-  professor_name text not null,
-  email text not null,
+  course_id text not null default '',
   term text not null,
   subject text not null,
-  credits int not null default 0,
+  professor text not null,
+  email text not null,
+  credits numeric(6, 2) not null default 0,
+  preferred_slot_1 text,
+  preferred_slot_2 text,
+  preferred_slot_3 text,
+  max_hours_per_day int not null default 4,
   created_at timestamptz not null default now()
 );
 
@@ -40,7 +46,7 @@ create table if not exists public.timetable_entries (
   subject text not null,
   student_group_id uuid references public.student_groups(id),
   classroom_id uuid references public.classrooms(id),
-  day_of_week int not null check (day_of_week between 1 and 5),
+  day_of_week int not null check (day_of_week between 1 and 6),
   start_time time not null,
   end_time time not null,
   created_at timestamptz not null default now()

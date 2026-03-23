@@ -1,0 +1,3 @@
+-- Deprecated: professor_assignments schema is defined in recreate-professor-assignments.sql
+-- and add-professor-assignments-and-timetable.sql. Run recreate-professor-assignments.sql
+-- if you need to replace an old table.

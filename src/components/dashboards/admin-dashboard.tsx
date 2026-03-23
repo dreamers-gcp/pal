@@ -53,6 +53,7 @@ import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
 import { TimetableGenerator } from "@/components/timetable-generator";
 import { FileSpreadsheet, Filter, BookOpen, Wand2 } from "lucide-react";
 import type { ProfessorAssignment } from "@/lib/types";
+import { coerceCredits, formatCreditsDisplay } from "@/lib/credits-parse";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -138,7 +139,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       supabase.from("professor_assignments").select("*").order("email"),
       supabase.from("profiles").select("*").eq("role", "professor").order("full_name"),
     ]);
-    if (paRes.data) setProfAssignments(paRes.data);
+    if (paRes.data) {
+      setProfAssignments(
+        paRes.data.map((a) => ({
+          ...a,
+          credits: coerceCredits(a.credits),
+        }))
+      );
+    }
     setProfLoading(false);
   }, []);
 
@@ -341,7 +349,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       existing.totalCredits += a.credits;
     } else {
       profRosterMap.set(a.email, {
-        name: a.professor_name,
+        name: a.professor,
         email: a.email,
         subjects: [a.subject],
         terms: [a.term],
@@ -892,7 +900,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                           </span>
                         ))}
                       </div>
-                      <div className="text-sm font-medium text-right">{entry.totalCredits}</div>
+                      <div className="text-sm font-medium text-right">
+                        {formatCreditsDisplay(entry.totalCredits)}
+                      </div>
                     </div>
                   ))
                 )}

@@ -71,6 +71,7 @@ export interface StudentEnrollment {
   email: string;
   term: string;
   subject: string;
+  /** Course credits (may be decimal, e.g. 1.5). */
   credits: number;
   created_at: string;
 }
@@ -85,11 +86,18 @@ export interface StudentGroupMember {
 
 export interface ProfessorAssignment {
   id: string;
-  professor_name: string;
-  email: string;
+  course_id: string;
   term: string;
+  /** Matches student group name. */
   subject: string;
+  professor: string;
+  email: string;
+  /** CrPoints (may be decimal, e.g. 1.5). */
   credits: number;
+  preferred_slot_1: string | null;
+  preferred_slot_2: string | null;
+  preferred_slot_3: string | null;
+  max_hours_per_day: number;
   created_at: string;
 }
 
@@ -116,6 +124,7 @@ export interface TimetableEntry {
   subject: string;
   student_group_id: string | null;
   classroom_id: string | null;
+  event_date: string | null;
   day_of_week: number;
   start_time: string;
   end_time: string;

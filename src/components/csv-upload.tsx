@@ -22,6 +22,7 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import { coerceCredits, formatCreditsDisplay, parseCreditsField } from "@/lib/credits-parse";
 
 interface ParsedRow {
   student_name: string;
@@ -61,7 +62,7 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
     const email = cols[emailIdx]?.trim().toLowerCase();
     const term = cols[termIdx]?.trim();
     const subject = cols[subjectIdx]?.trim();
-    const credits = parseInt(cols[creditsIdx] ?? "0", 10);
+    const credits = parseCreditsField(cols[creditsIdx]);
 
     if (!name || !email || !term || !subject) {
       errors.push(`Row ${i + 1}: missing required field(s).`);
@@ -73,7 +74,7 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
       continue;
     }
 
-    rows.push({ student_name: name, email, term, subject, credits: isNaN(credits) ? 0 : credits });
+    rows.push({ student_name: name, email, term, subject, credits });
   }
 
   return { rows, errors };
@@ -95,7 +96,14 @@ export function CsvUpload() {
       .select("*")
       .order("email")
       .order("subject");
-    if (data) setEnrollments(data);
+    if (data) {
+      setEnrollments(
+        data.map((row) => ({
+          ...row,
+          credits: coerceCredits(row.credits),
+        }))
+      );
+    }
     setLoading(false);
   }, []);
 
@@ -223,7 +231,8 @@ export function CsvUpload() {
             Upload Student Roster
           </CardTitle>
           <CardDescription>
-            Upload a CSV file with columns: <strong>name, email, term, subject, credits</strong>.
+            Upload a CSV file with columns: <strong>name, email, term, subject, credits</strong> (credits may be
+            decimals, e.g. 1.5).
             Students will be auto-assigned to groups (by subject) when they sign up.
           </CardDescription>
         </CardHeader>
@@ -295,7 +304,7 @@ export function CsvUpload() {
                         <td className="px-3 py-1.5 text-muted-foreground">{row.email}</td>
                         <td className="px-3 py-1.5">{row.term}</td>
                         <td className="px-3 py-1.5">{row.subject}</td>
-                        <td className="px-3 py-1.5 text-right">{row.credits}</td>
+                        <td className="px-3 py-1.5 text-right">{formatCreditsDisplay(row.credits)}</td>
                       </tr>
                     ))}
                     {preview.length > 50 && (
@@ -382,7 +391,7 @@ export function CsvUpload() {
                           {e.subject}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 text-right">{e.credits}</td>
+                      <td className="px-3 py-1.5 text-right">{formatCreditsDisplay(e.credits)}</td>
                     </tr>
                   ))}
                 </tbody>

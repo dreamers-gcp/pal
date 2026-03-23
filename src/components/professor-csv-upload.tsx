@@ -21,49 +21,128 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import { coerceCredits, formatCreditsDisplay, parseCreditsField } from "@/lib/credits-parse";
 
+/** Parsed row — keys match `professor_assignments` */
 interface ParsedRow {
-  professor_name: string;
-  email: string;
+  course_id: string;
   term: string;
   subject: string;
+  professor: string;
+  email: string;
   credits: number;
+  preferred_slot_1: string | null;
+  preferred_slot_2: string | null;
+  preferred_slot_3: string | null;
+  max_hours_per_day: number;
 }
 
-const REQUIRED_HEADERS = ["professor", "email", "term", "subject", "credits"];
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+/** Handles commas inside quoted fields */
+function splitCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (c === "," && !inQuotes) {
+      result.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function buildHeaderIndex(normHeaders: string[]): Record<string, number> {
+  const m: Record<string, number> = {};
+  normHeaders.forEach((h, i) => {
+    m[h] = i;
+  });
+  return m;
+}
+
+function col(idx: Record<string, number>, ...keys: string[]): number {
+  for (const k of keys) {
+    if (idx[k] !== undefined) return idx[k];
+  }
+  return -1;
+}
 
 function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return { rows: [], errors: ["File is empty or has no data rows."] };
 
-  const headerLine = lines[0].toLowerCase();
-  const headers = headerLine.split(",").map((h) => h.trim().replace(/^["']|["']$/g, ""));
+  const headers = splitCsvLine(lines[0]).map((h) => h.replace(/^["']|["']$/g, ""));
+  const normHeaders = headers.map(normalizeHeader);
+  const h = buildHeaderIndex(normHeaders);
 
-  const missing = REQUIRED_HEADERS.filter((r) => !headers.includes(r));
+  const ci = {
+    course_id: col(h, "course_id", "courseid"),
+    term: col(h, "term"),
+    subject: col(h, "subject"),
+    professor: col(h, "professor", "professor_name"),
+    email: col(h, "email"),
+    crpoints: col(h, "crpoints", "credits", "cr_points", "credit_points", "credit"),
+    ps1: col(h, "preferred_slot_1", "preferred_slots_1"),
+    ps2: col(h, "preferred_slot_2", "preferred_slots_2"),
+    ps3: col(h, "preferred_slot_3", "preferred_slots_3"),
+    maxh: col(h, "max_hours_per_day", "max_hours"),
+  };
+
+  const missing: string[] = [];
+  if (ci.course_id < 0) missing.push("Course ID");
+  if (ci.term < 0) missing.push("Term");
+  if (ci.subject < 0) missing.push("Subject");
+  if (ci.professor < 0) missing.push("Professor");
+  if (ci.email < 0) missing.push("Email");
+  if (ci.crpoints < 0) missing.push("CrPoints");
+  if (ci.ps1 < 0) missing.push("Preferred Slot 1");
+  if (ci.ps2 < 0) missing.push("Preferred Slot 2");
+  if (ci.ps3 < 0) missing.push("Preferred Slot 3");
+  if (ci.maxh < 0) missing.push("Max Hours per Day");
+
   if (missing.length > 0) {
-    return { rows: [], errors: [`Missing columns: ${missing.join(", ")}. Required: ${REQUIRED_HEADERS.join(", ")}`] };
+    return {
+      rows: [],
+      errors: [
+        `Missing column(s): ${missing.join(", ")}.`,
+        "Required headers: Course ID, Term, Subject, Professor, Email, CrPoints, Preferred Slot 1, Preferred Slot 2, Preferred Slot 3, Max Hours per Day.",
+      ],
+    };
   }
-
-  const nameIdx = headers.indexOf("professor");
-  const emailIdx = headers.indexOf("email");
-  const termIdx = headers.indexOf("term");
-  const subjectIdx = headers.indexOf("subject");
-  const creditsIdx = headers.indexOf("credits");
 
   const rows: ParsedRow[] = [];
   const errors: string[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
+    const cols = splitCsvLine(lines[i]).map((c) => c.replace(/^["']|["']$/g, ""));
 
-    const name = cols[nameIdx]?.trim();
-    const email = cols[emailIdx]?.trim().toLowerCase();
-    const term = cols[termIdx]?.trim();
-    const subject = cols[subjectIdx]?.trim();
-    const credits = parseInt(cols[creditsIdx] ?? "0", 10);
+    const course_id = (cols[ci.course_id] ?? "").trim();
+    const term = (cols[ci.term] ?? "").trim();
+    const subject = (cols[ci.subject] ?? "").trim();
+    const professor = (cols[ci.professor] ?? "").trim();
+    const email = (cols[ci.email] ?? "").trim().toLowerCase();
+    const credits = parseCreditsField(cols[ci.crpoints]);
+    const preferred_slot_1 = (cols[ci.ps1] ?? "").trim() || null;
+    const preferred_slot_2 = (cols[ci.ps2] ?? "").trim() || null;
+    const preferred_slot_3 = (cols[ci.ps3] ?? "").trim() || null;
+    const maxRaw = (cols[ci.maxh] ?? "").trim();
+    const maxParsed = parseInt(maxRaw, 10);
+    const max_hours_per_day =
+      maxRaw !== "" && !isNaN(maxParsed) && maxParsed > 0 ? maxParsed : 4;
 
-    if (!name || !email || !term || !subject) {
-      errors.push(`Row ${i + 1}: missing required field(s).`);
+    if (!term || !subject || !professor || !email) {
+      errors.push(`Row ${i + 1}: Term, Subject, Professor, and Email are required.`);
       continue;
     }
 
@@ -72,7 +151,18 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
       continue;
     }
 
-    rows.push({ professor_name: name, email, term, subject, credits: isNaN(credits) ? 0 : credits });
+    rows.push({
+      course_id,
+      term,
+      subject,
+      professor,
+      email,
+      credits: credits < 0 ? 0 : credits,
+      preferred_slot_1,
+      preferred_slot_2,
+      preferred_slot_3,
+      max_hours_per_day,
+    });
   }
 
   return { rows, errors };
@@ -93,7 +183,14 @@ export function ProfessorCsvUpload() {
       .select("*")
       .order("email")
       .order("subject");
-    if (data) setAssignments(data);
+    if (data) {
+      setAssignments(
+        (data as ProfessorAssignment[]).map((row) => ({
+          ...row,
+          credits: coerceCredits(row.credits),
+        }))
+      );
+    }
     setLoading(false);
   }, []);
 
@@ -182,8 +279,13 @@ export function ProfessorCsvUpload() {
             Upload Professor Assignments
           </CardTitle>
           <CardDescription>
-            Upload a CSV file with columns: <strong>professor, email, term, subject, credits</strong>.
-            This maps professors to the subjects they teach each term, along with credit hours.
+            Use exactly this header row (order can vary):{" "}
+            <strong>
+              Course ID, Term, Subject, Professor, Email, CrPoints, Preferred Slot 1, Preferred Slot 2,
+              Preferred Slot 3, Max Hours per Day
+            </strong>
+            . CrPoints may be decimals (e.g. 1.5). Course ID may be left empty in cells. Empty preferred
+            slots are ok.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -240,25 +342,47 @@ export function ProfessorCsvUpload() {
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium">Professor</th>
-                      <th className="px-3 py-2 text-left font-medium">Email</th>
-                      <th className="px-3 py-2 text-left font-medium">Term</th>
-                      <th className="px-3 py-2 text-left font-medium">Subject</th>
-                      <th className="px-3 py-2 text-right font-medium">Credits</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Course ID</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Term</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Subject</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Professor</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Email</th>
+                      <th className="px-2 py-2 text-right font-medium whitespace-nowrap">CrPoints</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap max-w-[100px]">
+                        Pref. 1
+                      </th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap max-w-[100px]">
+                        Pref. 2
+                      </th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap max-w-[100px]">
+                        Pref. 3
+                      </th>
+                      <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Max h/day</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.slice(0, 50).map((row, i) => (
                       <tr key={i} className="border-t hover:bg-muted/30">
-                        <td className="px-3 py-1.5">{row.professor_name}</td>
-                        <td className="px-3 py-1.5 text-muted-foreground">{row.email}</td>
-                        <td className="px-3 py-1.5">{row.term}</td>
-                        <td className="px-3 py-1.5">{row.subject}</td>
-                        <td className="px-3 py-1.5 text-right">{row.credits}</td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{row.course_id || "—"}</td>
+                        <td className="px-2 py-1.5">{row.term}</td>
+                        <td className="px-2 py-1.5">{row.subject}</td>
+                        <td className="px-2 py-1.5">{row.professor}</td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{row.email}</td>
+                        <td className="px-2 py-1.5 text-right">{formatCreditsDisplay(row.credits)}</td>
+                        <td className="px-2 py-1.5 truncate max-w-[100px]" title={row.preferred_slot_1 ?? ""}>
+                          {row.preferred_slot_1 ?? "—"}
+                        </td>
+                        <td className="px-2 py-1.5 truncate max-w-[100px]" title={row.preferred_slot_2 ?? ""}>
+                          {row.preferred_slot_2 ?? "—"}
+                        </td>
+                        <td className="px-2 py-1.5 truncate max-w-[100px]" title={row.preferred_slot_3 ?? ""}>
+                          {row.preferred_slot_3 ?? "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">{row.max_hours_per_day}</td>
                       </tr>
                     ))}
                     {preview.length > 50 && (
-                      <tr><td colSpan={5} className="px-3 py-2 text-center text-muted-foreground">...and {preview.length - 50} more rows</td></tr>
+                      <tr><td colSpan={10} className="px-3 py-2 text-center text-muted-foreground">...and {preview.length - 50} more rows</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -307,25 +431,43 @@ export function ProfessorCsvUpload() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium">Professor</th>
-                    <th className="px-3 py-2 text-left font-medium">Email</th>
-                    <th className="px-3 py-2 text-left font-medium">Term</th>
-                    <th className="px-3 py-2 text-left font-medium">Subject</th>
-                    <th className="px-3 py-2 text-right font-medium">Credits</th>
+                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Course ID</th>
+                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Term</th>
+                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Subject</th>
+                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Professor</th>
+                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Email</th>
+                    <th className="px-2 py-2 text-right font-medium whitespace-nowrap">CrPoints</th>
+                    <th className="px-2 py-2 text-left font-medium max-w-[90px]">Pref. 1</th>
+                    <th className="px-2 py-2 text-left font-medium max-w-[90px]">Pref. 2</th>
+                    <th className="px-2 py-2 text-left font-medium max-w-[90px]">Pref. 3</th>
+                    <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Max h/day</th>
                   </tr>
                 </thead>
                 <tbody>
                   {assignments.map((a) => (
                     <tr key={a.id} className="border-t hover:bg-muted/30">
-                      <td className="px-3 py-1.5">{a.professor_name}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground">{a.email}</td>
-                      <td className="px-3 py-1.5">{a.term}</td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2 py-1.5 text-muted-foreground text-xs">
+                        {a.course_id || "—"}
+                      </td>
+                      <td className="px-2 py-1.5">{a.term}</td>
+                      <td className="px-2 py-1.5">
                         <span className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium">
                           {a.subject}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 text-right">{a.credits}</td>
+                      <td className="px-2 py-1.5">{a.professor}</td>
+                      <td className="px-2 py-1.5 text-muted-foreground text-xs">{a.email}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCreditsDisplay(a.credits)}</td>
+                      <td className="px-2 py-1.5 text-xs truncate max-w-[90px]" title={a.preferred_slot_1 ?? ""}>
+                        {a.preferred_slot_1 ?? "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs truncate max-w-[90px]" title={a.preferred_slot_2 ?? ""}>
+                        {a.preferred_slot_2 ?? "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs truncate max-w-[90px]" title={a.preferred_slot_3 ?? ""}>
+                        {a.preferred_slot_3 ?? "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">{a.max_hours_per_day ?? 4}</td>
                     </tr>
                   ))}
                 </tbody>

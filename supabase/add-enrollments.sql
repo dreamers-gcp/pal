@@ -12,7 +12,7 @@ create table if not exists public.student_enrollments (
   email text not null,
   term text not null,
   subject text not null,
-  credits int not null default 0,
+  credits numeric(6, 2) not null default 0,
   created_at timestamptz not null default now()
 );
 
