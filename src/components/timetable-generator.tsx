@@ -732,43 +732,59 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
         </Card>
       )}
 
-      {/* Approve dialog */}
+      {/* Approve dialog — wide layout; default DialogContent uses sm:max-w-sm which was crushing this */}
       <Dialog open={!!viewTimetableId} onOpenChange={(open) => { if (!open) setViewTimetableId(null); }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Review Timetable</DialogTitle>
-            <DialogDescription>
-              Review the generated schedule below. Approving will create calendar events for the full term.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent
+          showCloseButton={false}
+          className="flex h-[min(92vh,960px)] w-[min(96rem,calc(100vw-1.5rem))] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(96rem,calc(100vw-1.5rem))]"
+        >
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b px-5 pt-5 pb-4 pr-14">
+            <DialogHeader className="space-y-1.5 text-left">
+              <DialogTitle>Review Timetable</DialogTitle>
+              <DialogDescription>
+                Approving will create calendar events for the full term.
+              </DialogDescription>
+            </DialogHeader>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute top-3 right-3 shrink-0"
+              onClick={() => setViewTimetableId(null)}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
           {viewLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="flex flex-1 items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="space-y-4">
-              <SlotWeeklyGrid
-                slots={viewEntries.map((e) => ({
-                  subject: e.subject,
-                  professorEmail: e.professor_email,
-                  professorName: e.professor?.full_name ?? e.professor_email,
-                  studentGroupId: e.student_group_id ?? "",
-                  studentGroupName: e.student_group?.name ?? "",
-                  classroomId: e.classroom_id ?? "",
-                  classroomName: e.classroom?.name ?? "",
-                  dayOfWeek: e.day_of_week,
-                  startTime: e.start_time,
-                  endTime: e.end_time,
-                }))}
-                getSubjectColor={getSubjectColor}
-              />
-
-              <div className="flex items-center justify-between pt-2">
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto px-5 py-4">
+                <SlotWeeklyGrid
+                  slots={viewEntries.map((e) => ({
+                    subject: e.subject,
+                    professorEmail: e.professor_email,
+                    professorName: e.professor?.full_name ?? e.professor_email,
+                    studentGroupId: e.student_group_id ?? "",
+                    studentGroupName: e.student_group?.name ?? "",
+                    classroomId: e.classroom_id ?? "",
+                    classroomName: e.classroom?.name ?? "",
+                    dayOfWeek: e.day_of_week,
+                    startTime: e.start_time,
+                    endTime: e.end_time,
+                  }))}
+                  getSubjectColor={getSubjectColor}
+                />
+              </div>
+              <div className="flex shrink-0 flex-col gap-3 border-t bg-muted/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
                   {viewEntries.length} saved session(s) will be created in calendars when approved.
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="outline" onClick={() => setViewTimetableId(null)}>
                     Cancel
                   </Button>
@@ -787,7 +803,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                   )}
                 </div>
               </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
