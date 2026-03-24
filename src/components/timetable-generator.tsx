@@ -482,12 +482,6 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
             <Wand2 className="h-5 w-5" />
             Generate Timetable
           </CardTitle>
-          <CardDescription>
-            Builds a <strong>full-term</strong> timetable with OpenAI using your professor CSV (preferred slots,
-            max hours/day), enrollments, rooms, and the S1–S7 slot pattern. Configure{" "}
-            <code className="text-xs bg-muted px-1 rounded">OPENAI_API_KEY</code> on the server. Saving a
-            draft and then approving pushes term events into calendars.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {profAssignments.length === 0 ? (
