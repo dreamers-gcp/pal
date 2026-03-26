@@ -82,6 +82,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [filterSubject, setFilterSubject] = useState("all");
   const [profFilterTerm, setProfFilterTerm] = useState("all");
   const [profFilterSubject, setProfFilterSubject] = useState("all");
+  const [requestStatusFilter, setRequestStatusFilter] = useState<
+    "pending" | "approved" | "rejected" | "clarification_needed" | "all"
+  >("pending");
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [calendarClassroomFilter, setCalendarClassroomFilter] = useState<string>("");
@@ -482,89 +485,97 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
         {/* ========== REQUESTS TAB ========== */}
         <TabsContent value="requests" className="mt-6 space-y-6">
-          {/* Stats */}
-          <div className="grid gap-4 md:grid-cols-4">
-            {[
-              {
-                label: "Pending",
-                count: filterByStatus("pending").length,
-                color: "text-yellow-600",
-              },
-              {
-                label: "Approved",
-                count: filterByStatus("approved").length,
-                color: "text-accent-foreground",
-              },
-              {
-                label: "Rejected",
-                count: filterByStatus("rejected").length,
-                color: "text-destructive",
-              },
-              {
-                label: "Needs Clarification",
-                count: filterByStatus("clarification_needed").length,
-                color: "text-primary",
-              },
-            ].map((stat) => (
-              <Card key={stat.label}>
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className={`text-3xl font-bold ${stat.color}`}>
+          {/* Compact request stats + filter chips */}
+          <div className="rounded-xl border bg-muted/25 p-2.5">
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                {
+                  label: "Pending",
+                  count: filterByStatus("pending").length,
+                  color: "text-yellow-700",
+                  chip: "bg-yellow-100",
+                },
+                {
+                  label: "Approved",
+                  count: filterByStatus("approved").length,
+                  color: "text-accent-foreground",
+                  chip: "bg-accent/20",
+                },
+                {
+                  label: "Rejected",
+                  count: filterByStatus("rejected").length,
+                  color: "text-destructive",
+                  chip: "bg-destructive/10",
+                },
+                {
+                  label: "Clarification",
+                  count: filterByStatus("clarification_needed").length,
+                  color: "text-primary",
+                  chip: "bg-primary/10",
+                  value: "clarification_needed",
+                },
+              ].map((stat) => (
+                <button
+                  key={stat.label}
+                  type="button"
+                  onClick={() =>
+                    setRequestStatusFilter(
+                      (stat.value ??
+                        stat.label.toLowerCase()) as
+                        | "pending"
+                        | "approved"
+                        | "rejected"
+                        | "clarification_needed"
+                        | "all"
+                    )
+                  }
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-colors ${
+                    requestStatusFilter ===
+                    ((stat.value ??
+                      stat.label.toLowerCase()) as
+                      | "pending"
+                      | "approved"
+                      | "rejected"
+                      | "clarification_needed"
+                      | "all")
+                      ? "border-primary/50 bg-primary/5"
+                      : "bg-background hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="text-xs text-muted-foreground">{stat.label}</span>
+                  <span
+                    className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}
+                  >
                     {stat.count}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-
-          <Tabs defaultValue="pending">
-            <TabsList className="w-fit">
-              <TabsTrigger value="pending">
-                Pending ({filterByStatus("pending").length})
-              </TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              <TabsTrigger value="clarification_needed">
-                Clarification
-              </TabsTrigger>
-              <TabsTrigger value="all">All</TabsTrigger>
-            </TabsList>
-
-            {[
-              "pending",
-              "approved",
-              "rejected",
-              "clarification_needed",
-              "all",
-            ].map((tab) => (
-              <TabsContent key={tab} value={tab} className="mt-4">
-                {filterByStatus(tab).length === 0 ? (
-                  <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-12">
-                      <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">
-                        No requests here.
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {filterByStatus(tab).map((req) => (
-                      <RequestCard
-                        key={req.id}
-                        request={req}
-                        showProfessor
-                        onClick={() => {
-                          setSelectedRequest(req);
-                          setAdminNote(req.admin_note ?? "");
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-            ))}
-          </Tabs>
+          {filterByStatus(requestStatusFilter).length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No requests here.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filterByStatus(requestStatusFilter).map((req) => (
+                <RequestCard
+                  key={req.id}
+                  request={req}
+                  showProfessor
+                  onClick={() => {
+                    setSelectedRequest(req);
+                    setAdminNote(req.admin_note ?? "");
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* ========== CALENDAR TAB ========== */}
@@ -638,32 +649,42 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <>
-              {/* Summary cards */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">
-                      Total in Roster
-                    </p>
-                    <p className="text-3xl font-bold">{fullRoster.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Signed Up</p>
-                    <p className="text-3xl font-bold text-accent-foreground">
-                      {signedUpCount}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Not Signed Up</p>
-                    <p className="text-3xl font-bold text-amber-600">
-                      {notSignedUpCount}
-                    </p>
-                  </CardContent>
-                </Card>
+              {/* Compact summary strip */}
+              <div className="rounded-xl border bg-muted/25 p-2.5">
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    {
+                      label: "Total in Roster",
+                      count: fullRoster.length,
+                      color: "text-foreground",
+                      chip: "bg-muted",
+                    },
+                    {
+                      label: "Signed Up",
+                      count: signedUpCount,
+                      color: "text-accent-foreground",
+                      chip: "bg-accent/20",
+                    },
+                    {
+                      label: "Not Signed Up",
+                      count: notSignedUpCount,
+                      color: "text-amber-700",
+                      chip: "bg-amber-100",
+                    },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
+                    >
+                      <span className="text-xs text-muted-foreground">{stat.label}</span>
+                      <span
+                        className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}
+                      >
+                        {stat.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Filters */}
@@ -798,26 +819,42 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <>
-              {/* Summary cards */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Total Professors</p>
-                    <p className="text-3xl font-bold">{fullProfRoster.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Subjects</p>
-                    <p className="text-3xl font-bold text-purple-600">{profSubjects.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Terms</p>
-                    <p className="text-3xl font-bold text-primary">{profTerms.length}</p>
-                  </CardContent>
-                </Card>
+              {/* Compact summary strip */}
+              <div className="rounded-xl border bg-muted/25 p-2.5">
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    {
+                      label: "Total Professors",
+                      count: fullProfRoster.length,
+                      color: "text-foreground",
+                      chip: "bg-muted",
+                    },
+                    {
+                      label: "Subjects",
+                      count: profSubjects.length,
+                      color: "text-purple-700",
+                      chip: "bg-purple-100",
+                    },
+                    {
+                      label: "Terms",
+                      count: profTerms.length,
+                      color: "text-primary",
+                      chip: "bg-primary/10",
+                    },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
+                    >
+                      <span className="text-xs text-muted-foreground">{stat.label}</span>
+                      <span
+                        className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}
+                      >
+                        {stat.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Filters */}

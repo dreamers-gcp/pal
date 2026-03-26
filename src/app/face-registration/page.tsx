@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { FaceRegistration } from "@/components/face-registration";
+import { AppLoadingState } from "@/components/ui/app-loading-state";
 
 export default function FaceRegistrationPage() {
   const { profile, loading } = useAuth();
@@ -23,9 +23,11 @@ export default function FaceRegistrationPage() {
 
   if (loading || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <AppLoadingState
+        className="min-h-screen"
+        title="Almost there"
+        subtitle="Checking your account before face setup..."
+      />
     );
   }
 

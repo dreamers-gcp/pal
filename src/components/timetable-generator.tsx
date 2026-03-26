@@ -42,6 +42,7 @@ import {
 import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TIMETABLE_SLOTS, TIMETABLE_SLOT_CODES, inferSlotCodeFromStartTime } from "@/lib/timetable-slots";
+import { AppLoadingState } from "@/components/ui/app-loading-state";
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -464,11 +465,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <AppLoadingState compact title="Loading timetable data" className="py-12" />;
   }
 
   const termAssignmentCount = profAssignments.filter((a) => a.term === selectedTerm).length;

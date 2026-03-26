@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarRequest, Profile, AttendanceRecord } from "@/lib/types";
+import { AppLoadingState } from "@/components/ui/app-loading-state";
 
 interface Props {
   profile: Profile;
@@ -65,6 +66,13 @@ interface ClassPhotoPreview {
   students_missing_face: { student_id: string; student_name: string }[];
 }
 
+const SCAN_PROGRESS_STEPS = [
+  "Uploading class photo...",
+  "Detecting faces...",
+  "Matching students...",
+  "Finalizing preview...",
+] as const;
+
 export function AttendanceView({ profile }: Props) {
   const supabase = createClient();
   const [data, setData] = useState<EventAttendanceInfo[]>([]);
@@ -85,6 +93,8 @@ export function AttendanceView({ profile }: Props) {
   const [classPhotoLoading, setClassPhotoLoading] = useState(false);
   const [classPhotoApplying, setClassPhotoApplying] = useState(false);
   const [classPhotoError, setClassPhotoError] = useState<string | null>(null);
+  const [scanProgressStep, setScanProgressStep] = useState(0);
+  const [scanElapsedSec, setScanElapsedSec] = useState(0);
   /** Live camera for class photo (getUserMedia — works on desktop; file+capture often opens picker). */
   const [cameraEvent, setCameraEvent] = useState<CalendarRequest | null>(null);
   const [cameraStreamReady, setCameraStreamReady] = useState(false);
@@ -362,6 +372,19 @@ export function AttendanceView({ profile }: Props) {
     setClassPhotoPreview(null);
     setClassPhotoError(null);
     setClassPhotoLoading(true);
+    setScanProgressStep(0);
+    setScanElapsedSec(0);
+
+    const startedAt = Date.now();
+    const stepTimer = setInterval(() => {
+      setScanProgressStep((prev) =>
+        prev < SCAN_PROGRESS_STEPS.length - 1 ? prev + 1 : prev
+      );
+    }, 1400);
+    const elapsedTimer = setInterval(() => {
+      setScanElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
     try {
       const json = await runClassPhotoScan(event, file, false);
       if (json.preview) {
@@ -381,7 +404,10 @@ export function AttendanceView({ profile }: Props) {
         e instanceof Error ? e.message : "Failed to scan class photo"
       );
     } finally {
+      clearInterval(stepTimer);
+      clearInterval(elapsedTimer);
       setClassPhotoLoading(false);
+      setScanProgressStep(0);
     }
   }
 
@@ -448,9 +474,12 @@ export function AttendanceView({ profile }: Props) {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <AppLoadingState
+        compact
+        className="py-8"
+        title="Loading attendance"
+        subtitle="Getting your recent classes and attendance records..."
+      />
     );
   }
 
@@ -635,12 +664,6 @@ export function AttendanceView({ profile }: Props) {
                     <Camera className="h-4 w-4" />
                     Class photo attendance
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Upload a file, or use Capture photo to open your device camera
-                    (browser will ask for permission). We match faces to enrolled
-                    students who registered their face (similarity ≥{" "}
-                    {classPhotoPreview?.threshold ?? 0.35}).
-                  </p>
                   <input
                     type="file"
                     accept="image/*"
@@ -666,7 +689,7 @@ export function AttendanceView({ profile }: Props) {
                       {classPhotoLoading && classPhotoEventId === event.id ? (
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Scanning…
+                          {SCAN_PROGRESS_STEPS[scanProgressStep]}
                         </span>
                       ) : (
                         <>
@@ -688,6 +711,28 @@ export function AttendanceView({ profile }: Props) {
                       Capture photo
                     </button>
                   </div>
+                  {classPhotoLoading && classPhotoEventId === event.id && (
+                    <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                          {SCAN_PROGRESS_STEPS[scanProgressStep]}
+                        </span>
+                        <span>{scanElapsedSec}s</span>
+                      </div>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary/70 transition-all duration-500"
+                          style={{
+                            width: `${Math.min(
+                              90,
+                              ((scanProgressStep + 1) / SCAN_PROGRESS_STEPS.length) * 100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   {classPhotoError && classPhotoEventId === event.id && (
                     <p className="text-sm text-destructive">{classPhotoError}</p>
                   )}
@@ -703,14 +748,6 @@ export function AttendanceView({ profile }: Props) {
                           {classPhotoPreview.students_with_face} with face data
                           / {classPhotoPreview.enrolled_count} enrolled).
                         </p>
-                        {classPhotoPreview.unmatched_face_indices.length > 0 && (
-                          <p className="text-muted-foreground text-xs">
-                            Unmatched face slot(s):{" "}
-                            {classPhotoPreview.unmatched_face_indices
-                              .map((i) => `#${i + 1}`)
-                              .join(", ")}
-                          </p>
-                        )}
                         {classPhotoPreview.students_missing_face.length > 0 && (
                           <p className="text-xs text-muted-foreground">
                             No face registration:{" "}
@@ -725,8 +762,7 @@ export function AttendanceView({ profile }: Props) {
                               <li key={`${m.student_id}-${m.face_index}`}>
                                 {m.student_name}{" "}
                                 <span className="text-muted-foreground">
-                                  (face #{m.face_index + 1},{" "}
-                                  {(m.similarity * 100).toFixed(1)}%)
+                                  (Similarity: {(m.similarity * 100).toFixed(1)}%)
                                 </span>
                               </li>
                             ))}

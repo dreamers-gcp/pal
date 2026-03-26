@@ -9,35 +9,41 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
+    const supabase = createClient();
+
+    async function loadProfileForUser(nextUser: User | null) {
+      if (!nextUser) {
+        setUser(null);
+        setProfile(null);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", nextUser.id)
+        .single();
+
+      if (data) {
+        setUser(nextUser);
+        setProfile(data);
+        return;
+      }
+
+      // User exists in auth but profile is gone (deleted from DB) — sign out.
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+    }
+
     async function getUser() {
+      setLoading(true);
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-
-        if (data) {
-          setUser(user);
-          setProfile(data);
-        } else {
-          // User exists in auth but profile is gone (deleted from DB) — sign out
-          await supabase.auth.signOut();
-          setUser(null);
-          setProfile(null);
-        }
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-
+      await loadProfileForUser(user ?? null);
       setLoading(false);
     }
 
@@ -45,15 +51,14 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        setProfile(null);
-      }
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setLoading(true);
+      await loadProfileForUser(session?.user ?? null);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, []);
 
   return { user, profile, loading };
 }
