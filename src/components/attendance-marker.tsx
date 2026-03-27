@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { format, parse, addMinutes, isWithinInterval } from "date-fns";
 import type { CalendarRequest, AttendanceRecord, Profile } from "@/lib/types";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const ATTENDANCE_WINDOW_MINUTES = 15;
 
@@ -433,11 +434,10 @@ function AttendanceHistory({
             </option>
           ))}
         </select>
-        <input
-          type="date"
-          className="h-9 min-w-[170px] rounded-md border border-input bg-background px-3 text-sm"
+        <DatePicker
           value={dayFilter}
-          onChange={(e) => setDayFilter(e.target.value)}
+          onChange={setDayFilter}
+          placeholder="Pick date"
         />
         {(subjectFilter !== "all" || dayFilter) && (
           <button

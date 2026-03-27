@@ -193,13 +193,13 @@ export function BookingForm({
   const header =
     variant === "dialog" ? (
       <DialogHeader>
-        <DialogTitle>Create Calendar Block Request</DialogTitle>
+        <DialogTitle>Create Event Block Request</DialogTitle>
         <DialogDescription>{descriptionText}</DialogDescription>
       </DialogHeader>
     ) : (
       <div className="space-y-1.5 pb-4">
         <h2 className="text-lg font-semibold leading-tight text-foreground">
-          Create Calendar Block Request
+          Create Event Block Request
         </h2>
         <p className="text-sm text-muted-foreground">{descriptionText}</p>
       </div>

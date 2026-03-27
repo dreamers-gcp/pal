@@ -156,3 +156,51 @@ export interface CalendarRequest {
   student_groups?: StudentGroup[];
   classroom?: Classroom;
 }
+
+export type GuestHouseCode = "international_centre" | "mdp_building";
+
+export interface GuestHouseBooking {
+  id: string;
+  requester_id: string | null;
+  requester_email: string | null;
+  guest_name: string;
+  purpose: string | null;
+  guest_house: GuestHouseCode;
+  room_number: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  status: RequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  requester?: Profile;
+}
+
+export type SportType = "badminton" | "cricket";
+
+export type SportsVenueCode =
+  | "badminton_court_1"
+  | "badminton_court_2"
+  | "badminton_court_3"
+  | "badminton_court_4"
+  | "cricket_main_ground";
+
+export interface SportsBooking {
+  id: string;
+  requester_id: string | null;
+  requester_email: string | null;
+  requester_role: "student" | "professor";
+  sport: SportType;
+  venue_code: SportsVenueCode;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  purpose: string | null;
+  status: RequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  requester?: Profile;
+}

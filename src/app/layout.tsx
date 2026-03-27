@@ -15,7 +15,7 @@ const monoFont = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Planova - Calendar Management",
   description:
-    "Planova helps Professors, Admins, and Learners manage calendar requests and attendance.",
+    "Planova helps Professors, Admins, and Learners manage event requests and attendance.",
 };
 
 export default function RootLayout({

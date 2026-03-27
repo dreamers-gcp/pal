@@ -7,11 +7,14 @@ import type {
   CalendarRequest,
   Classroom,
   StudentGroup,
+  SportsBooking,
+  SportType,
+  SportsVenueCode,
 } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Plus, CalendarDays, ScanFace, X } from "lucide-react";
+import { ClipboardList, Plus, CalendarDays, ScanFace, X, Trophy } from "lucide-react";
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import type { CalendarSlotInfo } from "@/components/request-calendar";
 import { BookingForm, type BookingFormPrefill } from "@/components/booking-form";
@@ -27,6 +30,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { TimeRangeSelect } from "@/components/ui/time-range-select";
+import {
+  SPORT_LABELS,
+  SPORTS_VENUE_LABELS,
+  venuesForSport,
+  isTimeOverlap,
+} from "@/lib/sports-booking";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
@@ -54,6 +69,16 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   /** All approved requests across all rooms (for all-rooms view) */
   const [allApprovedBookings, setAllApprovedBookings] = useState<CalendarRequest[]>([]);
   const [allApprovedLoading, setAllApprovedLoading] = useState(false);
+  const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
+  const [sportsLoading, setSportsLoading] = useState(true);
+  const [sportsSubmitting, setSportsSubmitting] = useState(false);
+  const [sportType, setSportType] = useState<SportType>("badminton");
+  const [sportVenue, setSportVenue] = useState<SportsVenueCode>("badminton_court_1");
+  const [sportDate, setSportDate] = useState("");
+  const [sportStartTime, setSportStartTime] = useState("17:00");
+  const [sportEndTime, setSportEndTime] = useState("18:00");
+  const [sportPurpose, setSportPurpose] = useState("");
+  const [unavailableSportsVenues, setUnavailableSportsVenues] = useState<Set<SportsVenueCode>>(new Set());
 
   const fetchData = useCallback(async () => {
     const supabase = createClient();
@@ -93,6 +118,60 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    async function fetchSportsBookings() {
+      setSportsLoading(true);
+      try {
+        const { data } = await supabase
+          .from("sports_bookings")
+          .select("*")
+          .or(`requester_id.eq.${profile.id},requester_email.eq.${profile.email}`)
+          .order("created_at", { ascending: false });
+        setSportsBookings((data as SportsBooking[]) ?? []);
+      } catch (error) {
+        console.error("Failed to load sports bookings", error);
+      } finally {
+        setSportsLoading(false);
+      }
+    }
+    fetchSportsBookings();
+  }, [profile.id, profile.email]);
+
+  useEffect(() => {
+    setSportVenue(venuesForSport(sportType)[0]);
+  }, [sportType]);
+
+  useEffect(() => {
+    if (!sportDate || !sportStartTime || !sportEndTime) {
+      setUnavailableSportsVenues(new Set());
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from("sports_bookings")
+      .select("venue_code, start_time, end_time")
+      .eq("sport", sportType)
+      .eq("booking_date", sportDate)
+      .eq("status", "approved")
+      .then(({ data }) => {
+        const blocked = new Set<SportsVenueCode>();
+        for (const row of data ?? []) {
+          if (
+            isTimeOverlap(
+              sportStartTime,
+              sportEndTime,
+              row.start_time.slice(0, 5),
+              row.end_time.slice(0, 5)
+            )
+          ) {
+            blocked.add(row.venue_code as SportsVenueCode);
+          }
+        }
+        setUnavailableSportsVenues(blocked);
+      });
+  }, [sportType, sportDate, sportStartTime, sportEndTime]);
 
   useEffect(() => {
     if (calendarViewMode !== "all-rooms") return;
@@ -163,6 +242,55 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     setBookingSidebarOpen(true);
   }
 
+  function formatStatusLabel(status: SportsBooking["status"]): string {
+    if (status === "clarification_needed") return "Clarification";
+    if (status === "approved") return "Approved";
+    if (status === "rejected") return "Rejected";
+    return "Pending";
+  }
+
+  async function submitSportsBooking() {
+    if (!sportDate || !sportStartTime || !sportEndTime) {
+      toast.error("Please select date and time.");
+      return;
+    }
+    if (sportStartTime >= sportEndTime) {
+      toast.error("End time must be later than start time.");
+      return;
+    }
+    if (unavailableSportsVenues.has(sportVenue)) {
+      toast.error("Selected venue is already booked for this time.");
+      return;
+    }
+    setSportsSubmitting(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("sports_bookings").insert({
+      requester_id: profile.id,
+      requester_email: profile.email,
+      requester_role: "professor",
+      sport: sportType,
+      venue_code: sportVenue,
+      booking_date: sportDate,
+      start_time: `${sportStartTime}:00`,
+      end_time: `${sportEndTime}:00`,
+      purpose: sportPurpose.trim() || null,
+    });
+    if (error) {
+      toast.error("Failed to submit sports booking: " + error.message);
+      setSportsSubmitting(false);
+      return;
+    }
+    toast.success("Sports booking request submitted.");
+    setSportPurpose("");
+    setSportsSubmitting(false);
+    const { data } = await supabase
+      .from("sports_bookings")
+      .select("*")
+      .or(`requester_id.eq.${profile.id},requester_email.eq.${profile.email}`)
+      .order("created_at", { ascending: false });
+    setSportsBookings((data as SportsBooking[]) ?? []);
+  }
+
   function handleCalendarSlotSelect(slot: CalendarSlotInfo) {
     const classroomId =
       calendarViewMode === "all-rooms" && calendarRoomFilter
@@ -231,6 +359,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   <ScanFace className="h-4 w-4" />
                   Attendance
                 </TabsTrigger>
+                <TabsTrigger
+                  value="sports"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <Trophy className="h-4 w-4" />
+                  Sports Requests
+                </TabsTrigger>
               </TabsList>
             </aside>
           </>
@@ -247,6 +383,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           <TabsTrigger value="attendance" className="gap-1.5">
             <ScanFace className="h-4 w-4" />
             Attendance
+          </TabsTrigger>
+          <TabsTrigger value="sports" className="gap-1.5">
+            <Trophy className="h-4 w-4" />
+            Sports Requests
           </TabsTrigger>
         </TabsList>
 
@@ -368,6 +508,128 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="attendance" className="mt-6">
           <AttendanceView profile={profile} />
         </TabsContent>
+
+        <TabsContent value="sports" className="mt-6 space-y-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-xl border p-4 space-y-4">
+                  <p className="text-sm font-semibold">Booking Details</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Sport</Label>
+                      <Select value={sportType} onValueChange={(v) => setSportType(v as SportType)}>
+                        <SelectTrigger>
+                          <SelectValue>{SPORT_LABELS[sportType]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="badminton">Badminton</SelectItem>
+                          <SelectItem value="cricket">Cricket</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <DatePicker value={sportDate} onChange={setSportDate} placeholder="Pick date" />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <TimeRangeSelect
+                        startValue={sportStartTime}
+                        endValue={sportEndTime}
+                        onStartChange={setSportStartTime}
+                        onEndChange={setSportEndTime}
+                        startLabel={<Label>Start Time</Label>}
+                        endLabel={<Label>End Time</Label>}
+                        stepMinutes={60}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Purpose (optional)</Label>
+                      <Textarea rows={2} value={sportPurpose} onChange={(e) => setSportPurpose(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">
+                      {sportType === "badminton" ? "Court Selection" : "Ground Selection"}
+                    </p>
+                    <span className="text-xs text-muted-foreground">{SPORTS_VENUE_LABELS[sportVenue]}</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {venuesForSport(sportType).map((v) => {
+                      const blocked = unavailableSportsVenues.has(v);
+                      const selected = sportVenue === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          disabled={blocked}
+                          onClick={() => !blocked && setSportVenue(v)}
+                          className={`rounded-lg border px-3 py-2 text-sm text-left transition-colors ${
+                            selected
+                              ? "border-primary/70 bg-primary/10 text-primary"
+                              : blocked
+                                ? "cursor-not-allowed border-muted bg-muted/40 text-muted-foreground line-through"
+                                : "bg-background hover:bg-muted/40"
+                          }`}
+                        >
+                          {SPORTS_VENUE_LABELS[v]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Blocked venues already have approved bookings for this date/time.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={submitSportsBooking} disabled={sportsSubmitting}>
+                  {sportsSubmitting ? "Submitting..." : "Submit"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {sportsLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-pulse text-muted-foreground">Loading sports bookings...</div>
+            </div>
+          ) : sportsBookings.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                No sports booking requests yet.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {sportsBookings.map((b) => (
+                <Card key={b.id}>
+                  <CardContent className="pt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium">{SPORT_LABELS[b.sport]}</p>
+                      <Badge className={b.status === "approved" ? "bg-accent/15 text-accent-foreground" : b.status === "rejected" ? "bg-destructive/10 text-destructive" : b.status === "clarification_needed" ? "bg-primary/10 text-primary" : "bg-yellow-100 text-yellow-800"}>
+                        {formatStatusLabel(b.status)}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{SPORTS_VENUE_LABELS[b.venue_code]}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
+                    </p>
+                    {b.purpose && <p className="text-sm">{b.purpose}</p>}
+                    {b.admin_note && (
+                      <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                        Admin note: {b.admin_note}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
       </Tabs>
 
       {/* Booking sidebar — New request + calendar slot selection (matches admin review panel) */}
@@ -381,7 +643,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           <aside
             className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
             role="dialog"
-            aria-label="New calendar request"
+            aria-label="New event request"
           >
             <div className="flex items-center justify-end p-2 border-b shrink-0">
               <Button

@@ -8,13 +8,12 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 
-const STEP_MINUTES = 15;
 const TOTAL_MINUTES = 24 * 60;
 
-/** Generate "HH:mm" times from 00:00 to 23:45 in 15-min steps */
-function getTimeOptions(): { value: string; label: string }[] {
+/** Generate "HH:mm" times with configurable minute step. */
+function getTimeOptions(stepMinutes: number): { value: string; label: string }[] {
   const options: { value: string; label: string }[] = [];
-  for (let m = 0; m < TOTAL_MINUTES; m += STEP_MINUTES) {
+  for (let m = 0; m < TOTAL_MINUTES; m += stepMinutes) {
     const h = Math.floor(m / 60);
     const min = m % 60;
     const value = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
@@ -35,8 +34,6 @@ function timeToMinutes(value: string): number {
   return h * 60 + m;
 }
 
-const ALL_OPTIONS = getTimeOptions();
-
 export interface TimeRangeSelectProps {
   startValue: string;
   endValue: string;
@@ -51,6 +48,7 @@ export interface TimeRangeSelectProps {
   startTriggerId?: string;
   endTriggerId?: string;
   className?: string;
+  stepMinutes?: number;
 }
 
 /**
@@ -71,13 +69,16 @@ export function TimeRangeSelect({
   startTriggerId,
   endTriggerId,
   className,
+  stepMinutes = 15,
 }: TimeRangeSelectProps) {
+  const allOptions = React.useMemo(() => getTimeOptions(stepMinutes), [stepMinutes]);
+
   const endOptions = React.useMemo(() => {
-    if (!startValue) return ALL_OPTIONS;
+    if (!startValue) return allOptions;
     const startMins = timeToMinutes(startValue);
-    const minEndMins = startMins + STEP_MINUTES;
-    return ALL_OPTIONS.filter((opt) => timeToMinutes(opt.value) >= minEndMins);
-  }, [startValue]);
+    const minEndMins = startMins + stepMinutes;
+    return allOptions.filter((opt) => timeToMinutes(opt.value) >= minEndMins);
+  }, [startValue, allOptions, stepMinutes]);
 
   const endValueValid =
     endValue && endOptions.some((o) => o.value === endValue);
@@ -100,7 +101,7 @@ export function TimeRangeSelect({
             onValueChange={(v) => {
               onStartChange(v ?? "");
               if (endValue && v && timeToMinutes(endValue) <= timeToMinutes(v)) {
-                const nextEnd = ALL_OPTIONS.find(
+                const nextEnd = allOptions.find(
                   (o) => timeToMinutes(o.value) > timeToMinutes(v)
                 )?.value;
                 if (nextEnd) onEndChange(nextEnd);
@@ -111,12 +112,12 @@ export function TimeRangeSelect({
             <SelectTrigger id={startTriggerId} className="w-full">
               <span className="flex flex-1 items-center truncate text-left">
                 {startValue
-                  ? (ALL_OPTIONS.find((opt) => opt.value === startValue)?.label ?? startValue)
+                  ? (allOptions.find((opt) => opt.value === startValue)?.label ?? startValue)
                   : startPlaceholder}
               </span>
             </SelectTrigger>
             <SelectContent>
-              {ALL_OPTIONS.map((opt) => (
+              {allOptions.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>
