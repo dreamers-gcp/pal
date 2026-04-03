@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LogIn } from "lucide-react";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -61,8 +62,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50 p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="w-full max-w-md border-foreground/10 shadow-sm">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
             <LogIn className="h-6 w-6 text-primary-foreground" />
@@ -115,6 +116,6 @@ export default function LoginPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

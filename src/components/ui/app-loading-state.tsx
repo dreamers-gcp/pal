@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardShellSkeleton } from "@/components/ui/loading-skeletons";
 
 type AppLoadingStateProps = {
   title?: string;
@@ -9,6 +11,9 @@ type AppLoadingStateProps = {
   className?: string;
 };
 
+/**
+ * Full-page or section loading: skeleton layout instead of a progress bar.
+ */
 export function AppLoadingState({
   title = "Loading",
   subtitle = "Preparing your workspace...",
@@ -18,25 +23,37 @@ export function AppLoadingState({
   return (
     <div
       className={cn(
-        "flex items-center justify-center",
-        compact ? "py-8" : "min-h-[60vh]",
+        "flex flex-col items-stretch justify-center",
+        compact ? "py-8" : "min-h-[55vh] py-10",
         className
       )}
     >
-      <div className="w-full max-w-sm rounded-xl border bg-background/95 p-5 shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:-0.24s]" />
-          <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary/80 [animation-delay:-0.12s]" />
-          <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary/60" />
-          <p className="ml-1 text-sm font-medium">{title}</p>
-        </div>
+      <span className="sr-only">
+        {title}
+        {subtitle ? `. ${subtitle}` : ""}
+      </span>
 
-        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
+      {compact ? (
+        <div className="mx-auto w-full max-w-xl space-y-4 px-4">
+          <Skeleton className="h-5 w-52 rounded-md" />
+          <Skeleton className="h-4 w-full max-w-md rounded-md" />
+          <Skeleton className="h-40 w-full rounded-xl border border-transparent bg-muted/40" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 flex-1 rounded-md" />
+            <Skeleton className="h-9 w-24 rounded-md" />
+          </div>
         </div>
-
-        {!compact && <p className="mt-3 text-xs text-muted-foreground">{subtitle}</p>}
-      </div>
+      ) : (
+        <div className="mx-auto w-full max-w-6xl px-4 space-y-6">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-56 rounded-md" />
+            {subtitle ? (
+              <Skeleton className="h-4 w-full max-w-lg rounded-md" />
+            ) : null}
+          </div>
+          <DashboardShellSkeleton variant="member" />
+        </div>
+      )}
     </div>
   );
 }

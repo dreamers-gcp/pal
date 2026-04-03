@@ -8,6 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -48,72 +49,72 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: #0a356a;
-  --card: oklch(1 0 0);
-  --card-foreground: #0a356a;
-  --popover: oklch(1 0 0);
-  --popover-foreground: #0a356a;
-  --primary: #0b4ea2; /* deep blue (logo) */
+  --background: #fafafa;
+  --foreground: #1a1a2e;
+  --card: #ffffff;
+  --card-foreground: #1a1a2e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a2e;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: #e7f7ff; /* light blue tint */
-  --secondary-foreground: #0b4ea2;
-  --muted: #eaf4f8;
-  --muted-foreground: #3a5d72;
-  --accent: #18c9b7; /* teal (logo) */
-  --accent-foreground: #06211c;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #1a1a2e;
+  --muted: #f4f4f5;
+  --muted-foreground: rgba(26, 26, 46, 0.62);
+  --accent: #eef2ff;
+  --accent-foreground: #1a1a2e;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #d6e5f2;
-  --input: #d6e5f2;
-  --ring: #0b4ea2;
-  --chart-1: #0b4ea2;
-  --chart-2: #0f69c6;
-  --chart-3: #1aa7d7;
-  --chart-4: #18c9b7;
-  --chart-5: #0c7d9c;
+  --border: rgba(26, 26, 46, 0.1);
+  --input: rgba(26, 26, 46, 0.12);
+  --ring: #4f46e5;
+  --chart-1: #4f46e5;
+  --chart-2: #6366f1;
+  --chart-3: #818cf8;
+  --chart-4: #a5b4fc;
+  --chart-5: #312e81;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: #06211c;
-  --sidebar-primary: #0b4ea2;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #1a1a2e;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #18c9b7;
-  --sidebar-accent-foreground: #06211c;
-  --sidebar-border: #d6e5f2;
-  --sidebar-ring: #0b4ea2;
+  --sidebar-accent: #eef2ff;
+  --sidebar-accent-foreground: #1a1a2e;
+  --sidebar-border: rgba(26, 26, 46, 0.1);
+  --sidebar-ring: #4f46e5;
 }
 
 .dark {
-  --background: #071829;
-  --foreground: #d8efff;
-  --card: #0c2137;
-  --card-foreground: #d8efff;
-  --popover: #0c2137;
-  --popover-foreground: #d8efff;
-  --primary: #18c9b7;
-  --primary-foreground: #06211c;
-  --secondary: #123a4b;
-  --secondary-foreground: #e6f4ff;
-  --muted: #123a4b;
-  --muted-foreground: #9db9cf;
-  --accent: #0b4ea2;
-  --accent-foreground: #e6f4ff;
+  --background: #12121a;
+  --foreground: #f0f0f5;
+  --card: #1a1a24;
+  --card-foreground: #f0f0f5;
+  --popover: #1a1a24;
+  --popover-foreground: #f0f0f5;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #252532;
+  --secondary-foreground: #f0f0f5;
+  --muted: #252532;
+  --muted-foreground: rgba(240, 240, 245, 0.58);
+  --accent: #2e2e3d;
+  --accent-foreground: #f0f0f5;
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: #18c9b7;
-  --chart-1: #18c9b7;
-  --chart-2: #1aa7d7;
-  --chart-3: #0f69c6;
-  --chart-4: #0b4ea2;
-  --chart-5: #57d8c9;
-  --sidebar: #0c2137;
-  --sidebar-foreground: #d8efff;
-  --sidebar-primary: #18c9b7;
-  --sidebar-primary-foreground: #06211c;
-  --sidebar-accent: #0b4ea2;
-  --sidebar-accent-foreground: #e6f4ff;
+  --input: oklch(1 0 0 / 12%);
+  --ring: #6366f1;
+  --chart-1: #6366f1;
+  --chart-2: #818cf8;
+  --chart-3: #a5b4fc;
+  --chart-4: #4f46e5;
+  --chart-5: #c7d2fe;
+  --sidebar: #1a1a24;
+  --sidebar-foreground: #f0f0f5;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2e2e3d;
+  --sidebar-accent-foreground: #f0f0f5;
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: #18c9b7;
+  --sidebar-ring: #6366f1;
 }
 
 @layer base {
@@ -121,7 +122,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground text-[16.5px] leading-[1.6];
+    @apply bg-background text-foreground text-base leading-relaxed;
   }
   html {
     @apply font-sans;

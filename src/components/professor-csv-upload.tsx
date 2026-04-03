@@ -21,6 +21,7 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ProfessorAssignmentTableSkeleton } from "@/components/ui/loading-skeletons";
 import { coerceCredits, formatCreditsDisplay, parseCreditsField } from "@/lib/credits-parse";
 
 /** Parsed row — keys match `professor_assignments` */
@@ -418,8 +419,9 @@ export function ProfessorCsvUpload() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="py-4" aria-busy>
+              <span className="sr-only">Loading professor assignments</span>
+              <ProfessorAssignmentTableSkeleton />
             </div>
           ) : assignments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">

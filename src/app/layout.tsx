@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Instrument_Serif, Work_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const interSans = Inter({
-  variable: "--font-sans",
+const workSans = Work_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
 });
 
 const monoFont = JetBrains_Mono({
@@ -26,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${interSans.variable} ${monoFont.variable} antialiased`}
+        className={`${workSans.variable} ${instrumentSerif.variable} ${monoFont.variable} font-sans antialiased`}
       >
         {children}
       </body>

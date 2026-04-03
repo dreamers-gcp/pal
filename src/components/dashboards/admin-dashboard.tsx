@@ -13,6 +13,8 @@ import type {
   SportsBooking,
   SportType,
   SportsVenueCode,
+  FacilityBooking,
+  AppointmentBooking,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,12 +56,19 @@ import {
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { RequestCalendar } from "@/components/request-calendar";
+import { AdminUnifiedAvailabilityCalendar } from "@/components/admin-unified-availability-calendar";
 import { RequestCard } from "@/components/request-card";
 import { CsvUpload } from "@/components/csv-upload";
 import { toTitleCase } from "@/lib/utils";
 import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
 import { TimetableGenerator } from "@/components/timetable-generator";
-import { FileSpreadsheet, Filter, BookOpen, Wand2 } from "lucide-react";
+import {
+  FileSpreadsheet,
+  Filter,
+  BookOpen,
+  Wand2,
+  Download,
+} from "lucide-react";
 import type { ProfessorAssignment } from "@/lib/types";
 import { coerceCredits, formatCreditsDisplay } from "@/lib/credits-parse";
 import {
@@ -72,6 +81,17 @@ import {
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
+import { AdminCampusTab } from "@/components/campus/admin-campus-tab";
+import {
+  downloadProfessorRosterXlsx,
+  downloadStudentRosterXlsx,
+} from "@/lib/export-admin-roster";
+import {
+  DashboardShellSkeleton,
+  BookingCardsSkeleton,
+  RosterTableSkeleton,
+} from "@/components/ui/loading-skeletons";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -156,6 +176,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [selectedGuestFocusedRoom, setSelectedGuestFocusedRoom] = useState<string | null>(null);
   const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
+  const [facilityBookings, setFacilityBookings] = useState<FacilityBooking[]>([]);
+  const [appointmentBookings, setAppointmentBookings] = useState<AppointmentBooking[]>(
+    []
+  );
+  const [facilityApptLoading, setFacilityApptLoading] = useState(true);
   const [sportsUpdatingId, setSportsUpdatingId] = useState<string | null>(null);
   const [sportsStatusFilter, setSportsStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "clarification_needed" | "all"
@@ -256,6 +281,38 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setSportsLoading(false);
   }, []);
 
+  const fetchFacilityAndAppointments = useCallback(async () => {
+    const supabase = createClient();
+    const [facRes, aptRes] = await Promise.all([
+      supabase
+        .from("facility_bookings")
+        .select("*, requester:profiles!facility_bookings_requester_id_fkey(*)")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("appointment_bookings")
+        .select("*, student:profiles!appointment_bookings_student_id_fkey(*)")
+        .order("created_at", { ascending: false }),
+    ]);
+    if (facRes.data) setFacilityBookings(facRes.data as unknown as FacilityBooking[]);
+    if (aptRes.data)
+      setAppointmentBookings(aptRes.data as unknown as AppointmentBooking[]);
+    setFacilityApptLoading(false);
+  }, []);
+
+  const refreshUnifiedAvailability = useCallback(async () => {
+    await Promise.all([
+      fetchRequests(),
+      fetchGuestHouseBookings(),
+      fetchSportsBookings(),
+      fetchFacilityAndAppointments(),
+    ]);
+  }, [
+    fetchRequests,
+    fetchGuestHouseBookings,
+    fetchSportsBookings,
+    fetchFacilityAndAppointments,
+  ]);
+
   useEffect(() => {
     fetchRequests();
     fetchStudents();
@@ -263,7 +320,16 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     fetchClassrooms();
     fetchGuestHouseBookings();
     fetchSportsBookings();
-  }, [fetchRequests, fetchStudents, fetchProfAssignments, fetchClassrooms, fetchGuestHouseBookings, fetchSportsBookings]);
+    fetchFacilityAndAppointments();
+  }, [
+    fetchRequests,
+    fetchStudents,
+    fetchProfAssignments,
+    fetchClassrooms,
+    fetchGuestHouseBookings,
+    fetchSportsBookings,
+    fetchFacilityAndAppointments,
+  ]);
 
   async function updateRequest(
     id: string,
@@ -746,18 +812,38 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     ? fullProfRoster.filter((r) => filteredProfEmailsSet.has(r.email))
     : fullProfRoster;
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
+  function exportStudentRoster() {
+    if (filteredRoster.length === 0) {
+      toast.error("No students to export for the current view.");
+      return;
+    }
+    downloadStudentRosterXlsx(filteredRoster);
+    toast.success(
+      `Exported ${filteredRoster.length} student row(s) to Excel.`
     );
+  }
+
+  function exportProfessorRoster() {
+    if (filteredProfRoster.length === 0) {
+      toast.error("No professors to export for the current view.");
+      return;
+    }
+    downloadProfessorRosterXlsx(filteredProfRoster);
+    toast.success(
+      `Exported ${filteredProfRoster.length} professor row(s) to Excel.`
+    );
+  }
+
+  if (loading) {
+    return <DashboardShellSkeleton variant="admin" />;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+          Admin Dashboard
+        </h1>
         <p className="text-muted-foreground mt-1">
           Welcome, {profile.full_name}. Review requests and manage students.
         </p>
@@ -845,12 +931,31 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
         {/* ========== REQUESTS TAB ========== */}
         <TabsContent value="requests" className="mt-6 space-y-6">
-          <Tabs defaultValue="event-requests" className="gap-3">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="unified-availability" className="gap-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
+              <TabsTrigger value="unified-availability">All availability</TabsTrigger>
               <TabsTrigger value="event-requests">Event Requests</TabsTrigger>
               <TabsTrigger value="guest-house-requests">Guest House Requests</TabsTrigger>
               <TabsTrigger value="sports-requests">Sports Requests</TabsTrigger>
+              <TabsTrigger value="campus-requests">Campus &amp; leave</TabsTrigger>
             </TabsList>
+            <TabsContent value="unified-availability" className="space-y-4">
+              <AdminUnifiedAvailabilityCalendar
+                calendarRequests={requests}
+                guestHouseBookings={guestHouseBookings}
+                sportsBookings={sportsBookings}
+                facilityBookings={facilityBookings}
+                appointmentBookings={appointmentBookings}
+                classrooms={classrooms}
+                loading={
+                  loading ||
+                  guestHouseLoading ||
+                  sportsLoading ||
+                  facilityApptLoading
+                }
+                onRefresh={refreshUnifiedAvailability}
+              />
+            </TabsContent>
             <TabsContent value="event-requests" className="space-y-6">
           <Tabs defaultValue="approvals" className="gap-3">
             <TabsList className="grid w-full grid-cols-2">
@@ -1036,8 +1141,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               </div>
 
               {guestHouseLoading ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-pulse text-muted-foreground">Loading guest house bookings...</div>
+                <div className="py-6">
+                  <BookingCardsSkeleton count={4} />
                 </div>
               ) : filterGuestByStatus(guestStatusFilter).length === 0 ? (
                 <Card>
@@ -1280,8 +1385,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               </div>
 
               {sportsLoading ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-pulse text-muted-foreground">Loading sports bookings...</div>
+                <div className="py-6">
+                  <BookingCardsSkeleton count={4} />
                 </div>
               ) : filterSportsByStatus(sportsStatusFilter).length === 0 ? (
                 <Card>
@@ -1436,6 +1541,10 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             </TabsContent>
           </Tabs>
         </TabsContent>
+
+        <TabsContent value="campus-requests" className="space-y-6">
+          <AdminCampusTab profile={profile} />
+        </TabsContent>
           </Tabs>
         </TabsContent>
 
@@ -1447,10 +1556,13 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         {/* ========== STUDENTS TAB ========== */}
         <TabsContent value="students" className="mt-6 space-y-6">
           {studentsLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-pulse text-muted-foreground">
-                Loading students...
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 rounded-lg" />
+                ))}
               </div>
+              <RosterTableSkeleton rows={10} />
             </div>
           ) : fullRoster.length === 0 ? (
             <Card>
@@ -1501,51 +1613,71 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </div>
               </div>
 
-              {/* Filters */}
-              {enrollments.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-muted-foreground font-medium">Term:</label>
-                    <select
-                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      value={filterTerm}
-                      onChange={(e) => setFilterTerm(e.target.value)}
-                    >
-                      <option value="all">All Terms</option>
-                      {allTerms.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-muted-foreground font-medium">Subject:</label>
-                    <select
-                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      value={filterSubject}
-                      onChange={(e) => setFilterSubject(e.target.value)}
-                    >
-                      <option value="all">All Subjects</option>
-                      {allSubjects.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {(filterTerm !== "all" || filterSubject !== "all") && (
-                    <button
-                      onClick={() => { setFilterTerm("all"); setFilterSubject("all"); }}
-                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                    >
-                      Clear filters
-                    </button>
-                  )}
-                  {filteredEmailsSet && (
-                    <span className="text-xs text-muted-foreground">
-                      Showing {filteredRoster.length} of {fullRoster.length} students
-                    </span>
+              {/* Filters + export */}
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                  {enrollments.length > 0 ? (
+                    <>
+                      <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-muted-foreground font-medium">Term:</label>
+                        <select
+                          className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          value={filterTerm}
+                          onChange={(e) => setFilterTerm(e.target.value)}
+                        >
+                          <option value="all">All Terms</option>
+                          {allTerms.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-muted-foreground font-medium">Subject:</label>
+                        <select
+                          className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          value={filterSubject}
+                          onChange={(e) => setFilterSubject(e.target.value)}
+                        >
+                          <option value="all">All Subjects</option>
+                          {allSubjects.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {(filterTerm !== "all" || filterSubject !== "all") && (
+                        <button
+                          type="button"
+                          onClick={() => { setFilterTerm("all"); setFilterSubject("all"); }}
+                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                        >
+                          Clear filters
+                        </button>
+                      )}
+                      {filteredEmailsSet && (
+                        <span className="text-xs text-muted-foreground">
+                          Showing {filteredRoster.length} of {fullRoster.length} students
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No enrollment CSV loaded — roster lists signed-up students only. Export includes everyone shown below.
+                    </p>
                   )}
                 </div>
-              )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  disabled={filteredRoster.length === 0}
+                  onClick={exportStudentRoster}
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  Export Excel
+                </Button>
+              </div>
 
               {/* Student roster list */}
               <div className="rounded-lg border bg-white">
@@ -1619,8 +1751,13 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         {/* ========== MANAGE PROFESSORS TAB ========== */}
         <TabsContent value="professors" className="mt-6 space-y-6">
           {profLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-pulse text-muted-foreground">Loading professors...</div>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 rounded-lg" />
+                ))}
+              </div>
+              <RosterTableSkeleton rows={10} />
             </div>
           ) : fullProfRoster.length === 0 ? (
             <Card>
@@ -1671,48 +1808,62 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </div>
               </div>
 
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-3">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground font-medium">Term:</label>
-                  <select
-                    className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={profFilterTerm}
-                    onChange={(e) => setProfFilterTerm(e.target.value)}
-                  >
-                    <option value="all">All Terms</option>
-                    {profTerms.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
+              {/* Filters + export */}
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                  <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Term:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={profFilterTerm}
+                      onChange={(e) => setProfFilterTerm(e.target.value)}
+                    >
+                      <option value="all">All Terms</option>
+                      {profTerms.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Subject:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={profFilterSubject}
+                      onChange={(e) => setProfFilterSubject(e.target.value)}
+                    >
+                      <option value="all">All Subjects</option>
+                      {profSubjects.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(profFilterTerm !== "all" || profFilterSubject !== "all") && (
+                    <button
+                      type="button"
+                      onClick={() => { setProfFilterTerm("all"); setProfFilterSubject("all"); }}
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                  {filteredProfEmailsSet && (
+                    <span className="text-xs text-muted-foreground">
+                      Showing {filteredProfRoster.length} of {fullProfRoster.length} professors
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground font-medium">Subject:</label>
-                  <select
-                    className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={profFilterSubject}
-                    onChange={(e) => setProfFilterSubject(e.target.value)}
-                  >
-                    <option value="all">All Subjects</option>
-                    {profSubjects.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-                {(profFilterTerm !== "all" || profFilterSubject !== "all") && (
-                  <button
-                    onClick={() => { setProfFilterTerm("all"); setProfFilterSubject("all"); }}
-                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                  >
-                    Clear filters
-                  </button>
-                )}
-                {filteredProfEmailsSet && (
-                  <span className="text-xs text-muted-foreground">
-                    Showing {filteredProfRoster.length} of {fullProfRoster.length} professors
-                  </span>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  disabled={filteredProfRoster.length === 0}
+                  onClick={exportProfessorRoster}
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  Export Excel
+                </Button>
               </div>
 
               {/* Professor roster list */}

@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { UserPlus } from "lucide-react";
+import { AuthShell } from "@/components/auth-shell";
 import type { UserRole } from "@/lib/types";
 
 export default function SignupPage() {
@@ -56,10 +57,10 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50 p-4">
-        <Card className="w-full max-w-md">
+      <AuthShell>
+        <Card className="w-full max-w-md border-foreground/10 shadow-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl text-accent-foreground">Check your email</CardTitle>
+            <CardTitle className="text-2xl">Check your email</CardTitle>
             <CardDescription>
               We&apos;ve sent a confirmation link to <strong>{email}</strong>.
               Click it to activate your account, then sign in.
@@ -74,13 +75,13 @@ export default function SignupPage() {
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50 p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="w-full max-w-md border-foreground/10 shadow-sm">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
             <UserPlus className="h-6 w-6 text-primary-foreground" />
@@ -165,6 +166,6 @@ export default function SignupPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

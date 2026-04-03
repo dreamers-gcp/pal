@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CalendarRequest, Classroom } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { CalendarPanelSkeleton } from "@/components/ui/loading-skeletons";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import {
   format,
@@ -201,7 +202,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
   const eventColors = [
     "bg-primary/10 border-primary/30 text-primary",
     "bg-purple-100 border-purple-400 text-purple-800",
-    "bg-teal-100 border-teal-400 text-teal-800",
+    "bg-indigo-50 border-indigo-300 text-indigo-950 dark:bg-indigo-950/35 dark:border-indigo-700 dark:text-indigo-100",
     "bg-orange-100 border-orange-400 text-orange-800",
     "bg-pink-100 border-pink-400 text-pink-800",
     "bg-cyan-100 border-cyan-400 text-cyan-800",
@@ -305,10 +306,9 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
 
       {/* Calendar */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="animate-pulse text-muted-foreground">
-            Loading calendar...
-          </div>
+        <div className="py-2">
+          <span className="sr-only">Loading calendar</span>
+          <CalendarPanelSkeleton minHeight="min-h-[520px]" />
         </div>
       ) : (
         <div className="rounded-lg border bg-white overflow-hidden select-none">

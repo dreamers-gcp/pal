@@ -42,7 +42,10 @@ import {
 import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TIMETABLE_SLOTS, TIMETABLE_SLOT_CODES, inferSlotCodeFromStartTime } from "@/lib/timetable-slots";
-import { AppLoadingState } from "@/components/ui/app-loading-state";
+import {
+  TimetableGeneratorSkeleton,
+  WeeklySlotGridSkeleton,
+} from "@/components/ui/loading-skeletons";
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -62,7 +65,7 @@ const SLOT_COLORS = [
   "bg-purple-100 border-purple-300 text-purple-900",
   "bg-orange-100 border-orange-300 text-orange-900",
   "bg-pink-100 border-pink-300 text-pink-900",
-  "bg-teal-100 border-teal-300 text-teal-900",
+  "bg-indigo-50 border-indigo-200 text-indigo-950 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-100",
   "bg-indigo-100 border-indigo-300 text-indigo-900",
   "bg-amber-100 border-amber-300 text-amber-900",
   "bg-cyan-100 border-cyan-300 text-cyan-900",
@@ -465,7 +468,12 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
   }
 
   if (loading) {
-    return <AppLoadingState compact title="Loading timetable data" className="py-12" />;
+    return (
+      <div className="py-4">
+        <span className="sr-only">Loading timetable data</span>
+        <TimetableGeneratorSkeleton />
+      </div>
+    );
   }
 
   const termAssignmentCount = profAssignments.filter((a) => a.term === selectedTerm).length;
@@ -701,8 +709,9 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                 {expandedTimetable === tt.id && (
                   <div className="mt-3">
                     {viewLoading ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <div className="py-3" aria-busy>
+                        <span className="sr-only">Loading timetable view</span>
+                        <WeeklySlotGridSkeleton />
                       </div>
                     ) : (
                       <SlotWeeklyGrid
@@ -755,8 +764,9 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
           </div>
 
           {viewLoading ? (
-            <div className="flex flex-1 items-center justify-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-1 min-h-[320px] items-stretch px-5 py-4" aria-busy>
+              <span className="sr-only">Loading timetable preview</span>
+              <WeeklySlotGridSkeleton className="w-full min-h-[280px]" />
             </div>
           ) : (
             <>

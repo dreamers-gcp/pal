@@ -5,21 +5,33 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
   CalendarRequest,
+  CalendarRequestKind,
   Classroom,
   StudentGroup,
   SportsBooking,
   SportType,
   SportsVenueCode,
+  FacilityBooking,
 } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Plus, CalendarDays, ScanFace, X, Trophy } from "lucide-react";
+import {
+  Building2,
+  ClipboardList,
+  Plus,
+  CalendarDays,
+  ScanFace,
+  X,
+  Trophy,
+} from "lucide-react";
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import type { CalendarSlotInfo } from "@/components/request-calendar";
 import { BookingForm, type BookingFormPrefill } from "@/components/booking-form";
+import { ProfessorCampusTab } from "@/components/campus/professor-campus-tab";
 import { AttendanceView } from "@/components/attendance-view";
 import { RequestCalendar } from "@/components/request-calendar";
+import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
 import { RequestCard } from "@/components/request-card";
 import { toTitleCase } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -42,6 +54,7 @@ import {
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
+import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
@@ -52,6 +65,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [bookingSidebarOpen, setBookingSidebarOpen] = useState(false);
   const [prefill, setPrefill] = useState<BookingFormPrefill | undefined>();
   const [formKey, setFormKey] = useState(0);
+  const [bookingRequestKind, setBookingRequestKind] =
+    useState<CalendarRequestKind>("class");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -69,6 +84,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   /** All approved requests across all rooms (for all-rooms view) */
   const [allApprovedBookings, setAllApprovedBookings] = useState<CalendarRequest[]>([]);
   const [allApprovedLoading, setAllApprovedLoading] = useState(false);
+  const [approvedFacilityBookings, setApprovedFacilityBookings] = useState<
+    FacilityBooking[]
+  >([]);
+  const [facilityBookingsLoading, setFacilityBookingsLoading] = useState(true);
   const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
   const [sportsSubmitting, setSportsSubmitting] = useState(false);
@@ -206,6 +225,32 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       });
   }, [calendarViewMode]);
 
+  /** Approved facility bookings for the same window as the class calendar (read-only overlay). */
+  useEffect(() => {
+    const supabase = createClient();
+    setFacilityBookingsLoading(true);
+    const from = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd");
+    const to = format(endOfMonth(addMonths(new Date(), 5)), "yyyy-MM-dd");
+
+    supabase
+      .from("facility_bookings")
+      .select("*, requester:profiles!facility_bookings_requester_id_fkey(*)")
+      .eq("status", "approved")
+      .gte("booking_date", from)
+      .lte("booking_date", to)
+      .order("booking_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setApprovedFacilityBookings([]);
+        } else {
+          setApprovedFacilityBookings((data as FacilityBooking[]) ?? []);
+        }
+        setFacilityBookingsLoading(false);
+      });
+  }, []);
+
   const calendarBookings = useMemo(() => {
     if (calendarViewMode === "my-schedule") return requests;
 
@@ -236,7 +281,19 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     return "Good night";
   }, []);
 
-  function openNewRequest() {
+  const sportsAvailabilityResource = useMemo(
+    () =>
+      ({
+        kind: "sports" as const,
+        sport: sportType,
+        venueCode: sportVenue,
+        label: SPORTS_VENUE_LABELS[sportVenue],
+      }),
+    [sportType, sportVenue]
+  );
+
+  function openNewRequest(kind: CalendarRequestKind = "class") {
+    setBookingRequestKind(kind);
     setPrefill(undefined);
     setFormKey((k) => k + 1);
     setBookingSidebarOpen(true);
@@ -292,6 +349,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   }
 
   function handleCalendarSlotSelect(slot: CalendarSlotInfo) {
+    setBookingRequestKind("class");
     const classroomId =
       calendarViewMode === "all-rooms" && calendarRoomFilter
         ? calendarRoomFilter
@@ -309,17 +367,13 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
+    return <DashboardShellSkeleton variant="member" />;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">
+        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
           {greeting}, {profile.full_name}!
         </h1>
       </div>
@@ -367,6 +421,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   <Trophy className="h-4 w-4" />
                   Sports Requests
                 </TabsTrigger>
+                <TabsTrigger
+                  value="campus"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <Building2 className="h-4 w-4" />
+                  Campus facilities
+                </TabsTrigger>
               </TabsList>
             </aside>
           </>
@@ -388,17 +450,30 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             <Trophy className="h-4 w-4" />
             Sports Requests
           </TabsTrigger>
+          <TabsTrigger value="campus" className="gap-1.5">
+            <Building2 className="h-4 w-4" />
+            Campus facilities
+          </TabsTrigger>
         </TabsList>
 
         {/* ========== MY REQUESTS TAB ========== */}
         <TabsContent value="my-requests" className="mt-6 space-y-6">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2">
             <button
-              onClick={openNewRequest}
+              type="button"
+              onClick={() => openNewRequest("class")}
               className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium h-8 gap-1.5 px-2.5 transition-all hover:bg-primary/80 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <Plus className="mr-2 h-4 w-4" />
-              New Request
+              <Plus className="h-4 w-4" />
+              New class request
+            </button>
+            <button
+              type="button"
+              onClick={() => openNewRequest("exam")}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-input bg-background text-sm font-medium h-8 gap-1.5 px-2.5 transition-all hover:bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Plus className="h-4 w-4" />
+              Schedule exam
             </button>
           </div>
 
@@ -451,7 +526,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             </div>
             <button
               type="button"
-              onClick={openNewRequest}
+              onClick={() => openNewRequest("class")}
               className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium h-9 gap-1.5 px-3 transition-all hover:bg-primary/80 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Plus className="h-4 w-4" />
@@ -487,10 +562,22 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             </div>
           )}
 
+          <p className="text-xs text-muted-foreground">
+            Colored blocks are classroom bookings;{" "}
+            <span className="font-medium text-teal-700 dark:text-teal-400">
+              teal
+            </span>{" "}
+            blocks are approved campus facility bookings (auditorium, halls, board rooms, etc.).
+          </p>
           <RequestCalendar
             bookings={calendarBookings}
             classrooms={classrooms}
-            loading={calendarViewMode === "my-schedule" ? false : allApprovedLoading}
+            facilityBookings={approvedFacilityBookings}
+            loading={
+              calendarViewMode === "my-schedule"
+                ? false
+                : allApprovedLoading || facilityBookingsLoading
+            }
             colorBy="classroom"
             bookingClassroomId={
               calendarViewMode === "all-rooms" && calendarRoomFilter ? calendarRoomFilter : null
@@ -584,6 +671,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   </p>
                 </div>
               </div>
+              <ResourceAvailabilityCalendar resource={sportsAvailabilityResource} />
               <div className="flex justify-end">
                 <Button onClick={submitSportsBooking} disabled={sportsSubmitting}>
                   {sportsSubmitting ? "Submitting..." : "Submit"}
@@ -593,8 +681,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           </Card>
 
           {sportsLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-pulse text-muted-foreground">Loading sports bookings...</div>
+            <div className="py-4">
+              <BookingCardsSkeleton count={3} />
             </div>
           ) : sportsBookings.length === 0 ? (
             <Card>
@@ -630,6 +718,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           )}
         </TabsContent>
 
+        <TabsContent value="campus" className="mt-6">
+          <ProfessorCampusTab profile={profile} />
+        </TabsContent>
+
       </Tabs>
 
       {/* Booking sidebar — New request + calendar slot selection (matches admin review panel) */}
@@ -641,7 +733,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             onClick={() => setBookingSidebarOpen(false)}
           />
           <aside
-            className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            className="fixed top-0 right-0 z-50 h-full w-full max-w-xl bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
             role="dialog"
             aria-label="New event request"
           >
@@ -663,6 +755,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                 classrooms={classrooms}
                 studentGroups={studentGroups}
                 prefill={prefill}
+                defaultRequestKind={bookingRequestKind}
                 onSuccess={fetchData}
                 onClose={() => setBookingSidebarOpen(false)}
               />

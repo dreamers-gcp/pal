@@ -32,6 +32,7 @@ import {
   User,
   Building2,
   Trophy,
+  Landmark,
 } from "lucide-react";
 import { format } from "date-fns";
 import { TaskTracker } from "@/components/task-tracker";
@@ -44,6 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { toast } from "sonner";
+import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
 import {
   GUEST_HOUSE_LABELS,
   roomsByFloorForGuestHouse,
@@ -54,6 +56,8 @@ import {
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
+import { StudentCampusTab } from "@/components/campus/student-campus-tab";
+import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 
 /** Local calendar day for an event (no UTC shift from date-only strings). */
 function eventBaseLocalDate(e: CalendarRequest): Date | null {
@@ -371,6 +375,17 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     return "Good night";
   }, []);
 
+  const sportsAvailabilityResource = useMemo(
+    () =>
+      ({
+        kind: "sports" as const,
+        sport: sportType,
+        venueCode: sportVenue,
+        label: SPORTS_VENUE_LABELS[sportVenue],
+      }),
+    [sportType, sportVenue]
+  );
+
   useEffect(() => {
     if (!guestCheckIn || !guestCheckOut) {
       setGuestUnavailableRooms(new Set());
@@ -504,17 +519,13 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
+    return <DashboardShellSkeleton variant="member" />;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">
+        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
           {greeting}, {profile.full_name}!
         </h1>
       </div>
@@ -591,6 +602,14 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                   <Trophy className="h-4 w-4" />
                   Sports Requests
                 </TabsTrigger>
+                <TabsTrigger
+                  value="campus"
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <Landmark className="h-4 w-4" />
+                  Campus services
+                </TabsTrigger>
               </TabsList>
             </aside>
           </>
@@ -620,6 +639,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           <TabsTrigger value="sports" className="gap-1.5">
             <Trophy className="h-4 w-4" />
             Sports Requests
+          </TabsTrigger>
+          <TabsTrigger value="campus" className="gap-1.5">
+            <Landmark className="h-4 w-4" />
+            Campus services
           </TabsTrigger>
         </TabsList>
 
@@ -945,8 +968,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           </Card>
 
           {guestLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-pulse text-muted-foreground">Loading guest house bookings...</div>
+            <div className="py-4">
+              <BookingCardsSkeleton count={3} />
             </div>
           ) : guestBookings.length === 0 ? (
             <Card>
@@ -1086,6 +1109,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                   </p>
                 </div>
               </div>
+              <ResourceAvailabilityCalendar resource={sportsAvailabilityResource} />
               <div className="flex justify-end">
                 <Button onClick={submitSportsBooking} disabled={sportsSubmitting}>
                   {sportsSubmitting ? "Submitting..." : "Submit"}
@@ -1095,8 +1119,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           </Card>
 
           {sportsLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-pulse text-muted-foreground">Loading sports bookings...</div>
+            <div className="py-4">
+              <BookingCardsSkeleton count={3} />
             </div>
           ) : sportsBookings.length === 0 ? (
             <Card>
@@ -1142,6 +1166,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="campus" className="mt-3">
+          <StudentCampusTab profile={profile} />
         </TabsContent>
       </Tabs>
     </div>

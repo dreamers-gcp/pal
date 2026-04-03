@@ -134,6 +134,8 @@ export interface TimetableEntry {
   classroom?: Classroom;
 }
 
+export type CalendarRequestKind = "class" | "exam";
+
 export interface CalendarRequest {
   id: string;
   professor_id: string | null;
@@ -145,6 +147,8 @@ export interface CalendarRequest {
   event_date: string;
   start_time: string;
   end_time: string;
+  /** Regular class block vs exam scheduling (same admin approval flow). */
+  request_kind?: CalendarRequestKind;
   status: RequestStatus;
   admin_note: string | null;
   reviewed_by: string | null;
@@ -203,4 +207,81 @@ export interface SportsBooking {
   created_at: string;
   updated_at: string;
   requester?: Profile;
+}
+
+export interface StudentLeaveRequest {
+  id: string;
+  student_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  status: RequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Profile;
+}
+
+export type FacilityBookingType =
+  | "auditorium"
+  | "computer_hall"
+  | "board_room"
+  | "conference_room";
+
+export interface FacilityBooking {
+  id: string;
+  requester_id: string | null;
+  requester_email: string | null;
+  requester_role: "student" | "professor";
+  facility_type: FacilityBookingType;
+  venue_code: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  purpose: string | null;
+  status: RequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  requester?: Profile;
+}
+
+export type MessMealPeriod = "breakfast" | "lunch" | "dinner";
+
+export interface MessExtraRequest {
+  id: string;
+  student_id: string;
+  meal_date: string;
+  meal_period: MessMealPeriod;
+  extra_guest_count: number;
+  notes: string | null;
+  status: RequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Profile;
+}
+
+export type AppointmentServiceType = "counsellor" | "doctor";
+
+export type AppointmentProviderCode = "counsellor_1" | "doctor_1" | "doctor_2";
+
+export interface AppointmentBooking {
+  id: string;
+  student_id: string;
+  service_type: AppointmentServiceType;
+  provider_code: AppointmentProviderCode;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  notes: string | null;
+  status: RequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  student?: Profile;
 }

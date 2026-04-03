@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { TaskBoardSkeleton } from "@/components/ui/loading-skeletons";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -57,8 +58,8 @@ const COLUMNS: {
     id: "todo",
     title: "To do",
     subtitle: "Not started",
-    border: "border-slate-200",
-    bg: "bg-slate-50/80 dark:bg-slate-950/40",
+    border: "border-border",
+    bg: "bg-muted/70 dark:bg-muted/25",
   },
   {
     id: "in_progress",
@@ -364,10 +365,9 @@ export function TaskTracker({ studentId }: TaskTrackerProps) {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-pulse text-muted-foreground">
-          Loading tasks...
-        </div>
+      <div className="py-4">
+        <span className="sr-only">Loading tasks</span>
+        <TaskBoardSkeleton />
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { FaceRegistration } from "@/components/face-registration";
 import { AppLoadingState } from "@/components/ui/app-loading-state";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function FaceRegistrationPage() {
   const { profile, loading } = useAuth();
@@ -23,11 +24,12 @@ export default function FaceRegistrationPage() {
 
   if (loading || !profile) {
     return (
-      <AppLoadingState
-        className="min-h-screen"
-        title="Almost there"
-        subtitle="Checking your account before face setup..."
-      />
+      <AuthShell>
+        <AppLoadingState
+          title="Almost there"
+          subtitle="Checking your account before face setup..."
+        />
+      </AuthShell>
     );
   }
 
@@ -36,7 +38,7 @@ export default function FaceRegistrationPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <AuthShell>
       <div className="w-full max-w-xl">
         <FaceRegistration
           studentId={profile.id}
@@ -45,7 +47,7 @@ export default function FaceRegistrationPage() {
           }}
         />
       </div>
-    </div>
+    </AuthShell>
   );
 }
 

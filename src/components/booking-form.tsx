@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Classroom, StudentGroup } from "@/lib/types";
+import type { CalendarRequestKind, Classroom, StudentGroup } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import { AlertTriangle, ChevronDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
+import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
 
 export interface BookingFormPrefill {
   classroomId?: string;
@@ -30,6 +31,8 @@ interface BookingFormProps {
   classrooms: Classroom[];
   studentGroups: StudentGroup[];
   prefill?: BookingFormPrefill;
+  /** Class session vs exam scheduling (stored on calendar_requests.request_kind). */
+  defaultRequestKind?: CalendarRequestKind;
   onSuccess: () => void;
   onClose: () => void;
   /** Use inside a sidebar/panel instead of Radix Dialog (no DialogContent). */
@@ -41,6 +44,7 @@ export function BookingForm({
   classrooms,
   studentGroups,
   prefill,
+  defaultRequestKind = "class",
   onSuccess,
   onClose,
   variant = "dialog",
@@ -57,6 +61,12 @@ export function BookingForm({
   const [eventDate, setEventDate] = useState(prefill?.eventDate || "");
   const [startTime, setStartTime] = useState(prefill?.startTime || "");
   const [endTime, setEndTime] = useState(prefill?.endTime || "");
+  const [requestKind, setRequestKind] =
+    useState<CalendarRequestKind>(defaultRequestKind);
+
+  useEffect(() => {
+    setRequestKind(defaultRequestKind);
+  }, [defaultRequestKind]);
 
   useEffect(() => {
     if (prefill?.classroomId) setClassroomId(prefill.classroomId);
@@ -136,6 +146,7 @@ export function BookingForm({
         event_date: eventDate,
         start_time: startTime,
         end_time: endTime,
+        request_kind: requestKind,
       })
       .select()
       .single();
@@ -174,6 +185,15 @@ export function BookingForm({
 
   const selectedRoom = classrooms.find((c) => c.id === classroomId);
 
+  const classroomAvailabilityResource = useMemo(() => {
+    if (!classroomId) return null;
+    return {
+      kind: "classroom" as const,
+      classroomId,
+      label: selectedRoom?.name,
+    };
+  }, [classroomId, selectedRoom?.name]);
+
   const descriptionText =
     selectedRoom && eventDate ? (
       <>
@@ -207,6 +227,23 @@ export function BookingForm({
 
   const form = (
     <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="bf-request-kind">Request type</Label>
+          <select
+            id="bf-request-kind"
+            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            value={requestKind}
+            onChange={(e) =>
+              setRequestKind(e.target.value as CalendarRequestKind)
+            }
+          >
+            <option value="class">Class / teaching block</option>
+            <option value="exam">Exam scheduling</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Exams use the same approval flow as classes. Pick Exam Hall or any room as needed.
+          </p>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="bf-title">
             Event Title
@@ -258,6 +295,11 @@ export function BookingForm({
             ))}
           </select>
         </div>
+
+        <ResourceAvailabilityCalendar
+          resource={classroomAvailabilityResource}
+          compact={variant === "panel"}
+        />
 
         <div className="space-y-2">
           <Label>
@@ -350,7 +392,7 @@ export function BookingForm({
   }
 
   return (
-    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       {header}
       {form}
     </DialogContent>

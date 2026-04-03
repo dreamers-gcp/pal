@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { coerceCredits, formatCreditsDisplay, parseCreditsField } from "@/lib/credits-parse";
+import { EnrollmentTableSkeleton } from "@/components/ui/loading-skeletons";
 
 interface ParsedRow {
   student_name: string;
@@ -360,8 +361,9 @@ export function CsvUpload() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="py-4" aria-busy>
+              <span className="sr-only">Loading enrollment data</span>
+              <EnrollmentTableSkeleton />
             </div>
           ) : enrollments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">

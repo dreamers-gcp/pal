@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { format, parse, addMinutes, isWithinInterval } from "date-fns";
 import type { CalendarRequest, AttendanceRecord, Profile } from "@/lib/types";
 import { DatePicker } from "@/components/ui/date-picker";
+import { AttendanceMarkerListSkeleton } from "@/components/ui/loading-skeletons";
 
 const ATTENDANCE_WINDOW_MINUTES = 15;
 
@@ -167,8 +168,9 @@ export function AttendanceMarker({ profile, events }: Props) {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="py-4">
+        <span className="sr-only">Loading attendance</span>
+        <AttendanceMarkerListSkeleton />
       </div>
     );
   }

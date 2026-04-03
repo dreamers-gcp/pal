@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarRequest, Profile, AttendanceRecord } from "@/lib/types";
-import { AppLoadingState } from "@/components/ui/app-loading-state";
+import { AttendanceViewSkeleton } from "@/components/ui/loading-skeletons";
 
 interface Props {
   profile: Profile;
@@ -474,12 +474,12 @@ export function AttendanceView({ profile }: Props) {
 
   if (loading) {
     return (
-      <AppLoadingState
-        compact
-        className="py-8"
-        title="Loading attendance"
-        subtitle="Getting your recent classes and attendance records..."
-      />
+      <div className="py-2">
+        <span className="sr-only">
+          Loading attendance. Getting your recent classes and attendance records.
+        </span>
+        <AttendanceViewSkeleton />
+      </div>
     );
   }
 

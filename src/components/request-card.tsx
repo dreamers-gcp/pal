@@ -69,7 +69,14 @@ export function RequestCard({
       <CardHeader className="pb-2 pl-5 pr-4 pt-4">
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="line-clamp-2 text-base font-semibold leading-tight">
-            {request.title}
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {request.title}
+              {request.request_kind === "exam" && (
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Exam
+                </span>
+              )}
+            </span>
           </CardTitle>
           <span
             className={cn(

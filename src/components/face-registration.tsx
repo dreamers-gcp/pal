@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Loader2, ScanFace, Trash2, X } from "lucide-react";
+import { FaceRegistrationSkeleton } from "@/components/ui/loading-skeletons";
 import { toast } from "sonner";
 import type { FaceEmbedding } from "@/lib/types";
 
@@ -153,8 +154,9 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="py-2">
+        <span className="sr-only">Loading face registration</span>
+        <FaceRegistrationSkeleton />
       </div>
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CalendarRequest, Classroom, StudentTask } from "@/lib/types";
+import type { CalendarRequest, Classroom, FacilityBooking, StudentTask } from "@/lib/types";
 import type { RequestStatus } from "@/lib/types";
 import { Calendar as BigCalendar, dateFnsLocalizer, type View, type Event as RBCEvent } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
@@ -9,6 +9,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./student-calendar.css";
 import { toTitleCase } from "@/lib/utils";
 import {
+  Building2,
   CalendarDays,
   Clock,
   ListTodo,
@@ -18,7 +19,12 @@ import {
   FileText,
   X,
 } from "lucide-react";
+import {
+  FACILITY_TYPE_LABELS,
+  facilityVenueLabel,
+} from "@/lib/campus-use-cases";
 import { Button } from "@/components/ui/button";
+import { BigCalendarSkeleton } from "@/components/ui/loading-skeletons";
 
 const statusColors: Record<RequestStatus, string> = {
   pending: "#eab308",
@@ -28,6 +34,9 @@ const statusColors: Record<RequestStatus, string> = {
 };
 
 const classroomPalette = ["#2563eb", "#7c3aed", "#0f766e", "#ea580c", "#db2777"];
+
+/** Approved campus facility bookings on the professor/student calendar (distinct from classroom blocks). */
+const FACILITY_OVERLAY_COLOR = "#0d9488";
 
 /** RBC passes this shape to onSelectSlot */
 export type CalendarSlotInfo = {
@@ -67,6 +76,10 @@ export interface RequestCalendarProps {
   showStatus?: boolean;
   /** Optional actions to show in the event detail sidebar (e.g. "Review request" for admin) */
   eventDetailActions?: (request: CalendarRequest, closeSidebar: () => void) => React.ReactNode;
+  /**
+   * Approved campus facility bookings (auditorium, halls, board rooms, etc.) shown read-only on the same grid.
+   */
+  facilityBookings?: FacilityBooking[];
 }
 
 type CalMeta =
@@ -78,7 +91,8 @@ type CalMeta =
       professorName: string;
       status: RequestStatus;
     }
-  | { kind: "task"; task: StudentTask };
+  | { kind: "task"; task: StudentTask }
+  | { kind: "facility"; booking: FacilityBooking };
 
 type CalEvent = RBCEvent & {
   meta: CalMeta;
@@ -124,6 +138,14 @@ function CalendarEventLabel({
       <span className="flex items-center gap-1 min-w-0 w-full">
         <ListTodo className="h-3 w-3 shrink-0 opacity-95" aria-hidden />
         <span className="truncate font-medium">{cal.meta.task.title}</span>
+      </span>
+    );
+  }
+  if (cal.meta?.kind === "facility") {
+    return (
+      <span className="flex items-center gap-1 min-w-0 w-full">
+        <Building2 className="h-3 w-3 shrink-0 opacity-95" aria-hidden />
+        <span className="truncate">{title}</span>
       </span>
     );
   }
@@ -260,6 +282,67 @@ function EventDetailCard({
   );
 }
 
+function FacilityDetailCard({
+  booking,
+  eventColor,
+}: {
+  booking: FacilityBooking;
+  eventColor: string;
+}) {
+  const typeLabel = FACILITY_TYPE_LABELS[booking.facility_type];
+  const venue = facilityVenueLabel(booking.facility_type, booking.venue_code);
+  const who =
+    booking.requester?.full_name ?? booking.requester_email ?? "—";
+  return (
+    <div className="rounded-2xl overflow-hidden h-full flex flex-col">
+      <div className="p-4 pb-2">
+        <div className="flex items-start gap-3">
+          <div
+            className="mt-1.5 h-3 w-3 shrink-0 rounded-sm"
+            style={{ backgroundColor: eventColor }}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Campus facility
+            </p>
+            <h2 className="text-lg font-semibold leading-tight text-foreground mt-0.5">
+              {typeLabel}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {format(new Date(`${booking.booking_date}T12:00:00`), "EEEE, MMMM d")}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 pb-4 space-y-2.5">
+        <div className="flex items-center gap-3 text-sm text-foreground">
+          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span>{venue}</span>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-foreground">
+          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span>
+            {booking.start_time?.slice(0, 5)} – {booking.end_time?.slice(0, 5)}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-foreground">
+          <User className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span>{toTitleCase(who)}</span>
+        </div>
+        {booking.purpose && (
+          <div className="flex items-start gap-3 text-sm text-foreground pt-1 border-t">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            <span className="text-muted-foreground">{booking.purpose}</span>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground pt-2">
+          Book a facility from the <strong>Campus facilities</strong> tab.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function RequestCalendar({
   bookings,
   studentTasks,
@@ -274,12 +357,14 @@ export function RequestCalendar({
   showDescription = true,
   showStatus = true,
   eventDetailActions,
+  facilityBookings = [],
 }: RequestCalendarProps) {
   const [view, setView] = useState<View>("week");
   const [date, setDate] = useState<Date>(() => new Date());
   const [selectedPanel, setSelectedPanel] = useState<
     | { kind: "class"; request: CalendarRequest }
     | { kind: "task"; task: StudentTask }
+    | { kind: "facility"; booking: FacilityBooking }
     | null
   >(null);
 
@@ -333,8 +418,22 @@ export function RequestCalendar({
       };
     });
 
-    return [...classEvents, ...taskEvents];
-  }, [bookings, studentTasks]);
+    const facilityEvents: CalEvent[] = (facilityBookings ?? [])
+      .filter((b) => b.status === "approved")
+      .map((b) => {
+        const typeLabel = FACILITY_TYPE_LABELS[b.facility_type];
+        const venue = facilityVenueLabel(b.facility_type, b.venue_code);
+        return {
+          title: `${typeLabel} · ${venue}`,
+          start: new Date(`${b.booking_date}T${b.start_time}`),
+          end: new Date(`${b.booking_date}T${b.end_time}`),
+          allDay: false,
+          meta: { kind: "facility" as const, booking: b },
+        };
+      });
+
+    return [...classEvents, ...taskEvents, ...facilityEvents];
+  }, [bookings, studentTasks, facilityBookings]);
 
   function colorForClassroom(classroomId: string): string {
     const idx = classrooms.findIndex((c) => c.id === classroomId);
@@ -345,6 +444,9 @@ export function RequestCalendar({
     if (event.meta.kind === "task") {
       const s = event.meta.task.status;
       return TASK_STATUS_COLORS[s] ?? TASK_STATUS_COLORS.todo;
+    }
+    if (event.meta.kind === "facility") {
+      return FACILITY_OVERLAY_COLOR;
     }
     if (colorBy === "status") {
       return statusColors[event.meta.status];
@@ -358,6 +460,13 @@ export function RequestCalendar({
     const calEvent = e as CalEvent;
     if (calEvent.meta.kind === "task") {
       setSelectedPanel({ kind: "task", task: calEvent.meta.task });
+      return;
+    }
+    if (calEvent.meta.kind === "facility") {
+      setSelectedPanel({
+        kind: "facility",
+        booking: calEvent.meta.booking,
+      });
       return;
     }
     const request = calEvent.meta.request;
@@ -385,17 +494,21 @@ export function RequestCalendar({
 
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
-        <div className="animate-pulse text-muted-foreground">Loading calendar...</div>
+      <div className="space-y-2">
+        <span className="sr-only">Loading calendar</span>
+        <BigCalendarSkeleton />
       </div>
     );
   }
 
   const taskCount = studentTasks?.length ?? 0;
+  const facilityApprovedCount =
+    facilityBookings?.filter((b) => b.status === "approved").length ?? 0;
   const showEmptyOnly =
     !alwaysShowCalendar &&
     bookings.length === 0 &&
     taskCount === 0 &&
+    facilityApprovedCount === 0 &&
     emptyMessage &&
     !onSelectSlot;
   if (showEmptyOnly) {
@@ -408,7 +521,11 @@ export function RequestCalendar({
 
   return (
     <div className="space-y-2 relative">
-      {alwaysShowCalendar && bookings.length === 0 && taskCount === 0 && emptyMessage && (
+      {alwaysShowCalendar &&
+        bookings.length === 0 &&
+        taskCount === 0 &&
+        facilityApprovedCount === 0 &&
+        emptyMessage && (
         <p className="text-center text-sm text-muted-foreground">{emptyMessage}</p>
       )}
       <div className="rounded-lg border bg-background overflow-hidden p-2">
@@ -438,14 +555,23 @@ export function RequestCalendar({
               const cal = event as CalEvent;
               const color = colorForEvent(cal);
               const isTask = cal.meta.kind === "task";
+              const isFacility = cal.meta.kind === "facility";
               return {
-                className: isTask ? "rbc-calendar-event-task" : "rbc-calendar-event-class",
+                className: isTask
+                  ? "rbc-calendar-event-task"
+                  : isFacility
+                    ? "rbc-calendar-event-facility"
+                    : "rbc-calendar-event-class",
                 style: {
                   backgroundColor: color,
-                  borderColor: isTask ? "rgba(255,255,255,0.55)" : color,
+                  borderColor: isTask
+                    ? "rgba(255,255,255,0.55)"
+                    : isFacility
+                      ? "rgba(255,255,255,0.35)"
+                      : color,
                   color: "white",
                   borderStyle: isTask ? "dashed" : "solid",
-                  borderWidth: isTask ? 2 : 1,
+                  borderWidth: isTask || isFacility ? 2 : 1,
                 },
               };
             }}
@@ -465,7 +591,11 @@ export function RequestCalendar({
             className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
             role="dialog"
             aria-label={
-              selectedPanel.kind === "task" ? "Task details" : "Event details"
+              selectedPanel.kind === "task"
+                ? "Task details"
+                : selectedPanel.kind === "facility"
+                  ? "Facility booking details"
+                  : "Event details"
             }
           >
             <div className="flex items-center justify-end p-2 border-b shrink-0">
@@ -489,6 +619,11 @@ export function RequestCalendar({
                   }
                   showDescription={showDescription}
                   showStatus={showStatus}
+                />
+              ) : selectedPanel.kind === "facility" ? (
+                <FacilityDetailCard
+                  booking={selectedPanel.booking}
+                  eventColor={FACILITY_OVERLAY_COLOR}
                 />
               ) : (
                 <TaskDetailCard
