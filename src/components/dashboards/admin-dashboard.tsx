@@ -211,6 +211,15 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   }, []);
 
   useEffect(() => {
+    function onToggleSectionNav() {
+      setSectionNavExpanded((prev) => !prev);
+    }
+    window.addEventListener("pal:toggle-section-nav", onToggleSectionNav);
+    return () =>
+      window.removeEventListener("pal:toggle-section-nav", onToggleSectionNav);
+  }, []);
+
+  useEffect(() => {
     window.dispatchEvent(
       new CustomEvent("pal:section-nav-expanded", {
         detail: { wide: sectionNavExpanded },
@@ -879,36 +888,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               sectionNavExpanded ? "px-3" : "px-1"
             )}
           >
-            <div
-              className={cn(
-                "flex shrink-0 items-center border-b border-[rgba(0,0,0,0.06)] py-2",
-                sectionNavExpanded ? "justify-end" : "justify-center"
-              )}
-            >
-              {sectionNavExpanded ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  onClick={() => setSectionNavExpanded(false)}
-                  aria-label="Collapse to icon bar"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  onClick={() => setSectionNavExpanded(true)}
-                  aria-label="Expand sidebar"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-2">
               <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
                 <TabsTrigger
@@ -941,7 +920,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   value="students"
                   title="Manage Students"
                   className={cn(
-                    "relative h-auto min-h-10 w-full rounded-md py-2.5",
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
                     sectionNavExpanded
                       ? "justify-start gap-2 whitespace-normal px-2 text-left"
                       : "justify-center px-0"
@@ -951,19 +930,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   <span className={cn(!sectionNavExpanded && "sr-only")}>
                     Manage Students
                   </span>
-                  {notSignedUpCount > 0 && (
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full bg-destructive font-bold text-white",
-                        sectionNavExpanded
-                          ? "ml-1 inline-flex h-5 min-w-5 items-center justify-center px-1 text-[10px]"
-                          : "absolute right-0.5 top-1 h-2 w-2 min-w-2 p-0 text-[0px]"
-                      )}
-                      aria-hidden={!sectionNavExpanded}
-                    >
-                      {sectionNavExpanded ? notSignedUpCount : ""}
-                    </span>
-                  )}
                 </TabsTrigger>
                 <TabsTrigger
                   value="prof-assignments"
@@ -1072,11 +1038,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     >
                       <GraduationCap className="h-4 w-4" />
                       Manage Students
-                      {notSignedUpCount > 0 && (
-                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-white font-bold">
-                          {notSignedUpCount}
-                        </span>
-                      )}
                     </TabsTrigger>
                     <TabsTrigger
                       value="prof-assignments"

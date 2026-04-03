@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Shield, GraduationCap, BookOpen } from "lucide-react";
+import { PlanovaWordmark } from "@/components/planova-wordmark";
 
 export default function Home() {
   return (
@@ -8,16 +9,10 @@ export default function Home() {
         <div className="mx-auto flex h-16 max-w-[1100px] items-center justify-between px-[clamp(1.5rem,5vw,4rem)]">
           <Link
             href="/"
+            aria-label="Planova home"
             className="flex shrink-0 items-center gap-2 no-underline text-foreground"
           >
-            <img
-              src="/planova-logo.png"
-              alt="Planova"
-              height={32}
-              className="m-0 block h-[32px] w-auto max-h-[32px] border-0 bg-transparent p-0 object-contain object-left select-none"
-              style={{ display: "block", height: "32px", width: "auto" }}
-              draggable={false}
-            />
+            <PlanovaWordmark decorative size="lg" />
           </Link>
           <div className="flex items-center gap-3">
           <Link

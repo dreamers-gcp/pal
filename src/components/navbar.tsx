@@ -7,9 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, LayoutDashboard, Menu } from "lucide-react";
+import { LogOut, LayoutDashboard, Menu, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNotifications, NotificationList } from "@/components/notifications";
 import { cn } from "@/lib/utils";
+import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { Button } from "@/components/ui/button";
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   admin: "destructive",
@@ -99,27 +101,18 @@ export function Navbar() {
   const logoLink = (
     <Link
       href="/"
+      aria-label="Planova home"
       className={cn(
-        "flex items-center justify-center gap-2 no-underline text-foreground transition-opacity hover:opacity-85",
-        dashboardDesktopNav ? "min-w-0 shrink" : "shrink-0"
+        "flex items-center gap-2 no-underline text-foreground transition-opacity hover:opacity-85",
+        dashboardDesktopNav
+          ? "min-w-0 w-full shrink justify-start"
+          : "shrink-0 justify-center"
       )}
     >
-      <img
-        src="/planova-logo.png"
-        alt="Planova"
-        height={32}
-        className={cn(
-          "m-0 block w-auto border-0 bg-transparent object-contain object-center p-0 select-none",
-          dashboardDesktopNav && !dashRailWide
-            ? "h-7 max-h-7 max-w-[28px]"
-            : "h-[32px] max-h-[32px] object-left"
-        )}
-        style={{
-          display: "block",
-          height: dashboardDesktopNav && !dashRailWide ? "28px" : "32px",
-          width: "auto",
-        }}
-        draggable={false}
+      <PlanovaWordmark
+        decorative
+        rail={dashboardDesktopNav && !dashRailWide}
+        size="md"
       />
     </Link>
   );
@@ -240,10 +233,40 @@ export function Navbar() {
           <div
             className={cn(
               "flex h-full shrink-0 items-center border-r border-[rgba(0,0,0,0.06)] bg-white transition-[width] duration-200 ease-out",
-              dashRailWide ? "w-56 justify-center px-3 sm:justify-start" : "w-14 justify-center px-0"
+              dashRailWide
+                ? "w-56 gap-2 px-2 sm:px-3"
+                : "w-14 justify-center gap-0 px-0"
             )}
           >
-            {logoLink}
+            <div
+              className={cn(
+                "flex min-w-0 items-center",
+                dashRailWide && "min-w-0 flex-1"
+              )}
+            >
+              {logoLink}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "shrink-0",
+                dashRailWide ? "h-8 w-8" : "h-7 w-7"
+              )}
+              onClick={() =>
+                window.dispatchEvent(new CustomEvent("pal:toggle-section-nav"))
+              }
+              aria-label={
+                dashRailWide ? "Collapse to icon bar" : "Expand sidebar"
+              }
+            >
+              {dashRailWide ? (
+                <ChevronLeft className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+            </Button>
           </div>
           <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-3 px-4 pr-[clamp(1.5rem,5vw,4rem)]">
             {dashboardLinkNav}
