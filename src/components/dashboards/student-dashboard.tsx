@@ -23,6 +23,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ClipboardList,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Filter,
   GraduationCap,
@@ -58,6 +60,7 @@ import {
 } from "@/lib/sports-booking";
 import { StudentCampusTab } from "@/components/campus/student-campus-tab";
 import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
+import { cn } from "@/lib/utils";
 
 /** Local calendar day for an event (no UTC shift from date-only strings). */
 function eventBaseLocalDate(e: CalendarRequest): Date | null {
@@ -113,6 +116,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [groupIdToName, setGroupIdToName] = useState<Record<string, string>>({});
   const [filterSubject, setFilterSubject] = useState("all");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  /** Desktop: fixed rail under header; hamburger opens, back arrow collapses (mobile uses overlay). */
+  const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
   const [guestBookings, setGuestBookings] = useState<GuestHouseBooking[]>([]);
   const [guestLoading, setGuestLoading] = useState(true);
   const [guestSubmitting, setGuestSubmitting] = useState(false);
@@ -143,11 +148,26 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
 
   useEffect(() => {
     function handleOpenTabMenu() {
-      setTabMenuOpen(true);
+      if (
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 768px)").matches
+      ) {
+        setSectionNavExpanded(true);
+      } else {
+        setTabMenuOpen(true);
+      }
     }
     window.addEventListener("pal:open-tab-menu", handleOpenTabMenu);
     return () => window.removeEventListener("pal:open-tab-menu", handleOpenTabMenu);
   }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("pal:section-nav-expanded", {
+        detail: { wide: sectionNavExpanded },
+      })
+    );
+  }, [sectionNavExpanded]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -523,99 +543,258 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
-          {greeting}, {profile.full_name}!
-        </h1>
-      </div>
-
-      {!loading && studentGroupIds.length === 0 && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="py-4">
-            <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> You haven&apos;t been assigned to any
-              student groups yet. Once your admin uploads the enrollment roster,
-              your upcoming events will appear here. Contact your admin with
-              your email: <strong>{profile.email}</strong>
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="events" className="gap-1">
-        {tabMenuOpen && (
-          <>
+    <Tabs defaultValue="events" className="gap-1">
+        {/* Desktop: left rail — wide (icons+labels) or narrow (icons only), like a classic app sidebar */}
+        <aside
+          className={cn(
+            "fixed left-0 top-16 z-[45] hidden h-[calc(100dvh-4rem)] flex-col border-r border-[rgba(0,0,0,0.06)] bg-white transition-[width] duration-200 ease-out md:flex",
+            sectionNavExpanded ? "w-56" : "w-14"
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-full flex-col",
+              sectionNavExpanded ? "px-3" : "px-1"
+            )}
+          >
             <div
-              className="fixed inset-0 z-40 bg-black/20"
-              aria-hidden
-              onClick={() => setTabMenuOpen(false)}
-            />
-            <aside className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200">
-              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Navigate</h2>
-              <TabsList className="flex h-auto w-full flex-col items-stretch">
+              className={cn(
+                "flex shrink-0 items-center border-b border-[rgba(0,0,0,0.06)] py-2",
+                sectionNavExpanded ? "justify-end" : "justify-center"
+              )}
+            >
+              {sectionNavExpanded ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSectionNavExpanded(false)}
+                  aria-label="Collapse to icon bar"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSectionNavExpanded(true)}
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-2">
+              <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
                 <TabsTrigger
                   value="events"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Events"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <ClipboardList className="h-4 w-4" />
-                  Events
+                  <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Events</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="calendar"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Calendar"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <CalendarDays className="h-4 w-4" />
-                  Calendar
+                  <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Calendar</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="attendance"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Attendance"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <ScanFace className="h-4 w-4" />
-                  Attendance
+                  <ScanFace className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Attendance</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="tasks"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Task Tracker"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <ListTodo className="h-4 w-4" />
-                  Task Tracker
+                  <ListTodo className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Task Tracker</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="guest-house"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Guest House Requests"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <Building2 className="h-4 w-4" />
-                  Guest House Requests
+                  <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Guest House Requests
+                  </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="sports"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Sports Requests"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <Trophy className="h-4 w-4" />
-                  Sports Requests
+                  <Trophy className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Sports Requests</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="campus"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Campus services"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <Landmark className="h-4 w-4" />
-                  Campus services
+                  <Landmark className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Campus services</span>
                 </TabsTrigger>
               </TabsList>
-            </aside>
-          </>
-        )}
+            </div>
+          </div>
+        </aside>
 
-        <TabsList className="hidden">
+        <div
+          className={cn(
+            "min-w-0 space-y-6 transition-[margin] duration-200 ease-out",
+            sectionNavExpanded ? "md:ml-56" : "md:ml-14"
+          )}
+        >
+            <div>
+              <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+                {greeting}, {profile.full_name}!
+              </h1>
+            </div>
+
+            {!loading && studentGroupIds.length === 0 && (
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardContent className="py-4">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> You haven&apos;t been assigned to any
+                    student groups yet. Once your admin uploads the enrollment roster,
+                    your upcoming events will appear here. Contact your admin with
+                    your email: <strong>{profile.email}</strong>
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {tabMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20 md:hidden"
+                  aria-hidden
+                  onClick={() => setTabMenuOpen(false)}
+                />
+                <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200 md:hidden">
+                  <div className="mb-3 flex justify-end border-b border-border pb-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setTabMenuOpen(false)}
+                      aria-label="Close menu"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <TabsList className="flex h-auto w-full flex-col items-stretch">
+                    <TabsTrigger
+                      value="events"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Events
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="calendar"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      Calendar
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="attendance"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <ScanFace className="h-4 w-4" />
+                      Attendance
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="tasks"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <ListTodo className="h-4 w-4" />
+                      Task Tracker
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="guest-house"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Building2 className="h-4 w-4" />
+                      Guest House Requests
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="sports"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Trophy className="h-4 w-4" />
+                      Sports Requests
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="campus"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Landmark className="h-4 w-4" />
+                      Campus services
+                    </TabsTrigger>
+                  </TabsList>
+                </aside>
+              </>
+            )}
+
+            <TabsList className="hidden">
           <TabsTrigger value="events" className="gap-1.5">
             <ClipboardList className="h-4 w-4" />
             Events
@@ -923,11 +1102,11 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       </p>
                     ) : (
                       roomsByFloorForGuestHouse(guestHouse).map((section) => (
-                        <div key={section.floor} className="space-y-1.5">
-                          <p className="text-xs font-medium text-muted-foreground">
+                        <div key={section.floor} className="space-y-2">
+                          <p className="text-xs font-medium leading-none text-muted-foreground">
                             Floor {section.floor}
                           </p>
-                          <div className="grid grid-cols-8 gap-1">
+                          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
                             {section.rooms.map((room) => {
                               const unavailable = guestUnavailableRooms.has(room);
                               const selected = guestRoom === room;
@@ -937,7 +1116,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                                   type="button"
                                   onClick={() => !unavailable && setGuestRoom(room)}
                                   disabled={unavailable}
-                                  className={`rounded border px-1 py-1 text-[11px] font-medium transition-colors ${
+                                  className={`flex min-h-9 min-w-0 items-center justify-center rounded border px-1 py-2 text-center text-[11px] font-medium leading-tight transition-colors ${
                                     selected
                                       ? "border-primary/70 bg-primary/10 text-primary"
                                       : unavailable
@@ -945,7 +1124,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                                         : "bg-background hover:bg-muted/40"
                                   }`}
                                 >
-                                  {room}
+                                  <span className="line-clamp-2 break-words">{room}</span>
                                 </button>
                               );
                             })}
@@ -1171,7 +1350,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="campus" className="mt-3">
           <StudentCampusTab profile={profile} />
         </TabsContent>
-      </Tabs>
-    </div>
+        </div>
+    </Tabs>
   );
 }

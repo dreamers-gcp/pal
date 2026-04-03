@@ -30,7 +30,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const BUSY_COLOR = "#64748b";
 
-const VIEWS: View[] = ["month", "week"];
+/** Week-only: month view is confusing for slot availability on request forms. */
+const VIEWS: View[] = ["week"];
 
 export type ResourceAvailabilitySpec =
   | { kind: "classroom"; classroomId: string; label?: string }
@@ -49,6 +50,12 @@ export type ResourceAvailabilitySpec =
   | { kind: "appointment"; providerCode: AppointmentProviderCode; label?: string };
 
 type BusyEvent = RBCEvent & { id: string };
+
+/** Body text only — TimeGridEvent always shows `eventTimeRangeFormat` in `.rbc-event-label`. */
+function busyEventTitle(titleExtra?: string): string {
+  if (titleExtra) return `${titleExtra} · Booked`;
+  return "Booked";
+}
 
 function resourceFetchKey(r: ResourceAvailabilitySpec | null): string {
   if (!r) return "";
@@ -77,7 +84,7 @@ export function ResourceAvailabilityCalendar({
   /** Tighter grid for drawers/sidebars. */
   compact?: boolean;
 }) {
-  const [view, setView] = useState<View>("month");
+  const [view, setView] = useState<View>("week");
   const [date, setDate] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<BusyEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,6 +107,21 @@ export function ResourceAvailabilityCalendar({
     getDay,
     locales: {},
   });
+
+  const calendarFormats = useMemo(
+    () => ({
+      timeGutterFormat: (d: Date) => format(d, "h:mm a"),
+      selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+        `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`,
+      eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+        `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`,
+      eventTimeRangeStartFormat: ({ start }: { start: Date }) =>
+        `${format(start, "h:mm a")} – `,
+      eventTimeRangeEndFormat: ({ end }: { end: Date }) =>
+        ` – ${format(end, "h:mm a")}`,
+    }),
+    []
+  );
 
   const fetchKey = resourceFetchKey(resource);
   const resourceRef = useRef(resource);
@@ -126,7 +148,7 @@ export function ResourceAvailabilityCalendar({
       titleExtra?: string
     ): BusyEvent => ({
       id,
-      title: `${startTime.slice(0, 5)}–${endTime.slice(0, 5)}${titleExtra ? ` · ${titleExtra}` : ""} · Booked`,
+      title: busyEventTitle(titleExtra),
       start: new Date(`${bookingDate}T${startTime}`),
       end: new Date(`${bookingDate}T${endTime}`),
     });
@@ -276,6 +298,7 @@ export function ResourceAvailabilityCalendar({
               onView={setView}
               onNavigate={setDate}
               views={VIEWS}
+              formats={calendarFormats}
               step={60}
               timeslots={1}
               min={min}
@@ -284,6 +307,13 @@ export function ResourceAvailabilityCalendar({
               startAccessor="start"
               endAccessor="end"
               selectable={false}
+              components={{
+                event: ({ event }: { event: RBCEvent }) => (
+                  <span className="block truncate font-medium leading-tight">
+                    {event.title}
+                  </span>
+                ),
+              }}
               eventPropGetter={() => ({
                 style: {
                   backgroundColor: BUSY_COLOR,

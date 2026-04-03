@@ -33,6 +33,8 @@ import {
   ClipboardList,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   HelpCircle,
   MapPin,
@@ -59,7 +61,7 @@ import { RequestCalendar } from "@/components/request-calendar";
 import { AdminUnifiedAvailabilityCalendar } from "@/components/admin-unified-availability-calendar";
 import { RequestCard } from "@/components/request-card";
 import { CsvUpload } from "@/components/csv-upload";
-import { toTitleCase } from "@/lib/utils";
+import { toTitleCase, cn } from "@/lib/utils";
 import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
 import { TimetableGenerator } from "@/components/timetable-generator";
 import {
@@ -155,6 +157,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [calendarClassroomFilter, setCalendarClassroomFilter] = useState<string>("");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
   const [guestHouseBookings, setGuestHouseBookings] = useState<GuestHouseBooking[]>([]);
   const [guestHouseLoading, setGuestHouseLoading] = useState(true);
   const [selectedGuestBooking, setSelectedGuestBooking] = useState<GuestHouseBooking | null>(null);
@@ -194,11 +197,26 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
   useEffect(() => {
     function handleOpenTabMenu() {
-      setTabMenuOpen(true);
+      if (
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 768px)").matches
+      ) {
+        setSectionNavExpanded(true);
+      } else {
+        setTabMenuOpen(true);
+      }
     }
     window.addEventListener("pal:open-tab-menu", handleOpenTabMenu);
     return () => window.removeEventListener("pal:open-tab-menu", handleOpenTabMenu);
   }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("pal:section-nav-expanded", {
+        detail: { wide: sectionNavExpanded },
+      })
+    );
+  }, [sectionNavExpanded]);
 
   const fetchRequests = useCallback(async () => {
     const supabase = createClient();
@@ -839,18 +857,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
-          Admin Dashboard
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Welcome, {profile.full_name}. Review requests and manage students.
-        </p>
-      </div>
-
-      {/* Top-level tabs: Requests vs Students */}
-      <Tabs
+    <>
+    <Tabs
         defaultValue="requests"
         onValueChange={(tab) => {
           if (tab === "requests") fetchRequests();
@@ -859,85 +867,306 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           if (tab === "professors" || tab === "prof-assignments") fetchProfAssignments();
         }}
       >
-        {tabMenuOpen && (
-          <>
+        <aside
+          className={cn(
+            "fixed left-0 top-16 z-[45] hidden h-[calc(100dvh-4rem)] flex-col border-r border-[rgba(0,0,0,0.06)] bg-white transition-[width] duration-200 ease-out md:flex",
+            sectionNavExpanded ? "w-56" : "w-14"
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-full flex-col",
+              sectionNavExpanded ? "px-3" : "px-1"
+            )}
+          >
             <div
-              className="fixed inset-0 z-40 bg-black/20"
-              aria-hidden
-              onClick={() => setTabMenuOpen(false)}
-            />
-            <aside className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200">
-              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Navigate</h2>
-              <TabsList className="flex h-auto w-full flex-col items-stretch">
-                <TabsTrigger value="requests" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
-                  <ClipboardList className="h-4 w-4" />
-                  Requests
+              className={cn(
+                "flex shrink-0 items-center border-b border-[rgba(0,0,0,0.06)] py-2",
+                sectionNavExpanded ? "justify-end" : "justify-center"
+              )}
+            >
+              {sectionNavExpanded ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSectionNavExpanded(false)}
+                  aria-label="Collapse to icon bar"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSectionNavExpanded(true)}
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-2">
+              <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
+                <TabsTrigger
+                  value="requests"
+                  title="Requests"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Requests</span>
                 </TabsTrigger>
-                <TabsTrigger value="enrollments" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Enrollments
+                <TabsTrigger
+                  value="enrollments"
+                  title="Enrollments"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <FileSpreadsheet className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Enrollments</span>
                 </TabsTrigger>
-                <TabsTrigger value="students" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
-                  <GraduationCap className="h-4 w-4" />
-                  Manage Students
+                <TabsTrigger
+                  value="students"
+                  title="Manage Students"
+                  className={cn(
+                    "relative h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <GraduationCap className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Manage Students
+                  </span>
                   {notSignedUpCount > 0 && (
-                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-white font-bold">
-                      {notSignedUpCount}
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full bg-destructive font-bold text-white",
+                        sectionNavExpanded
+                          ? "ml-1 inline-flex h-5 min-w-5 items-center justify-center px-1 text-[10px]"
+                          : "absolute right-0.5 top-1 h-2 w-2 min-w-2 p-0 text-[0px]"
+                      )}
+                      aria-hidden={!sectionNavExpanded}
+                    >
+                      {sectionNavExpanded ? notSignedUpCount : ""}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="prof-assignments" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
-                  <BookOpen className="h-4 w-4" />
-                  Professor Assignments
+                <TabsTrigger
+                  value="prof-assignments"
+                  title="Professor Assignments"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Professor Assignments
+                  </span>
                 </TabsTrigger>
-                <TabsTrigger value="professors" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
-                  <Users className="h-4 w-4" />
-                  Manage Professors
+                <TabsTrigger
+                  value="professors"
+                  title="Manage Professors"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Manage Professors
+                  </span>
                 </TabsTrigger>
-                <TabsTrigger value="timetable" className="w-full justify-start gap-1.5" onClick={() => setTabMenuOpen(false)}>
-                  <Wand2 className="h-4 w-4" />
-                  Timetable
+                <TabsTrigger
+                  value="timetable"
+                  title="Timetable"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <Wand2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Timetable</span>
                 </TabsTrigger>
               </TabsList>
-            </aside>
-          </>
-        )}
-        <TabsList className="hidden">
-          <TabsTrigger value="requests" className="gap-1.5">
-            <ClipboardList className="h-4 w-4" />
-            Requests
-          </TabsTrigger>
-          <TabsTrigger value="enrollments" className="gap-1.5">
-            <FileSpreadsheet className="h-4 w-4" />
-            Enrollments
-          </TabsTrigger>
-          <TabsTrigger value="students" className="gap-1.5">
-            <GraduationCap className="h-4 w-4" />
-            Manage Students
-          </TabsTrigger>
-          <TabsTrigger value="prof-assignments" className="gap-1.5">
-            <BookOpen className="h-4 w-4" />
-            Professor Assignments
-          </TabsTrigger>
-          <TabsTrigger value="professors" className="gap-1.5">
-            <Users className="h-4 w-4" />
-            Manage Professors
-          </TabsTrigger>
-          <TabsTrigger value="timetable" className="gap-1.5">
-            <Wand2 className="h-4 w-4" />
-            Timetable
-          </TabsTrigger>
-        </TabsList>
+            </div>
+          </div>
+        </aside>
+
+        <div
+          className={cn(
+            "min-w-0 space-y-6 transition-[margin] duration-200 ease-out",
+            sectionNavExpanded ? "md:ml-56" : "md:ml-14"
+          )}
+        >
+            <div>
+              <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+                Admin Dashboard
+              </h1>
+              <p className="mt-1 text-muted-foreground">
+                Welcome, {profile.full_name}. Review requests and manage students.
+              </p>
+            </div>
+
+            {tabMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20 md:hidden"
+                  aria-hidden
+                  onClick={() => setTabMenuOpen(false)}
+                />
+                <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200 md:hidden">
+                  <div className="mb-3 flex justify-end border-b border-border pb-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setTabMenuOpen(false)}
+                      aria-label="Close menu"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <TabsList className="flex h-auto w-full flex-col items-stretch">
+                    <TabsTrigger
+                      value="requests"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Requests
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="enrollments"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Enrollments
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="students"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <GraduationCap className="h-4 w-4" />
+                      Manage Students
+                      {notSignedUpCount > 0 && (
+                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-white font-bold">
+                          {notSignedUpCount}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="prof-assignments"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      Professor Assignments
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="professors"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Users className="h-4 w-4" />
+                      Manage Professors
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="timetable"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Wand2 className="h-4 w-4" />
+                      Timetable
+                    </TabsTrigger>
+                  </TabsList>
+                </aside>
+              </>
+            )}
+            <TabsList className="hidden">
+              <TabsTrigger value="requests" className="gap-1.5">
+                <ClipboardList className="h-4 w-4" />
+                Requests
+              </TabsTrigger>
+              <TabsTrigger value="enrollments" className="gap-1.5">
+                <FileSpreadsheet className="h-4 w-4" />
+                Enrollments
+              </TabsTrigger>
+              <TabsTrigger value="students" className="gap-1.5">
+                <GraduationCap className="h-4 w-4" />
+                Manage Students
+              </TabsTrigger>
+              <TabsTrigger value="prof-assignments" className="gap-1.5">
+                <BookOpen className="h-4 w-4" />
+                Professor Assignments
+              </TabsTrigger>
+              <TabsTrigger value="professors" className="gap-1.5">
+                <Users className="h-4 w-4" />
+                Manage Professors
+              </TabsTrigger>
+              <TabsTrigger value="timetable" className="gap-1.5">
+                <Wand2 className="h-4 w-4" />
+                Timetable
+              </TabsTrigger>
+            </TabsList>
 
         {/* ========== REQUESTS TAB ========== */}
         <TabsContent value="requests" className="mt-6 space-y-6">
           <Tabs defaultValue="unified-availability" className="gap-3">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
-              <TabsTrigger value="unified-availability">All availability</TabsTrigger>
-              <TabsTrigger value="event-requests">Event Requests</TabsTrigger>
-              <TabsTrigger value="guest-house-requests">Guest House Requests</TabsTrigger>
-              <TabsTrigger value="sports-requests">Sports Requests</TabsTrigger>
-              <TabsTrigger value="campus-requests">Campus &amp; leave</TabsTrigger>
+            <TabsList className="flex w-full flex-wrap gap-1.5">
+              <TabsTrigger
+                value="unified-availability"
+                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
+              >
+                All availability
+              </TabsTrigger>
+              <TabsTrigger
+                value="event-requests"
+                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
+              >
+                Event Requests
+              </TabsTrigger>
+              <TabsTrigger
+                value="guest-house-requests"
+                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
+              >
+                Guest House Requests
+              </TabsTrigger>
+              <TabsTrigger
+                value="sports-requests"
+                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
+              >
+                Sports Requests
+              </TabsTrigger>
+              <TabsTrigger
+                value="campus-requests"
+                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
+              >
+                Campus &amp; leave
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="unified-availability" className="space-y-4">
               <AdminUnifiedAvailabilityCalendar
@@ -1917,7 +2146,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="timetable" className="mt-6">
           <TimetableGenerator profile={profile} />
         </TabsContent>
-      </Tabs>
+        </div>
+    </Tabs>
 
       {/* Guest house review sidebar */}
       {selectedGuestBooking && (
@@ -2288,7 +2518,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           </aside>
         </>
       )}
-    </div>
+    </>
   );
 }
 

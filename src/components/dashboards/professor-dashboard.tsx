@@ -21,6 +21,8 @@ import {
   ClipboardList,
   Plus,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ScanFace,
   X,
   Trophy,
@@ -55,6 +57,7 @@ import {
   isTimeOverlap,
 } from "@/lib/sports-booking";
 import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
+import { cn } from "@/lib/utils";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
@@ -68,14 +71,30 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [bookingRequestKind, setBookingRequestKind] =
     useState<CalendarRequestKind>("class");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
 
   useEffect(() => {
     function handleOpenTabMenu() {
-      setTabMenuOpen(true);
+      if (
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 768px)").matches
+      ) {
+        setSectionNavExpanded(true);
+      } else {
+        setTabMenuOpen(true);
+      }
     }
     window.addEventListener("pal:open-tab-menu", handleOpenTabMenu);
     return () => window.removeEventListener("pal:open-tab-menu", handleOpenTabMenu);
   }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("pal:section-nav-expanded", {
+        detail: { wide: sectionNavExpanded },
+      })
+    );
+  }, [sectionNavExpanded]);
 
   /** "all-rooms" = see all events + book; "my-schedule" = see only my requests */
   const [calendarViewMode, setCalendarViewMode] = useState<"all-rooms" | "my-schedule">("all-rooms");
@@ -371,90 +390,223 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
-          {greeting}, {profile.full_name}!
-        </h1>
-      </div>
-
-      <Tabs defaultValue="my-requests">
-        {tabMenuOpen && (
-          <>
+    <>
+    <Tabs defaultValue="my-requests">
+        <aside
+          className={cn(
+            "fixed left-0 top-16 z-[45] hidden h-[calc(100dvh-4rem)] flex-col border-r border-[rgba(0,0,0,0.06)] bg-white transition-[width] duration-200 ease-out md:flex",
+            sectionNavExpanded ? "w-56" : "w-14"
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-full flex-col",
+              sectionNavExpanded ? "px-3" : "px-1"
+            )}
+          >
             <div
-              className="fixed inset-0 z-40 bg-black/20"
-              aria-hidden
-              onClick={() => setTabMenuOpen(false)}
-            />
-            <aside className="fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200">
-              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Navigate</h2>
-              <TabsList className="flex h-auto w-full flex-col items-stretch">
+              className={cn(
+                "flex shrink-0 items-center border-b border-[rgba(0,0,0,0.06)] py-2",
+                sectionNavExpanded ? "justify-end" : "justify-center"
+              )}
+            >
+              {sectionNavExpanded ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSectionNavExpanded(false)}
+                  aria-label="Collapse to icon bar"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSectionNavExpanded(true)}
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-2">
+              <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
                 <TabsTrigger
                   value="my-requests"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="My Requests"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <ClipboardList className="h-4 w-4" />
-                  My Requests
+                  <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>My Requests</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="calendar"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Calendar"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <CalendarDays className="h-4 w-4" />
-                  Calendar
+                  <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Calendar</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="attendance"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Attendance"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <ScanFace className="h-4 w-4" />
-                  Attendance
+                  <ScanFace className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Attendance</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="sports"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Sports Requests"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <Trophy className="h-4 w-4" />
-                  Sports Requests
+                  <Trophy className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Sports Requests</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="campus"
-                  className="w-full justify-start gap-1.5"
-                  onClick={() => setTabMenuOpen(false)}
+                  title="Campus facilities"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
                 >
-                  <Building2 className="h-4 w-4" />
-                  Campus facilities
+                  <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Campus facilities
+                  </span>
                 </TabsTrigger>
               </TabsList>
-            </aside>
-          </>
-        )}
-        <TabsList className="hidden">
-          <TabsTrigger value="my-requests" className="gap-1.5">
-            <ClipboardList className="h-4 w-4" />
-            My Requests
-          </TabsTrigger>
-          <TabsTrigger value="calendar" className="gap-1.5">
-            <CalendarDays className="h-4 w-4" />
-            Calendar
-          </TabsTrigger>
-          <TabsTrigger value="attendance" className="gap-1.5">
-            <ScanFace className="h-4 w-4" />
-            Attendance
-          </TabsTrigger>
-          <TabsTrigger value="sports" className="gap-1.5">
-            <Trophy className="h-4 w-4" />
-            Sports Requests
-          </TabsTrigger>
-          <TabsTrigger value="campus" className="gap-1.5">
-            <Building2 className="h-4 w-4" />
-            Campus facilities
-          </TabsTrigger>
-        </TabsList>
+            </div>
+          </div>
+        </aside>
+
+        <div
+          className={cn(
+            "min-w-0 space-y-6 transition-[margin] duration-200 ease-out",
+            sectionNavExpanded ? "md:ml-56" : "md:ml-14"
+          )}
+        >
+            <div>
+              <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+                {greeting}, {profile.full_name}!
+              </h1>
+            </div>
+
+            {tabMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20 md:hidden"
+                  aria-hidden
+                  onClick={() => setTabMenuOpen(false)}
+                />
+                <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200 md:hidden">
+                  <div className="mb-3 flex justify-end border-b border-border pb-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setTabMenuOpen(false)}
+                      aria-label="Close menu"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <TabsList className="flex h-auto w-full flex-col items-stretch">
+                    <TabsTrigger
+                      value="my-requests"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      My Requests
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="calendar"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      Calendar
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="attendance"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <ScanFace className="h-4 w-4" />
+                      Attendance
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="sports"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Trophy className="h-4 w-4" />
+                      Sports Requests
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="campus"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Building2 className="h-4 w-4" />
+                      Campus facilities
+                    </TabsTrigger>
+                  </TabsList>
+                </aside>
+              </>
+            )}
+            <TabsList className="hidden">
+              <TabsTrigger value="my-requests" className="gap-1.5">
+                <ClipboardList className="h-4 w-4" />
+                My Requests
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="gap-1.5">
+                <CalendarDays className="h-4 w-4" />
+                Calendar
+              </TabsTrigger>
+              <TabsTrigger value="attendance" className="gap-1.5">
+                <ScanFace className="h-4 w-4" />
+                Attendance
+              </TabsTrigger>
+              <TabsTrigger value="sports" className="gap-1.5">
+                <Trophy className="h-4 w-4" />
+                Sports Requests
+              </TabsTrigger>
+              <TabsTrigger value="campus" className="gap-1.5">
+                <Building2 className="h-4 w-4" />
+                Campus facilities
+              </TabsTrigger>
+            </TabsList>
 
         {/* ========== MY REQUESTS TAB ========== */}
         <TabsContent value="my-requests" className="mt-6 space-y-6">
@@ -721,8 +873,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="campus" className="mt-6">
           <ProfessorCampusTab profile={profile} />
         </TabsContent>
-
-      </Tabs>
+        </div>
+    </Tabs>
 
       {/* Booking sidebar — New request + calendar slot selection (matches admin review panel) */}
       {bookingSidebarOpen && (
@@ -763,6 +915,6 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           </aside>
         </>
       )}
-    </div>
+    </>
   );
 }
