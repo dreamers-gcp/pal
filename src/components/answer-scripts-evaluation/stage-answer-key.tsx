@@ -8,15 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Upload, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExamQuestion, ExamSetup, ExamStep } from "./types";
-import { defaultScoringBands } from "./rubric-prompt";
 
 function cloneQuestions(qs: ExamQuestion[]): ExamQuestion[] {
   return qs.map((q) => ({
     ...q,
-    steps: q.steps.map((s) => ({
-      ...s,
-      scoringBands: s.scoringBands ?? defaultScoringBands(s.marks),
-    })),
+    steps: q.steps.map((s) => ({ ...s })),
   }));
 }
 
@@ -67,14 +63,7 @@ export function StageAnswerKey({
           ? q
           : {
               ...q,
-              steps: q.steps.map((s) => {
-                if (s.id !== sid) return s;
-                const scoringBands = (s.scoringBands ?? []).map((b) => ({
-                  ...b,
-                  score: Math.min(Math.max(0, b.score), marks),
-                }));
-                return { ...s, marks, scoringBands };
-              }),
+              steps: q.steps.map((s) => (s.id === sid ? { ...s, marks } : s)),
             }
       )
     );
@@ -150,9 +139,10 @@ export function StageAnswerKey({
             <div className="space-y-4 rounded-xl border border-dashed border-[#01696f]/35 bg-[#01696f]/[0.05] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#01696f]">AI parse preview (mock)</p>
+                  <p className="text-sm font-semibold text-[#01696f]">Rubric structure (from setup)</p>
                   <p className="text-sm text-muted-foreground">
-                    Detected {stats.qn} questions, {stats.parts} sub-parts, {stats.marks} total marks
+                    {stats.qn} questions, {stats.parts} sub-parts, {stats.marks} total marks · The answer
+                    key PDF is sent to the grader with each student script.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

@@ -7,7 +7,7 @@ import { StageAnswerKey, cloneQuestions } from "./stage-answer-key";
 import { StageScripts } from "./stage-scripts";
 import { StageQueue } from "./stage-queue";
 import { StageReview } from "./stage-review";
-import { downloadEvaluationCsv } from "./csv-export";
+import { computeStudentTotals, downloadEvaluationCsv } from "./csv-export";
 import type {
   AiQuestionGrade,
   EvalPhase,
@@ -17,6 +17,8 @@ import type {
   ScriptRow,
 } from "./types";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { FileCheck2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,7 +49,6 @@ export function AnswerScriptsEvaluation() {
 
   const [scripts, setScripts] = useState<ScriptRow[]>([]);
   const [evalStudents, setEvalStudents] = useState<EvalStudent[]>([]);
-  const [paused, setPaused] = useState(false);
   const [aiGrades, setAiGrades] = useState<Record<string, AiQuestionGrade[]>>({});
 
   const [reviewStudentId, setReviewStudentId] = useState<string | null>(null);
@@ -83,12 +84,22 @@ export function AnswerScriptsEvaluation() {
   evalStudentsRef.current = evalStudents;
   const scriptsRef = useRef(scripts);
   scriptsRef.current = scripts;
-  const gradePayloadRef = useRef({ examSetup, parsedQuestions });
-  gradePayloadRef.current = { examSetup, parsedQuestions };
+  const gradePayloadRef = useRef({
+    examSetup,
+    parsedQuestions,
+    answerKeyUrl: null as string | null,
+    answerKeyFileName: null as string | null,
+  });
+  gradePayloadRef.current = {
+    examSetup,
+    parsedQuestions,
+    answerKeyUrl,
+    answerKeyFileName: answerKeyFile?.name ?? null,
+  };
 
   /** Advance queue: waiting → reading → comparing (scored is set by the grading API). */
   useEffect(() => {
-    if (step !== 4 || paused || evalStudents.length === 0) return;
+    if (step !== 4 || evalStudents.length === 0) return;
     const t = window.setInterval(() => {
       setEvalStudents((prev) => {
         const idx = prev.findIndex((s) => s.phase !== "scored" && s.phase !== "failed");
@@ -115,11 +126,11 @@ export function AnswerScriptsEvaluation() {
       });
     }, 900);
     return () => window.clearInterval(t);
-  }, [step, paused, evalStudents.length]);
+  }, [step, evalStudents.length]);
 
   /** Call OpenAI when a script reaches the comparing phase (deps: comparingId only + refs for payload). */
   useEffect(() => {
-    if (step !== 4 || paused || !comparingId) return;
+    if (step !== 4 || !comparingId) return;
     if (gradingInFlight.current.has(comparingId)) return;
     const pending = evalStudentsRef.current.find((s) => s.id === comparingId);
     if (!pending?.objectUrl) return;
@@ -129,10 +140,33 @@ export function AnswerScriptsEvaluation() {
 
     (async () => {
       try {
+        const { examSetup: es, parsedQuestions: pq, answerKeyUrl: akUrl, answerKeyFileName } =
+          gradePayloadRef.current;
+        if (!akUrl) {
+          toast.error("Upload an answer key PDF in step 2 before grading.");
+          setEvalStudents((prev) =>
+            prev.map((s) =>
+              s.id === pending.id ? { ...s, phase: "failed" as const, progress: 0 } : s
+            )
+          );
+          return;
+        }
+
         const blob = await fetch(pending.objectUrl!).then((r) => r.blob());
+        const answerKeyBlob = await fetch(akUrl).then((r) => r.blob());
+        if (answerKeyBlob.size === 0) {
+          toast.error("Answer key PDF is empty.");
+          setEvalStudents((prev) =>
+            prev.map((s) =>
+              s.id === pending.id ? { ...s, phase: "failed" as const, progress: 0 } : s
+            )
+          );
+          return;
+        }
+
         const fd = new FormData();
         const row = scriptsRef.current.find((r) => r.id === pending.scriptId);
-        const { examSetup: es, parsedQuestions: pq } = gradePayloadRef.current;
+        fd.append("answerKey", answerKeyBlob, answerKeyFileName || "answer-key.pdf");
         fd.append("script", blob, row?.fileName ?? `script-${pending.id}.pdf`);
         fd.append(
           "payload",
@@ -173,9 +207,12 @@ export function AnswerScriptsEvaluation() {
     })();
 
     return () => ac.abort();
-  }, [step, paused, comparingId]);
+  }, [step, comparingId]);
 
   const goStep = (s: number) => setStep(s);
+
+  /** Stepper shows 4 steps: internal step 5 (marks review) maps to the same “Evaluate” step as the queue. */
+  const stepperStep = step >= 5 ? 4 : step;
 
   const startNewSession = () => {
     if (answerKeyUrl) URL.revokeObjectURL(answerKeyUrl);
@@ -188,7 +225,6 @@ export function AnswerScriptsEvaluation() {
     setParsedQuestions([]);
     setScripts([]);
     setEvalStudents([]);
-    setPaused(false);
     setAiGrades({});
     setReviewStudentId(null);
     setOverridesByStudent({});
@@ -205,24 +241,13 @@ export function AnswerScriptsEvaluation() {
     const rows = scoredList.map((s) => {
       const qs = aiGrades[s.id];
       const ov = overridesByStudent[s.id] ?? {};
-      const scores: Record<string, number> = {};
-      let total = 0;
-      qs?.forEach((q, qi) => {
-        let qSum = 0;
-        for (const st of q.steps) {
-          const rev = revertedByStudent[s.id]?.includes(st.stepId);
-          const v = rev ? st.awarded : ov[st.stepId] ?? st.awarded;
-          qSum += v;
-        }
-        const k = `q${qi + 1}`;
-        scores[k] = Math.round(qSum * 10) / 10;
-        total += scores[k];
-      });
+      const reverted = revertedByStudent[s.id];
+      const { perQuestion: scores, total } = computeStudentTotals(qs, ov, reverted);
       return {
         rollNo: s.rollNo,
         name: s.name,
         scores,
-        total: Math.round(total * 10) / 10,
+        total,
       };
     });
     const qLabels = aiGrades[scoredList[0]?.id ?? ""]?.map((_, i) => `q${i + 1}`) ?? [];
@@ -254,7 +279,8 @@ export function AnswerScriptsEvaluation() {
     } else {
       setReviewStudentId(null);
       goStep(4);
-      toast.message("All reviewed students processed. Back to queue.");
+      setSessionStarted(false);
+      toast.success("Review complete. Session overview is below — export CSV or continue later.");
     }
   };
 
@@ -263,7 +289,162 @@ export function AnswerScriptsEvaluation() {
     [revertedByStudent, reviewStudentId]
   );
 
+  const hasSessionSnapshot = useMemo(
+    () =>
+      Boolean(
+        examSetup.name.trim() ||
+          parsedQuestions.length > 0 ||
+          scripts.length > 0 ||
+          evalStudents.length > 0 ||
+          Object.keys(aiGrades).length > 0 ||
+          answerKeyFile ||
+          answerKeyUrl
+      ),
+    [
+      examSetup.name,
+      parsedQuestions.length,
+      scripts.length,
+      evalStudents.length,
+      aiGrades,
+      answerKeyFile,
+      answerKeyUrl,
+    ]
+  );
+
+  const examMaxMarks = useMemo(() => {
+    const fromParsed = parsedQuestions.reduce(
+      (a, q) => a + q.steps.reduce((s, st) => s + (Number(st.marks) || 0), 0),
+      0
+    );
+    if (fromParsed > 0) return fromParsed;
+    return examSetup.totalMarks || 0;
+  }, [parsedQuestions, examSetup.totalMarks]);
+
   if (!sessionStarted) {
+    if (hasSessionSnapshot) {
+      return (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-[#01696f]/25 bg-[#01696f]/[0.06] p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex gap-3">
+                <FileCheck2 className="h-10 w-10 shrink-0 text-[#01696f]" aria-hidden />
+                <div>
+                  <h2 className="font-display text-xl font-medium text-foreground">
+                    {examSetup.name.trim() || "Saved session"}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {examSetup.subject && <span>{examSetup.subject}</span>}
+                    {examSetup.subject && examSetup.date && " · "}
+                    {examSetup.date && <span>{examSetup.date}</span>}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {evalStudents.length > 0
+                      ? `${evalStudents.filter((s) => s.phase === "scored").length} of ${evalStudents.length} scripts scored · Max ${examMaxMarks || "—"} marks`
+                      : "Session saved — continue to upload scripts and run grading."}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className="bg-[#01696f] text-white hover:bg-[#015a5f]"
+                  onClick={() => setSessionStarted(true)}
+                >
+                  Continue session
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={exportCsv}
+                  disabled={scoredList.length === 0}
+                >
+                  Export CSV
+                </Button>
+                <Button type="button" variant="secondary" onClick={startNewSession}>
+                  Start new evaluation
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {evalStudents.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Students & marks</CardTitle>
+                <CardDescription>
+                  Totals use your overrides where set; &quot;Revert to AI&quot; uses the model score.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                <table className="w-full min-w-[320px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 pr-3 font-medium">Roll</th>
+                      <th className="py-2 pr-3 font-medium">Name</th>
+                      <th className="py-2 pr-3 font-medium">Status</th>
+                      <th className="py-2 text-right font-medium tabular-nums">
+                        Total {examMaxMarks ? ` / ${examMaxMarks}` : ""}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evalStudents.map((s) => {
+                      const qs = aiGrades[s.id];
+                      const { total } = computeStudentTotals(
+                        qs,
+                        overridesByStudent[s.id],
+                        revertedByStudent[s.id]
+                      );
+                      const hasGrades = Boolean(qs?.length);
+                      const status =
+                        s.phase === "scored"
+                          ? "Scored"
+                          : s.phase === "failed"
+                            ? "Failed"
+                            : s.phase === "comparing"
+                              ? "Grading"
+                              : s.phase === "reading"
+                                ? "Reading"
+                                : "Waiting";
+                      return (
+                        <tr key={s.id} className="border-b border-border/60 last:border-0">
+                          <td className="py-2.5 pr-3 font-mono text-xs">{s.rollNo}</td>
+                          <td className="py-2.5 pr-3">{s.name}</td>
+                          <td className="py-2.5 pr-3">
+                            <Badge
+                              variant="secondary"
+                              className={
+                                s.phase === "scored"
+                                  ? "bg-emerald-600/15 text-emerald-900"
+                                  : s.phase === "failed"
+                                    ? "bg-destructive/10 text-destructive"
+                                    : ""
+                              }
+                            >
+                              {status}
+                            </Badge>
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums font-medium text-[#01696f]">
+                            {hasGrades ? total.toFixed(1) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          )}
+
+          {evalStudents.length === 0 && parsedQuestions.length > 0 && (
+            <p className="text-center text-sm text-muted-foreground">
+              Rubric is set up. Continue session to upload scripts and start the queue.
+            </p>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-xl border border-dashed border-[#01696f]/30 bg-[#01696f]/[0.04] p-10 text-center">
         <FileCheck2 className="mx-auto mb-4 h-12 w-12 text-[#01696f]" />
@@ -287,16 +468,26 @@ export function AnswerScriptsEvaluation() {
 
   return (
     <div className="answer-scripts-evaluation flex min-h-0 min-w-0 max-w-full flex-col space-y-6 overflow-x-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           Session: <span className="font-medium text-foreground">{examSetup.name || "Untitled"}</span>
         </p>
-        <Button type="button" variant="outline" size="sm" onClick={() => setSessionStarted(false)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (step === 5) goStep(4);
+            setSessionStarted(false);
+          }}
+        >
           Exit to overview
         </Button>
       </div>
 
-      <EvaluationStepper current={step} />
+      <div className="shrink-0">
+        <EvaluationStepper current={stepperStep} />
+      </div>
 
       {step === 1 && (
         <StageSetup
@@ -338,8 +529,6 @@ export function AnswerScriptsEvaluation() {
       {step === 4 && (
         <StageQueue
           students={evalStudents}
-          paused={paused}
-          setPaused={setPaused}
           canOpenReview={(id) => Boolean(aiGrades[id])}
           onBack={() => goStep(3)}
           onOpenReview={openReview}
@@ -348,6 +537,7 @@ export function AnswerScriptsEvaluation() {
       )}
 
       {step === 5 && reviewStudent && reviewQuestions && (
+        <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden max-lg:h-auto max-lg:max-h-none lg:h-[min(760px,calc(100dvh-13rem))] lg:max-h-[min(760px,calc(100dvh-13rem))]">
         <StageReview
           studentId={reviewStudent.id}
           studentName={reviewStudent.name}
@@ -389,10 +579,10 @@ export function AnswerScriptsEvaluation() {
             }));
           }}
           onApproveNext={handleApproveNext}
-          onFlag={() => toast.message("Flagged for peer review (demo).")}
           onBackToQueue={() => goStep(4)}
           hasNext={Boolean(nextReviewId)}
         />
+        </div>
       )}
 
       {step === 5 && (!reviewStudent || !reviewQuestions) && (

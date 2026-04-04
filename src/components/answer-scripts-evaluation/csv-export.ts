@@ -1,5 +1,28 @@
 import type { AiQuestionGrade } from "./types";
 
+/** Per-question and total marks using the same rules as CSV export (overrides + revert-to-AI). */
+export function computeStudentTotals(
+  questions: AiQuestionGrade[] | undefined,
+  overrides: Record<string, number> | undefined,
+  revertedStepIds: string[] | undefined
+): { perQuestion: Record<string, number>; total: number } {
+  const rev = new Set(revertedStepIds ?? []);
+  const ov = overrides ?? {};
+  const perQuestion: Record<string, number> = {};
+  let total = 0;
+  questions?.forEach((q, qi) => {
+    let qSum = 0;
+    for (const st of q.steps) {
+      const v = rev.has(st.stepId) ? st.awarded : ov[st.stepId] ?? st.awarded;
+      qSum += v;
+    }
+    const k = `q${qi + 1}`;
+    perQuestion[k] = Math.round(qSum * 10) / 10;
+    total += perQuestion[k];
+  });
+  return { perQuestion, total: Math.round(total * 10) / 10 };
+}
+
 export function downloadEvaluationCsv(
   rows: { rollNo: string; name: string; scores: Record<string, number>; total: number }[],
   questionLabels: string[]

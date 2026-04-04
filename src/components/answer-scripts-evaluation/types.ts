@@ -9,24 +9,12 @@ export type EvalPhase =
 
 export type StepConfidence = "high" | "medium" | "low";
 
-/** One discrete score level for LLM grading (e.g. 2 = Correct). */
-export interface ScoringBand {
-  id: string;
-  score: number;
-  criterion: string;
-}
-
 export interface ExamStep {
   id: string;
   subPartLabel: string;
   description: string;
   /** Maximum marks for a fully correct response */
   marks: number;
-  /**
-   * Professor-defined score levels and criteria — formatted into the LLM prompt
-   * when evaluating this step.
-   */
-  scoringBands: ScoringBand[];
 }
 
 export interface ExamQuestion {

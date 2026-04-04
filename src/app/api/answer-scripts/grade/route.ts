@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AiQuestionGrade, AiStepGrade, ExamQuestion, StepConfidence } from "@/components/answer-scripts-evaluation/types";
 import { formatExamStepRubricForPrompt } from "@/components/answer-scripts-evaluation/rubric-prompt";
+import { STRICTNESS_OPTIONS } from "@/components/answer-scripts-evaluation/constants";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,16 +30,29 @@ function isConfidence(c: string | undefined): c is StepConfidence {
   return c === "high" || c === "medium" || c === "low";
 }
 
+function strictnessInstructions(mode: string): string {
+  switch (mode) {
+    case "exact":
+      return `Evaluation strictness: EXACT (match answer key closely). Align marks tightly with the expected solution and key terms. Be conservative with partial credit: award only when the work clearly satisfies the criterion; small errors or missing steps should reduce the score noticeably. You may use fractional marks (e.g. halves or tenths) within 0 and the step maximum.`;
+    case "partial":
+      return `Evaluation strictness: GENEROUS PARTIAL CREDIT. When in doubt, prefer awarding meaningful partial marks for incomplete but relevant work, correct method with arithmetic slips, or partially correct reasoning. The rubric lists maximum marks per sub-part; you decide how much of that maximum the student earned.`;
+    case "conceptual":
+    default:
+      return `Evaluation strictness: CONCEPTUAL. Reward correct ideas and sound reasoning even if phrasing differs from the answer key. Partial credit should reflect how much of the intended concept is demonstrated. Use the full range from 0 to the step maximum where appropriate.`;
+  }
+}
+
 function buildSystemPrompt(strictness: string): string {
-  return `You are an expert exam grader. You will see a student's exam script as a PDF and a structured rubric.
+  const s = strictnessInstructions(strictness);
+  return `You are an expert exam grader. You receive two PDFs in order: (1) the official answer key, (2) the student's script. You also receive a structured rubric with per-sub-part stepIds, what each part assesses, and maximum sub-marks.
 
 Rules:
-- Award marks only according to the professor's rubric for each sub-part (scoring bands and max marks).
-- If the rubric lists discrete scores (e.g. 2 = Correct, 1 = Minor mistake), you must choose one of those scores for "awarded" unless the rubric allows a continuous range (no bands).
-- "awarded" must be between 0 and the step maximum marks inclusive.
+- For each sub-part, set "awarded" to a number from 0 up to that sub-part's maximum marks (inclusive). You decide partial credit: there are no fixed score bands — use "${strictness}" mode below.
+- ${s}
+- "awarded" must be between 0 and the step maximum marks inclusive (fractions allowed if the marking scheme implies them, e.g. 0.5 steps).
+- For every sub-part, "justification" must explain the marking decision in plain language: (1) state the awarded mark versus the step maximum (e.g. "2/3"); (2) what the student did that earned those marks, with brief reference to the script; (3) if the mark is below the maximum, explicitly say what was wrong, incomplete, or missing compared to the answer key or rubric, so it is clear why marks were deducted or not given; (4) if full marks, still briefly confirm what was correct so the award is auditable.
 - "confidence": high if the PDF clearly supports your mark; medium if somewhat ambiguous; low if handwriting/layout makes marking uncertain.
-- "ok" should be true when the work clearly meets the band you chose; false if borderline or concerning.
-- Evaluation strictness mode: "${strictness}" — exact: follow literal rubric; conceptual: reward correct reasoning; partial: generous partial credit within bands.
+- "ok" should be true when the mark fairly reflects visible work; false if borderline or the script is too unclear to justify the score confidently.
 
 Respond with valid JSON only, matching the schema in the user message.`;
 }
@@ -46,14 +60,23 @@ Respond with valid JSON only, matching the schema in the user message.`;
 function buildUserRubricText(questions: ExamQuestion[]): string {
   let out = "";
   for (const q of questions) {
-    out += `\n## Question ${q.questionNo} (questionId: ${q.id})\n`;
+    const qMax = q.steps.reduce((s, st) => s + (Number(st.marks) || 0), 0);
+    out += `\n## Question ${q.questionNo} (questionId: ${q.id}) — total max for this question: ${qMax} marks\n`;
     for (const st of q.steps) {
-      out += `\n### Sub-part ${st.subPartLabel} (stepId: ${st.id})\n`;
+      out += `\n### stepId: ${st.id}\n`;
       out += formatExamStepRubricForPrompt(st);
       out += "\n";
     }
   }
   return out;
+}
+
+function strictnessUserLine(mode: string): string {
+  const opt = STRICTNESS_OPTIONS.find((o) => o.id === mode);
+  if (opt) {
+    return `Instructor strictness: "${opt.label}" — ${opt.hint}`;
+  }
+  return `Instructor strictness mode: ${mode}`;
 }
 
 function enrichGrades(questions: ExamQuestion[], raw: RawPayload): AiQuestionGrade[] {
@@ -73,7 +96,7 @@ function enrichGrades(questions: ExamQuestion[], raw: RawPayload): AiQuestionGra
       const justification =
         typeof rs?.justification === "string" && rs.justification.trim()
           ? rs.justification.trim()
-          : "No justification returned; defaulting from model output.";
+          : "No grading rationale was returned for this sub-part; re-run grading if you need award/deduction reasoning.";
       return {
         stepId: st.id,
         subPartLabel: st.subPartLabel,
@@ -116,7 +139,15 @@ export async function POST(req: NextRequest) {
 
   const script = form.get("script");
   if (!(script instanceof Blob) || script.size === 0) {
-    return NextResponse.json({ error: "Missing or empty script PDF." }, { status: 400 });
+    return NextResponse.json({ error: "Missing or empty student script PDF." }, { status: 400 });
+  }
+
+  const answerKey = form.get("answerKey");
+  if (!(answerKey instanceof Blob) || answerKey.size === 0) {
+    return NextResponse.json(
+      { error: "Missing or empty answer key PDF. Upload an answer key in step 2 before grading." },
+      { status: 400 }
+    );
   }
 
   const payloadRaw = form.get("payload");
@@ -143,16 +174,19 @@ export async function POST(req: NextRequest) {
   const strictness = payload.strictness ?? "conceptual";
   const examName = payload.examName?.trim() || "Exam";
 
-  const buf = Buffer.from(await script.arrayBuffer());
-  if (buf.byteLength > 32 * 1024 * 1024) {
-    return NextResponse.json({ error: "PDF exceeds 32MB limit." }, { status: 413 });
+  const scriptBuf = Buffer.from(await script.arrayBuffer());
+  const keyBuf = Buffer.from(await answerKey.arrayBuffer());
+  const maxBytes = 32 * 1024 * 1024;
+  if (scriptBuf.byteLength > maxBytes || keyBuf.byteLength > maxBytes) {
+    return NextResponse.json({ error: "Each PDF must be 32MB or smaller." }, { status: 413 });
   }
 
-  const base64 = buf.toString("base64");
-  /** OpenAI requires a data URL with MIME type, not raw base64. */
-  const pdfDataUrl = `data:application/pdf;base64,${base64}`;
+  const scriptDataUrl = `data:application/pdf;base64,${scriptBuf.toString("base64")}`;
+  const answerKeyDataUrl = `data:application/pdf;base64,${keyBuf.toString("base64")}`;
 
   const rubricText = buildUserRubricText(questions as ExamQuestion[]);
+  const strictnessLine = strictnessUserLine(strictness);
+
   const schemaHint = `Return a single JSON object with this shape:
 {
   "questions": [
@@ -162,7 +196,7 @@ export async function POST(req: NextRequest) {
         {
           "stepId": "<exact id from rubric>",
           "awarded": <number>,
-          "justification": "<short reason referencing what you saw in the script>",
+          "justification": "<required: 2–5 sentences. State awarded vs step max; what earned the marks; if not full marks, clearly explain deductions (what was missing/wrong vs answer key or rubric); if full marks, briefly confirm correctness.>",
           "confidence": "high" | "medium" | "low",
           "ok": <boolean>
         }
@@ -170,17 +204,23 @@ export async function POST(req: NextRequest) {
     }
   ]
 }
-Include every questionId and every stepId from the rubric. Do not omit steps.`;
+Include every questionId and every stepId from the rubric. Do not omit steps. Every step must have a substantive justification, not a single word.`;
 
   const userText = `Exam: ${examName}
 
+${strictnessLine}
+
+You are given two PDF attachments in this order:
+1) **Official answer key** — use this as the reference solution when judging correctness and partial credit.
+2) **Student script** — this is what you grade; award marks only for work visible here.
+
 ${schemaHint}
 
---- RUBRIC ---
+--- RUBRIC (sub-parts, explanations, max sub-marks per stepId) ---
 ${rubricText}
 --- END RUBRIC ---
 
-Grade the attached student script PDF against this rubric.`;
+Grade the student script (2nd PDF) using the answer key (1st PDF) and the rubric above. Respect each step’s maximum marks and the instructor strictness line. For each sub-part, the justification field is mandatory: it must make the award/deduction reasoning transparent to an instructor reviewing your marks.`;
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -197,8 +237,15 @@ Grade the attached student script PDF against this rubric.`;
             {
               type: "file",
               file: {
+                filename: "answer-key.pdf",
+                file_data: answerKeyDataUrl,
+              },
+            },
+            {
+              type: "file",
+              file: {
                 filename: "student-script.pdf",
-                file_data: pdfDataUrl,
+                file_data: scriptDataUrl,
               },
             },
           ],
