@@ -835,12 +835,17 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             {tabMenuOpen && (
               <>
                 <div
-                  className="fixed inset-0 z-40 bg-black/20 md:hidden"
+                  className="fixed inset-0 z-[45] bg-black/20 md:hidden"
                   aria-hidden
                   onClick={() => setTabMenuOpen(false)}
                 />
-                <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200 md:hidden">
-                  <div className="mb-3 flex justify-end border-b border-border pb-2">
+                <aside
+                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Section navigation"
+                >
+                  <div className="mb-3 flex shrink-0 justify-end border-b border-border pb-2">
                     <Button
                       type="button"
                       variant="ghost"
@@ -852,7 +857,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
                     <button
                       type="button"
                       className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"

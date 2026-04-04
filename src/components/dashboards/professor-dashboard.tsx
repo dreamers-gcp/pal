@@ -545,12 +545,17 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             {tabMenuOpen && (
               <>
                 <div
-                  className="fixed inset-0 z-40 bg-black/20 md:hidden"
+                  className="fixed inset-0 z-[45] bg-black/20 md:hidden"
                   aria-hidden
                   onClick={() => setTabMenuOpen(false)}
                 />
-                <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 shadow-2xl animate-in slide-in-from-left duration-200 md:hidden">
-                  <div className="mb-3 flex justify-end border-b border-border pb-2">
+                <aside
+                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Section navigation"
+                >
+                  <div className="mb-3 flex shrink-0 justify-end border-b border-border pb-2">
                     <Button
                       type="button"
                       variant="ghost"
@@ -562,7 +567,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                   </div>
-                  <TabsList className="flex h-auto w-full flex-col items-stretch">
+                  <TabsList className="flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto overscroll-contain">
                     <TabsTrigger
                       value="my-requests"
                       className="w-full justify-start gap-1.5"
