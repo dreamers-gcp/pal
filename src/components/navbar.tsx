@@ -150,19 +150,6 @@ export function Navbar() {
 
           {menuOpen && (
             <div className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.08)] bg-white text-popover-foreground shadow-lg">
-              {isMobileNav && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    window.dispatchEvent(new CustomEvent("pal:open-tab-menu"));
-                  }}
-                  className="flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-[rgba(0,0,0,0.04)]"
-                >
-                  <Menu className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  Dashboard menu
-                </button>
-              )}
               {(profile.role === "professor" || profile.role === "admin") && (
                 <>
                   <NotificationList
@@ -277,6 +264,10 @@ export function Navbar() {
         <>
           <div className="flex min-w-0 items-center gap-2">
             {logoLink}
+            {/* Mobile /dashboard: open section nav directly (no avatar → “Dashboard menu” hop). */}
+            {profile && isDashboardRoute && (
+              <TabMenuButton className={cn(tabMenuBtnClass, "md:hidden")} />
+            )}
             {profile && !isDashboardRoute ? (
               <TabMenuButton className={`${tabMenuBtnClass} hidden md:inline-flex`} />
             ) : null}
