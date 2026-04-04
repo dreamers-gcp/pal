@@ -4,6 +4,48 @@ import type {
   MessMealPeriod,
 } from "@/lib/types";
 
+/**
+ * DB `time` values may be `HH:mm:ss`, `HH:mm`, or include fractional seconds.
+ * Combine with a `yyyy-MM-dd` date for a local `Date` (react-big-calendar).
+ */
+export function combineDateAndTimeLocal(dateStr: string, timeStr: string): Date {
+  const raw = String(timeStr ?? "").trim();
+  const noTz = raw.split(/[Z+-]/)[0] ?? raw;
+  const m = noTz.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return new Date(NaN);
+  const h = String(Math.min(23, Math.max(0, parseInt(m[1], 10) || 0))).padStart(2, "0");
+  const mi = String(Math.min(59, Math.max(0, parseInt(m[2], 10) || 0))).padStart(2, "0");
+  const s = String(Math.min(59, Math.max(0, parseInt(m[3] ?? "0", 10) || 0))).padStart(2, "0");
+  return new Date(`${dateStr}T${h}:${mi}:${s}`);
+}
+
+/**
+ * Approved rows may use legacy `venue_code` values (`main`, `conf_a`, …).
+ * Expand the selected bookable code so queries match those rows.
+ */
+export function facilityVenueCodesForFilter(
+  facilityType: FacilityBookingType,
+  selectedCode: string
+): string[] {
+  const codes = new Set<string>([selectedCode]);
+  if (selectedCode === "auditorium1" && facilityType === "auditorium") {
+    codes.add("main");
+  }
+  if (selectedCode === "computerhall1" && facilityType === "computer_hall") {
+    codes.add("main");
+  }
+  if (selectedCode === "boardroom1" && facilityType === "board_room") {
+    codes.add("main");
+  }
+  if (selectedCode === "conferencehall1" && facilityType === "conference_room") {
+    codes.add("conf_a");
+  }
+  if (selectedCode === "conferencehall2" && facilityType === "conference_room") {
+    codes.add("conf_b");
+  }
+  return [...codes];
+}
+
 /** Display labels for facility categories (UI). */
 export const FACILITY_TYPE_LABELS: Record<FacilityBookingType, string> = {
   auditorium: "Auditorium",

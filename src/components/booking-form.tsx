@@ -95,6 +95,7 @@ export function BookingForm({
       return;
     }
     const supabase = createClient();
+    // Only approved bookings block the slot; pending / clarification / rejected do not.
     supabase
       .from("calendar_requests")
       .select("id, start_time, end_time")

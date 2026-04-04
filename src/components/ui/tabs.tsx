@@ -26,7 +26,7 @@ function TabsList({
   return (
     <TabsPrimitive.List
       className={cn(
-        "inline-flex h-10 items-stretch gap-0 overflow-hidden rounded-xl border border-border bg-muted/40 p-0",
+        "inline-flex min-h-10 items-stretch gap-0 overflow-x-auto overflow-y-visible rounded-xl border border-border bg-muted/40 p-0 [scrollbar-width:thin]",
         className
       )}
       {...props}

@@ -18,8 +18,8 @@ import {
   isToday as isDateToday,
 } from "date-fns";
 
-const HOUR_START = 8;
-const HOUR_END = 23;
+const HOUR_START = 0;
+const HOUR_END = 24;
 const HOUR_HEIGHT = 60;
 const SNAP_MINUTES = 15;
 const PX_PER_MINUTE = HOUR_HEIGHT / 60;

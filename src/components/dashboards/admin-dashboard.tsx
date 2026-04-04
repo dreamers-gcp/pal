@@ -11,10 +11,6 @@ import type {
   Classroom,
   GuestHouseBooking,
   SportsBooking,
-  SportType,
-  SportsVenueCode,
-  FacilityBooking,
-  AppointmentBooking,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +31,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Clock,
   HelpCircle,
   MapPin,
@@ -55,13 +52,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { DatePicker } from "@/components/ui/date-picker";
-import { RequestCalendar } from "@/components/request-calendar";
-import { AdminUnifiedAvailabilityCalendar } from "@/components/admin-unified-availability-calendar";
 import { RequestCard } from "@/components/request-card";
 import { CsvUpload } from "@/components/csv-upload";
-import { toTitleCase, cn } from "@/lib/utils";
+import { cn, formatSubmittedAt, sortByCreatedAtAsc, toTitleCase } from "@/lib/utils";
 import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
 import { TimetableGenerator } from "@/components/timetable-generator";
 import {
@@ -77,13 +71,9 @@ import {
   GUEST_HOUSE_LABELS,
   roomsByFloorForGuestHouse,
 } from "@/lib/guest-house";
-import {
-  SPORT_LABELS,
-  SPORTS_VENUE_LABELS,
-  venuesForSport,
-  isTimeOverlap,
-} from "@/lib/sports-booking";
-import { AdminCampusTab } from "@/components/campus/admin-campus-tab";
+import { SPORT_LABELS, SPORTS_VENUE_LABELS } from "@/lib/sports-booking";
+import { AdminCampusApprovalSection } from "@/components/campus/admin-campus-tab";
+import { AdminRequestSchedulePanel } from "@/components/admin/admin-request-schedule-panel";
 import {
   downloadProfessorRosterXlsx,
   downloadStudentRosterXlsx,
@@ -126,8 +116,18 @@ function formatSportsStatusLabel(status: SportsBooking["status"]): string {
   return "Pending";
 }
 
-function parseDateOnly(value: string): Date {
-  return new Date(`${value}T00:00:00`);
+const ADMIN_REQUEST_SUBTABS: { value: string; label: string }[] = [
+  { value: "request-event-requests", label: "Event requests" },
+  { value: "request-guest-house-requests", label: "Guest house" },
+  { value: "request-sports-requests", label: "Sports" },
+  { value: "request-campus-leave", label: "Student leave" },
+  { value: "request-campus-facilities", label: "Campus facilities" },
+  { value: "request-campus-mess", label: "Mess requests" },
+  { value: "request-campus-health", label: "Health appointments" },
+];
+
+function isAdminRequestTab(tab: string) {
+  return tab.startsWith("request-");
 }
 
 export function AdminDashboard({ profile }: { profile: Profile }) {
@@ -155,9 +155,10 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   >("pending");
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [calendarClassroomFilter, setCalendarClassroomFilter] = useState<string>("");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
+  const [adminMainTab, setAdminMainTab] = useState("request-event-requests");
+  const [adminRequestsNavOpen, setAdminRequestsNavOpen] = useState(true);
   const [guestHouseBookings, setGuestHouseBookings] = useState<GuestHouseBooking[]>([]);
   const [guestHouseLoading, setGuestHouseLoading] = useState(true);
   const [selectedGuestBooking, setSelectedGuestBooking] = useState<GuestHouseBooking | null>(null);
@@ -167,33 +168,13 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [guestStatusFilter, setGuestStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "clarification_needed" | "all"
   >("pending");
-  const [availabilityGuestHouse, setAvailabilityGuestHouse] =
-    useState<GuestHouseBooking["guest_house"]>("international_centre");
-  const [availabilityStartDate, setAvailabilityStartDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [availabilityEndDate, setAvailabilityEndDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [availabilityFocusedRoom, setAvailabilityFocusedRoom] = useState<string | null>(null);
   const [selectedGuestFocusedRoom, setSelectedGuestFocusedRoom] = useState<string | null>(null);
   const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
-  const [facilityBookings, setFacilityBookings] = useState<FacilityBooking[]>([]);
-  const [appointmentBookings, setAppointmentBookings] = useState<AppointmentBooking[]>(
-    []
-  );
-  const [facilityApptLoading, setFacilityApptLoading] = useState(true);
   const [sportsUpdatingId, setSportsUpdatingId] = useState<string | null>(null);
   const [sportsStatusFilter, setSportsStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "clarification_needed" | "all"
   >("pending");
-  const [sportsAvailabilitySport, setSportsAvailabilitySport] = useState<SportType>("badminton");
-  const [sportsAvailabilityDate, setSportsAvailabilityDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [sportsAvailabilityStart, setSportsAvailabilityStart] = useState("17:00");
-  const [sportsAvailabilityEnd, setSportsAvailabilityEnd] = useState("18:00");
 
   useEffect(() => {
     function handleOpenTabMenu() {
@@ -308,38 +289,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setSportsLoading(false);
   }, []);
 
-  const fetchFacilityAndAppointments = useCallback(async () => {
-    const supabase = createClient();
-    const [facRes, aptRes] = await Promise.all([
-      supabase
-        .from("facility_bookings")
-        .select("*, requester:profiles!facility_bookings_requester_id_fkey(*)")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("appointment_bookings")
-        .select("*, student:profiles!appointment_bookings_student_id_fkey(*)")
-        .order("created_at", { ascending: false }),
-    ]);
-    if (facRes.data) setFacilityBookings(facRes.data as unknown as FacilityBooking[]);
-    if (aptRes.data)
-      setAppointmentBookings(aptRes.data as unknown as AppointmentBooking[]);
-    setFacilityApptLoading(false);
-  }, []);
-
-  const refreshUnifiedAvailability = useCallback(async () => {
-    await Promise.all([
-      fetchRequests(),
-      fetchGuestHouseBookings(),
-      fetchSportsBookings(),
-      fetchFacilityAndAppointments(),
-    ]);
-  }, [
-    fetchRequests,
-    fetchGuestHouseBookings,
-    fetchSportsBookings,
-    fetchFacilityAndAppointments,
-  ]);
-
   useEffect(() => {
     fetchRequests();
     fetchStudents();
@@ -347,7 +296,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     fetchClassrooms();
     fetchGuestHouseBookings();
     fetchSportsBookings();
-    fetchFacilityAndAppointments();
   }, [
     fetchRequests,
     fetchStudents,
@@ -355,7 +303,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     fetchClassrooms,
     fetchGuestHouseBookings,
     fetchSportsBookings,
-    fetchFacilityAndAppointments,
   ]);
 
   async function updateRequest(
@@ -461,77 +408,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setSportsUpdatingId(null);
   }
 
-  function CalendarEventActions({
-    request,
-    closeSidebar,
-  }: {
-    request: CalendarRequest;
-    closeSidebar: () => void;
-  }) {
-    const [sidebarNote, setSidebarNote] = useState(request.admin_note ?? "");
-
-    const submitFromSidebar = async (status: RequestStatus) => {
-      await updateRequest(request.id, status, sidebarNote);
-      closeSidebar();
-    };
-
-    return (
-      <div className="space-y-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Review request
-        </p>
-        <div className="space-y-2">
-          <Label
-            htmlFor={`calendar-admin-note-${request.id}`}
-            className="text-sm font-medium text-foreground"
-          >
-            Admin note (optional)
-          </Label>
-          <Textarea
-            id={`calendar-admin-note-${request.id}`}
-            placeholder="Add a note for the professor..."
-            value={sidebarNote}
-            onChange={(e) => setSidebarNote(e.target.value)}
-            rows={3}
-            className="resize-none rounded-lg border-muted-foreground/30 bg-muted/30 focus-visible:ring-2"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => submitFromSidebar("approved")}
-            disabled={updating}
-            variant="outline"
-            size="sm"
-            className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 hover:border-emerald-500 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
-          >
-            <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-            Approve
-          </Button>
-          <Button
-            onClick={() => submitFromSidebar("rejected")}
-            disabled={updating}
-            variant="outline"
-            size="sm"
-            className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
-          >
-            <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-            Reject
-          </Button>
-          <Button
-            onClick={() => submitFromSidebar("clarification_needed")}
-            disabled={updating}
-            variant="outline"
-            size="sm"
-            className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
-          >
-            <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-            Clarify
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   const filterByStatus = (status: string) =>
     status === "all"
       ? requests
@@ -572,35 +448,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     return blocked;
   }, [guestHouseBookings, selectedGuestBooking]);
 
-  const unavailableRoomsForAvailability = useMemo(() => {
-    if (!availabilityStartDate || !availabilityEndDate) return new Set<string>();
-    const checkIn = parseDateOnly(availabilityStartDate).getTime();
-    const checkOut = parseDateOnly(availabilityEndDate).getTime();
-    return new Set(
-      guestHouseBookings
-        .filter((b) => b.guest_house === availabilityGuestHouse)
-        .filter((b) => b.status === "approved")
-        .filter((b) => !!b.room_number)
-        .filter((b) => {
-          const inMs = parseDateOnly(b.check_in_date).getTime();
-          const outMs = parseDateOnly(b.check_out_date).getTime();
-          return checkIn <= outMs && inMs <= checkOut;
-        })
-        .map((b) => b.room_number as string)
-    );
-  }, [guestHouseBookings, availabilityGuestHouse, availabilityStartDate, availabilityEndDate]);
-
-  const availabilitySummary = useMemo(() => {
-    const totalRooms = roomsByFloorForGuestHouse(availabilityGuestHouse).flatMap((f) => f.rooms)
-      .length;
-    const bookedRooms = unavailableRoomsForAvailability.size;
-    const availableRooms = Math.max(totalRooms - bookedRooms, 0);
-    return { totalRooms, bookedRooms, availableRooms };
-  }, [
-    availabilityGuestHouse,
-    unavailableRoomsForAvailability,
-  ]);
-
   const selectedGuestAvailability = useMemo(() => {
     if (!selectedGuestBooking) {
       return {
@@ -616,59 +463,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     const bookedRooms = unavailableRoomsForSelectedBooking.size;
     const availableRooms = Math.max(totalRooms - bookedRooms, 0);
 
-    const overlappingApproved = guestHouseBookings
-      .filter((b) => b.id !== selectedGuestBooking.id)
-      .filter((b) => b.guest_house === selectedGuestBooking.guest_house)
-      .filter((b) => b.status === "approved")
-      .filter((b) => !!b.room_number);
-
     return { totalRooms, bookedRooms, availableRooms };
-  }, [guestHouseBookings, selectedGuestBooking, unavailableRoomsForSelectedBooking]);
-
-  const availabilityRoomBookings = useMemo(() => {
-    if (!availabilityFocusedRoom) return [];
-    const from = availabilityStartDate;
-    const to =
-      availabilityEndDate >= availabilityStartDate
-        ? availabilityEndDate
-        : availabilityStartDate;
-    return guestHouseBookings
-      .filter((b) => b.guest_house === availabilityGuestHouse)
-      .filter((b) => b.status === "approved")
-      .filter((b) => b.room_number === availabilityFocusedRoom)
-      .filter((b) => from <= b.check_out_date && b.check_in_date <= to)
-      .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date));
-  }, [
-    guestHouseBookings,
-    availabilityFocusedRoom,
-    availabilityGuestHouse,
-    availabilityStartDate,
-    availabilityEndDate,
-  ]);
-
-  const availabilityRoomBookingMap = useMemo(() => {
-    const from = availabilityStartDate;
-    const to =
-      availabilityEndDate >= availabilityStartDate
-        ? availabilityEndDate
-        : availabilityStartDate;
-    const map = new Map<string, GuestHouseBooking[]>();
-    for (const b of guestHouseBookings) {
-      if (b.guest_house !== availabilityGuestHouse) continue;
-      if (b.status !== "approved" || !b.room_number) continue;
-      if (!(from <= b.check_out_date && b.check_in_date <= to)) continue;
-      const key = b.room_number;
-      const arr = map.get(key) ?? [];
-      arr.push(b);
-      map.set(key, arr);
-    }
-    return map;
-  }, [
-    guestHouseBookings,
-    availabilityGuestHouse,
-    availabilityStartDate,
-    availabilityEndDate,
-  ]);
+  }, [selectedGuestBooking, unavailableRoomsForSelectedBooking]);
 
   const selectedGuestRoomBookings = useMemo(() => {
     if (!selectedGuestBooking || !selectedGuestFocusedRoom) return [];
@@ -705,41 +501,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     }
     return map;
   }, [guestHouseBookings, selectedGuestBooking]);
-
-  const sportsAvailabilityBlockedMap = useMemo(() => {
-    const map = new Map<SportsVenueCode, SportsBooking[]>();
-    for (const b of sportsBookings) {
-      if (b.status !== "approved") continue;
-      if (b.sport !== sportsAvailabilitySport) continue;
-      if (b.booking_date !== sportsAvailabilityDate) continue;
-      if (
-        !isTimeOverlap(
-          sportsAvailabilityStart,
-          sportsAvailabilityEnd,
-          b.start_time.slice(0, 5),
-          b.end_time.slice(0, 5)
-        )
-      ) {
-        continue;
-      }
-      const key = b.venue_code;
-      const arr = map.get(key) ?? [];
-      arr.push(b);
-      map.set(key, arr);
-    }
-    return map;
-  }, [
-    sportsBookings,
-    sportsAvailabilitySport,
-    sportsAvailabilityDate,
-    sportsAvailabilityStart,
-    sportsAvailabilityEnd,
-  ]);
-
-  const calendarBookings = useMemo(() => {
-    if (!calendarClassroomFilter) return requests;
-    return requests.filter((r) => r.classroom_id === calendarClassroomFilter);
-  }, [requests, calendarClassroomFilter]);
 
   const allTerms = [...new Set(enrollments.map((e) => e.term))].sort();
   const allSubjects = [...new Set(enrollments.map((e) => e.subject))].sort();
@@ -868,9 +629,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   return (
     <>
     <Tabs
-        defaultValue="requests"
+        value={adminMainTab}
         onValueChange={(tab) => {
-          if (tab === "requests") fetchRequests();
+          setAdminMainTab(tab);
+          if (isAdminRequestTab(tab)) {
+            fetchRequests();
+            if (tab === "request-guest-house-requests") fetchGuestHouseBookings();
+            if (tab === "request-sports-requests") fetchSportsBookings();
+          }
           if (tab === "guest-house") fetchGuestHouseBookings();
           if (tab === "sports-bookings") fetchSportsBookings();
           if (tab === "professors" || tab === "prof-assignments") fetchProfAssignments();
@@ -889,20 +655,70 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             )}
           >
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-2">
-              <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
-                <TabsTrigger
-                  value="requests"
-                  title="Requests"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
+              <div className="flex flex-col gap-0.5 rounded-lg">
+                <div className="flex flex-col gap-0.5">
+                  {sectionNavExpanded ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setAdminRequestsNavOpen((o) => !o)}
+                        className={cn(
+                          "inline-flex h-auto min-h-10 w-full items-center gap-2 rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          "justify-start px-2 text-left"
+                        )}
+                        aria-expanded={adminRequestsNavOpen}
+                      >
+                        <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1">Requests</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                            adminRequestsNavOpen && "rotate-180"
+                          )}
+                          aria-hidden
+                        />
+                      </button>
+                      {adminRequestsNavOpen && (
+                        <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-1">
+                          {ADMIN_REQUEST_SUBTABS.map((item) => (
+                            <TabsTrigger
+                              key={item.value}
+                              value={item.value}
+                              title={item.label}
+                              className={cn(
+                                "h-auto min-h-9 w-full rounded-md border-l-2 border-transparent py-2 text-[13px] font-medium data-[active]:shadow-none",
+                                "justify-start whitespace-normal pl-4 pr-2 text-left data-[active]:border-primary/40"
+                              )}
+                            >
+                              {item.label}
+                            </TabsTrigger>
+                          ))}
+                        </TabsList>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Requests"
+                      onClick={() => {
+                        setSectionNavExpanded(true);
+                        setAdminRequestsNavOpen(true);
+                        if (!isAdminRequestTab(adminMainTab)) {
+                          setAdminMainTab("request-event-requests");
+                        }
+                      }}
+                      className={cn(
+                        "inline-flex h-auto min-h-10 w-full items-center justify-center rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                        isAdminRequestTab(adminMainTab) &&
+                          "bg-primary/15 text-primary dark:bg-primary/20"
+                      )}
+                    >
+                      <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="sr-only">Requests</span>
+                    </button>
                   )}
-                >
-                  <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>Requests</span>
-                </TabsTrigger>
+                </div>
+                <TabsList className="mt-0.5 flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
                 <TabsTrigger
                   value="enrollments"
                   title="Enrollments"
@@ -974,7 +790,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   <Wand2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className={cn(!sectionNavExpanded && "sr-only")}>Timetable</span>
                 </TabsTrigger>
-              </TabsList>
+                </TabsList>
+              </div>
             </div>
           </div>
         </aside>
@@ -1014,15 +831,40 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                   </div>
-                  <TabsList className="flex h-auto w-full flex-col items-stretch">
-                    <TabsTrigger
-                      value="requests"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      onClick={() => setAdminRequestsNavOpen((o) => !o)}
+                      aria-expanded={adminRequestsNavOpen}
                     >
-                      <ClipboardList className="h-4 w-4" />
-                      Requests
-                    </TabsTrigger>
+                      <span className="flex items-center gap-1.5">
+                        <ClipboardList className="h-4 w-4 shrink-0" />
+                        Requests
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 shrink-0 transition-transform",
+                          adminRequestsNavOpen && "rotate-180"
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                    {adminRequestsNavOpen && (
+                      <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-2">
+                        {ADMIN_REQUEST_SUBTABS.map((item) => (
+                          <TabsTrigger
+                            key={item.value}
+                            value={item.value}
+                            className="w-full justify-start gap-1.5 py-2 pl-4 text-[13px]"
+                            onClick={() => setTabMenuOpen(false)}
+                          >
+                            {item.label}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    )}
+                    <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 border-0 bg-transparent p-0">
                     <TabsTrigger
                       value="enrollments"
                       className="w-full justify-start gap-1.5"
@@ -1063,15 +905,18 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <Wand2 className="h-4 w-4" />
                       Timetable
                     </TabsTrigger>
-                  </TabsList>
+                    </TabsList>
+                  </div>
                 </aside>
               </>
             )}
             <TabsList className="hidden">
-              <TabsTrigger value="requests" className="gap-1.5">
-                <ClipboardList className="h-4 w-4" />
-                Requests
-              </TabsTrigger>
+              {ADMIN_REQUEST_SUBTABS.map((item) => (
+                <TabsTrigger key={item.value} value={item.value} className="gap-1.5">
+                  <ClipboardList className="h-4 w-4" />
+                  {item.label}
+                </TabsTrigger>
+              ))}
               <TabsTrigger value="enrollments" className="gap-1.5">
                 <FileSpreadsheet className="h-4 w-4" />
                 Enrollments
@@ -1094,66 +939,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               </TabsTrigger>
             </TabsList>
 
-        {/* ========== REQUESTS TAB ========== */}
-        <TabsContent value="requests" className="mt-6 space-y-6">
-          <Tabs defaultValue="unified-availability" className="gap-3">
-            <TabsList className="flex w-full flex-wrap gap-1.5">
-              <TabsTrigger
-                value="unified-availability"
-                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
-              >
-                All availability
-              </TabsTrigger>
-              <TabsTrigger
-                value="event-requests"
-                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
-              >
-                Event Requests
-              </TabsTrigger>
-              <TabsTrigger
-                value="guest-house-requests"
-                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
-              >
-                Guest House Requests
-              </TabsTrigger>
-              <TabsTrigger
-                value="sports-requests"
-                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
-              >
-                Sports Requests
-              </TabsTrigger>
-              <TabsTrigger
-                value="campus-requests"
-                className="h-auto min-h-10 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)] whitespace-normal px-3 py-2 text-center text-sm leading-snug data-[active]:text-inherit"
-              >
-                Campus &amp; leave
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="unified-availability" className="space-y-4">
-              <AdminUnifiedAvailabilityCalendar
-                calendarRequests={requests}
-                guestHouseBookings={guestHouseBookings}
-                sportsBookings={sportsBookings}
-                facilityBookings={facilityBookings}
-                appointmentBookings={appointmentBookings}
-                classrooms={classrooms}
-                loading={
-                  loading ||
-                  guestHouseLoading ||
-                  sportsLoading ||
-                  facilityApptLoading
-                }
-                onRefresh={refreshUnifiedAvailability}
-              />
-            </TabsContent>
-            <TabsContent value="event-requests" className="space-y-6">
-          <Tabs defaultValue="approvals" className="gap-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="approvals">Approvals</TabsTrigger>
-              <TabsTrigger value="availability">Availability</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="approvals" className="space-y-6">
+        {/* Request sections — primary nav is the sidebar under Requests */}
+        <TabsContent value="request-event-requests" className="mt-6 space-y-6">
               <div className="rounded-xl border bg-muted/25 p-2.5">
                 <div className="grid grid-cols-4 gap-2">
                   {[
@@ -1220,7 +1007,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   ))}
                 </div>
               </div>
-              {filterByStatus(requestStatusFilter).length === 0 ? (
+              {sortByCreatedAtAsc(filterByStatus(requestStatusFilter)).length === 0 ? (
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1231,7 +1018,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </Card>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filterByStatus(requestStatusFilter).map((req) => (
+                  {sortByCreatedAtAsc(filterByStatus(requestStatusFilter)).map((req) => (
                     <RequestCard
                       key={req.id}
                       request={req}
@@ -1244,65 +1031,16 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="availability" className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-muted-foreground">Classroom:</span>
-                <Select
-                  value={calendarClassroomFilter || "all"}
-                  onValueChange={(v) => setCalendarClassroomFilter(v === "all" || !v ? "" : v)}
-                >
-                  <SelectTrigger className="w-full sm:max-w-[220px] rounded-lg">
-                    <span className="truncate">
-                      {!calendarClassroomFilter
-                        ? "All classrooms"
-                        : toTitleCase(
-                            classrooms.find((c) => c.id === calendarClassroomFilter)?.name ?? ""
-                          ) || "Select classroom"}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All classrooms</SelectItem>
-                    {classrooms.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {toTitleCase(c.name)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <RequestCalendar
-                bookings={calendarBookings}
-                loading={loading}
-                colorBy="status"
-                alwaysShowCalendar
-                emptyMessage={
-                  calendarClassroomFilter
-                    ? "No requests for this classroom."
-                    : "No event requests yet."
-                }
-                eventDetailActions={(request, closeSidebar) => (
-                  <CalendarEventActions
-                    key={request.id}
-                    request={request}
-                    closeSidebar={closeSidebar}
-                  />
-                )}
+              <AdminRequestSchedulePanel
+                mode="event"
+                classrooms={classrooms}
+                className="mt-8 border-t border-border/80 pt-6"
               />
-            </TabsContent>
-          </Tabs>
             </TabsContent>
 
         {/* ========== GUEST HOUSE TAB ========== */}
-        <TabsContent value="guest-house-requests" className="space-y-6">
-          <Tabs defaultValue="approvals" className="gap-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="approvals">Approval Status</TabsTrigger>
-              <TabsTrigger value="availability">Room Availability</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="approvals" className="space-y-6">
+        <TabsContent value="request-guest-house-requests" className="mt-6 space-y-6">
+          <div className="space-y-6">
               <div className="rounded-xl border bg-muted/25 p-2.5">
                 <div className="grid grid-cols-4 gap-2">
                   {[
@@ -1334,7 +1072,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <div className="py-6">
                   <BookingCardsSkeleton count={4} />
                 </div>
-              ) : filterGuestByStatus(guestStatusFilter).length === 0 ? (
+              ) : sortByCreatedAtAsc(filterGuestByStatus(guestStatusFilter)).length === 0 ? (
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1343,7 +1081,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </Card>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filterGuestByStatus(guestStatusFilter).map((b) => (
+                  {sortByCreatedAtAsc(filterGuestByStatus(guestStatusFilter)).map((b) => (
                     <Card
                       key={b.id}
                       className="cursor-pointer transition-shadow hover:shadow-md"
@@ -1371,182 +1109,23 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         </p>
                         <p>{b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}</p>
                         {b.purpose && <p className="line-clamp-2">{b.purpose}</p>}
+                        <p className="text-xs text-muted-foreground">
+                          Submitted at {formatSubmittedAt(b.created_at)}
+                        </p>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="availability" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Room Availability</CardTitle>
-                  <CardDescription>
-                    Pick guest house and date range to inspect blocked vs available rooms.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-                    <div className="rounded-xl border p-4 space-y-4">
-                      <p className="text-sm font-semibold">Availability Details</p>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="space-y-1.5 sm:col-span-3">
-                          <Label>Guest House</Label>
-                          <Select
-                            value={availabilityGuestHouse}
-                            onValueChange={(v) =>
-                              setAvailabilityGuestHouse(v as GuestHouseBooking["guest_house"])
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue>
-                                {GUEST_HOUSE_LABELS[availabilityGuestHouse]}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="international_centre">International Centre</SelectItem>
-                              <SelectItem value="mdp_building">MDP Building</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5 sm:col-span-3">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label>From</Label>
-                              <DatePicker
-                                value={availabilityStartDate}
-                                onChange={setAvailabilityStartDate}
-                                placeholder="Pick date"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label>To</Label>
-                              <DatePicker
-                                value={availabilityEndDate}
-                                onChange={setAvailabilityEndDate}
-                                min={availabilityStartDate}
-                                placeholder="Pick date"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="rounded-md border bg-emerald-500/10 px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">Available</p>
-                          <p className="text-sm font-semibold text-emerald-700">
-                            {availabilitySummary.availableRooms}
-                          </p>
-                        </div>
-                        <div className="rounded-md border bg-amber-500/10 px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">Booked</p>
-                          <p className="text-sm font-semibold text-amber-700">
-                            {availabilitySummary.bookedRooms}
-                          </p>
-                        </div>
-                        <div className="rounded-md border bg-muted px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">Total Rooms</p>
-                          <p className="text-sm font-semibold">{availabilitySummary.totalRooms}</p>
-                        </div>
-                      </div>
-
-                      {availabilityFocusedRoom && (
-                        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                          <p className="text-xs font-semibold">
-                            Bookings for Room {availabilityFocusedRoom}
-                          </p>
-                          {availabilityRoomBookings.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              No approved bookings overlap the selected dates.
-                            </p>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {availabilityRoomBookings.map((b) => (
-                                <div key={b.id} className="rounded-md border bg-background px-2 py-1.5 text-xs">
-                                  <p className="font-medium">{b.guest_name}</p>
-                                  <p className="text-muted-foreground">
-                                    {b.check_in_date} to {b.check_out_date}
-                                    {" • "}
-                                    {b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold">Room Selection</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full bg-muted-foreground/60" />
-                          Booked
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full bg-emerald-600/70" />
-                          Available
-                        </span>
-                      </div>
-                      <div className="rounded-lg border p-3 space-y-3">
-                        {roomsByFloorForGuestHouse(availabilityGuestHouse).map((section) => (
-                          <div key={section.floor} className="space-y-1.5">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              Floor {section.floor}
-                            </p>
-                            <div className="grid grid-cols-8 gap-1">
-                              {section.rooms.map((room) => {
-                                const blocked = unavailableRoomsForAvailability.has(room);
-                                const roomBookings = availabilityRoomBookingMap.get(room) ?? [];
-                                return (
-                                  <button
-                                    key={room}
-                                    type="button"
-                                    onMouseEnter={() =>
-                                      blocked ? setAvailabilityFocusedRoom(room) : undefined
-                                    }
-                                    onFocus={() =>
-                                      blocked ? setAvailabilityFocusedRoom(room) : undefined
-                                    }
-                                    onClick={() =>
-                                      blocked ? setAvailabilityFocusedRoom(room) : undefined
-                                    }
-                                    title={blocked ? bookingTooltipText(roomBookings) : undefined}
-                                    className={`rounded border px-1 py-1 text-center text-[11px] font-medium ${
-                                      blocked
-                                        ? "border-muted bg-muted/40 text-muted-foreground line-through"
-                                        : "border-emerald-700/40 bg-emerald-600/10 text-emerald-800"
-                                    }`}
-                                  >
-                                    {room}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          </div>
+          <AdminRequestSchedulePanel
+            mode="guest_house"
+            className="mt-8 border-t border-border/80 pt-6"
+          />
         </TabsContent>
 
-        <TabsContent value="sports-requests" className="space-y-6">
-          <Tabs defaultValue="approvals" className="gap-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="approvals">Approval Status</TabsTrigger>
-              <TabsTrigger value="availability">Venue Availability</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="approvals" className="space-y-4">
+        <TabsContent value="request-sports-requests" className="mt-6 space-y-6">
+          <div className="space-y-6">
               <div className="rounded-xl border bg-muted/25 p-2.5">
                 <div className="grid grid-cols-4 gap-2">
                   {[
@@ -1578,7 +1157,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <div className="py-6">
                   <BookingCardsSkeleton count={4} />
                 </div>
-              ) : filterSportsByStatus(sportsStatusFilter).length === 0 ? (
+              ) : sortByCreatedAtAsc(filterSportsByStatus(sportsStatusFilter)).length === 0 ? (
                 <Card>
                   <CardContent className="py-10 text-center text-muted-foreground">
                     No sports bookings in this status.
@@ -1586,7 +1165,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </Card>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filterSportsByStatus(sportsStatusFilter).map((b) => (
+                  {sortByCreatedAtAsc(filterSportsByStatus(sportsStatusFilter)).map((b) => (
                     <Card key={b.id}>
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
@@ -1605,6 +1184,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         </p>
                         <p>{b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}</p>
                         {b.purpose && <p className="text-foreground">{b.purpose}</p>}
+                        <p className="text-xs text-muted-foreground">
+                          Submitted at {formatSubmittedAt(b.created_at)}
+                        </p>
                         <div className="flex flex-wrap gap-2 pt-1">
                           <Button
                             size="sm"
@@ -1636,106 +1218,29 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="availability" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Venue Availability</CardTitle>
-                  <CardDescription>
-                    Select sport, date and time to see booked vs available courts/ground.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-                    <div className="rounded-xl border p-4 space-y-4">
-                      <p className="text-sm font-semibold">Availability Details</p>
-                      <div className="space-y-3">
-                        <div className="space-y-1.5">
-                          <Label>Sport</Label>
-                          <Select
-                            value={sportsAvailabilitySport}
-                            onValueChange={(v) => setSportsAvailabilitySport(v as SportType)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue>{SPORT_LABELS[sportsAvailabilitySport]}</SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="badminton">Badminton</SelectItem>
-                              <SelectItem value="cricket">Cricket</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Date</Label>
-                          <DatePicker
-                            value={sportsAvailabilityDate}
-                            onChange={setSportsAvailabilityDate}
-                            placeholder="Pick date"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <TimeRangeSelect
-                            startValue={sportsAvailabilityStart}
-                            endValue={sportsAvailabilityEnd}
-                            onStartChange={setSportsAvailabilityStart}
-                            onEndChange={setSportsAvailabilityEnd}
-                            startLabel={<Label>Start Time</Label>}
-                            endLabel={<Label>End Time</Label>}
-                            stepMinutes={60}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold">Venue Selection</p>
-                        <span className="text-xs text-muted-foreground">
-                          {SPORT_LABELS[sportsAvailabilitySport]}
-                        </span>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {venuesForSport(sportsAvailabilitySport).map((venue) => {
-                          const bookings = sportsAvailabilityBlockedMap.get(venue) ?? [];
-                          const blocked = bookings.length > 0;
-                          return (
-                            <div
-                              key={venue}
-                              className={`rounded-lg border px-3 py-2 text-sm ${
-                                blocked
-                                  ? "border-muted bg-muted/40 text-muted-foreground"
-                                  : "border-emerald-700/40 bg-emerald-600/10 text-emerald-800"
-                              }`}
-                              title={
-                                blocked
-                                  ? bookings
-                                      .map(
-                                        (b) =>
-                                          `${b.requester?.full_name ?? b.requester_email ?? "Unknown"}: ${b.start_time.slice(0, 5)}-${b.end_time.slice(0, 5)}`
-                                      )
-                                      .join("\n")
-                                  : ""
-                              }
-                            >
-                              <p className="font-medium">{SPORTS_VENUE_LABELS[venue]}</p>
-                              <p className="text-xs">{blocked ? "Booked" : "Available"}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          </div>
+          <AdminRequestSchedulePanel
+            mode="sports"
+            className="mt-8 border-t border-border/80 pt-6"
+          />
         </TabsContent>
 
-        <TabsContent value="campus-requests" className="space-y-6">
-          <AdminCampusTab profile={profile} />
+        <TabsContent value="request-campus-leave" className="mt-6 space-y-6">
+          <AdminCampusApprovalSection profile={profile} kind="leave" />
         </TabsContent>
-          </Tabs>
+        <TabsContent value="request-campus-facilities" className="mt-6 space-y-6">
+          <AdminCampusApprovalSection profile={profile} kind="facilities" />
+          <AdminRequestSchedulePanel
+            mode="facility"
+            className="mt-8 border-t border-border/80 pt-6"
+          />
+        </TabsContent>
+        <TabsContent value="request-campus-mess" className="mt-6 space-y-6">
+          <AdminCampusApprovalSection profile={profile} kind="mess" />
+        </TabsContent>
+        <TabsContent value="request-campus-health" className="mt-6 space-y-6">
+          <AdminCampusApprovalSection profile={profile} kind="health" />
+          <AdminRequestSchedulePanel mode="health" className="mt-8 border-t border-border/80 pt-6" />
         </TabsContent>
 
         {/* ========== ENROLLMENTS TAB ========== */}

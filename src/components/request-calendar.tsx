@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  combineDateAndTimeLocal,
   FACILITY_TYPE_LABELS,
   facilityVenueLabel,
 } from "@/lib/campus-use-cases";
@@ -371,14 +372,14 @@ export function RequestCalendar({
   const canBookSlots = Boolean(onSelectSlot && bookingClassroomId);
   const slotSelectionActive = canBookSlots && (view === "week" || view === "day");
 
-  /** Match BookedSchedule: 8:00–23:00 (week/day time grid) */
+  /** Full 24h day in the time grid */
   const { min, max } = useMemo(() => {
     const base = new Date();
     base.setSeconds(0, 0);
     const minD = new Date(base);
-    minD.setHours(8, 0, 0, 0);
+    minD.setHours(0, 0, 0, 0);
     const maxD = new Date(base);
-    maxD.setHours(23, 0, 0, 0);
+    maxD.setHours(23, 59, 59, 999);
     return { min: minD, max: maxD };
   }, []);
 
@@ -393,8 +394,8 @@ export function RequestCalendar({
   const events: CalEvent[] = useMemo(() => {
     const classEvents: CalEvent[] = bookings.map((b) => ({
       title: b.title,
-      start: new Date(`${b.event_date}T${b.start_time}`),
-      end: new Date(`${b.event_date}T${b.end_time}`),
+      start: combineDateAndTimeLocal(b.event_date, b.start_time),
+      end: combineDateAndTimeLocal(b.event_date, b.end_time),
       allDay: false,
       meta: {
         kind: "class" as const,
@@ -425,8 +426,8 @@ export function RequestCalendar({
         const venue = facilityVenueLabel(b.facility_type, b.venue_code);
         return {
           title: `${typeLabel} · ${venue}`,
-          start: new Date(`${b.booking_date}T${b.start_time}`),
-          end: new Date(`${b.booking_date}T${b.end_time}`),
+          start: combineDateAndTimeLocal(b.booking_date, b.start_time),
+          end: combineDateAndTimeLocal(b.booking_date, b.end_time),
           allDay: false,
           meta: { kind: "facility" as const, booking: b },
         };

@@ -224,6 +224,19 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
     }
     setLSubmit(true);
     const supabase = createClient();
+    const { data: approvedLeaves } = await supabase
+      .from("student_leave_requests")
+      .select("id, start_date, end_date")
+      .eq("student_id", profile.id)
+      .eq("status", "approved");
+    const overlapsApproved = (approvedLeaves ?? []).some(
+      (row) => lStart <= row.end_date && row.start_date <= lEnd
+    );
+    if (overlapsApproved) {
+      toast.error("You already have approved leave that overlaps these dates.");
+      setLSubmit(false);
+      return;
+    }
     const { error } = await supabase.from("student_leave_requests").insert({
       student_id: profile.id,
       start_date: lStart,
@@ -287,6 +300,21 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
     }
     setMSubmit(true);
     const supabase = createClient();
+    const { data: approvedMess } = await supabase
+      .from("mess_extra_requests")
+      .select("id")
+      .eq("student_id", profile.id)
+      .eq("meal_date", mDate)
+      .eq("meal_period", mPeriod)
+      .eq("status", "approved")
+      .maybeSingle();
+    if (approvedMess) {
+      toast.error(
+        "You already have an approved mess request for this meal date and period."
+      );
+      setMSubmit(false);
+      return;
+    }
     const { error } = await supabase.from("mess_extra_requests").insert({
       student_id: profile.id,
       meal_date: mDate,

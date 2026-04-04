@@ -26,6 +26,7 @@ import {
   ScanFace,
   X,
   Trophy,
+  FileCheck2,
 } from "lucide-react";
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import type { CalendarSlotInfo } from "@/components/request-calendar";
@@ -53,11 +54,13 @@ import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import {
   SPORT_LABELS,
   SPORTS_VENUE_LABELS,
+  sportsBookingsVisibleOrFilter,
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
 import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 import { cn } from "@/lib/utils";
+import { AnswerScriptsEvaluation } from "@/components/answer-scripts-evaluation/answer-scripts-evaluation";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
@@ -174,7 +177,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         const { data } = await supabase
           .from("sports_bookings")
           .select("*")
-          .or(`requester_id.eq.${profile.id},requester_email.eq.${profile.email}`)
+          .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
           .order("created_at", { ascending: false });
         setSportsBookings((data as SportsBooking[]) ?? []);
       } catch (error) {
@@ -371,7 +374,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     const { data } = await supabase
       .from("sports_bookings")
       .select("*")
-      .or(`requester_id.eq.${profile.id},requester_email.eq.${profile.email}`)
+      .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
       .order("created_at", { ascending: false });
     setSportsBookings((data as SportsBooking[]) ?? []);
   }
@@ -482,6 +485,21 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                     Campus facilities
                   </span>
                 </TabsTrigger>
+                <TabsTrigger
+                  value="script-evaluation"
+                  title="Answer scripts evaluation"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <FileCheck2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Script evaluation
+                  </span>
+                </TabsTrigger>
               </TabsList>
             </div>
           </div>
@@ -560,6 +578,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       <Building2 className="h-4 w-4" />
                       Campus facilities
                     </TabsTrigger>
+                    <TabsTrigger
+                      value="script-evaluation"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <FileCheck2 className="h-4 w-4" />
+                      Script evaluation
+                    </TabsTrigger>
                   </TabsList>
                 </aside>
               </>
@@ -584,6 +610,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
               <TabsTrigger value="campus" className="gap-1.5">
                 <Building2 className="h-4 w-4" />
                 Campus facilities
+              </TabsTrigger>
+              <TabsTrigger value="script-evaluation" className="gap-1.5">
+                <FileCheck2 className="h-4 w-4" />
+                Script evaluation
               </TabsTrigger>
             </TabsList>
 
@@ -823,34 +853,53 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {sportsBookings.map((b) => (
-                <Card key={b.id}>
-                  <CardContent className="pt-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium">{SPORT_LABELS[b.sport]}</p>
-                      <Badge className={b.status === "approved" ? "bg-accent/15 text-accent-foreground" : b.status === "rejected" ? "bg-destructive/10 text-destructive" : b.status === "clarification_needed" ? "bg-primary/10 text-primary" : "bg-yellow-100 text-yellow-800"}>
-                        {formatStatusLabel(b.status)}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{SPORTS_VENUE_LABELS[b.venue_code]}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
-                    </p>
-                    {b.purpose && <p className="text-sm">{b.purpose}</p>}
-                    {b.admin_note && (
-                      <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
-                        Admin note: {b.admin_note}
+              {sportsBookings.map((b) => {
+                const isMine =
+                  b.requester_id === profile.id ||
+                  (Boolean(b.requester_email) && b.requester_email === profile.email);
+                return (
+                  <Card key={b.id}>
+                    <CardContent className="pt-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">{SPORT_LABELS[b.sport]}</p>
+                        <Badge className={b.status === "approved" ? "bg-accent/15 text-accent-foreground" : b.status === "rejected" ? "bg-destructive/10 text-destructive" : b.status === "clarification_needed" ? "bg-primary/10 text-primary" : "bg-yellow-100 text-yellow-800"}>
+                          {formatStatusLabel(b.status)}
+                        </Badge>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      <p className="text-sm text-muted-foreground">{SPORTS_VENUE_LABELS[b.venue_code]}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
+                      </p>
+                      {b.purpose && <p className="text-sm">{b.purpose}</p>}
+                      {!isMine && (
+                        <p className="text-xs text-muted-foreground">
+                          Booked by a{" "}
+                          {b.requester_role === "professor" ? "professor" : "student"}
+                        </p>
+                      )}
+                      {b.admin_note && (
+                        <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                          Admin note: {b.admin_note}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="campus" className="mt-6">
           <ProfessorCampusTab profile={profile} />
+        </TabsContent>
+
+        <TabsContent value="script-evaluation" className="mt-6 min-h-0">
+          <div className="rounded-xl border border-border bg-card min-w-0 max-w-full overflow-hidden">
+            <div className="max-h-[min(calc(100dvh-11rem),920px)] overflow-y-auto overflow-x-hidden p-4 md:p-6">
+              <AnswerScriptsEvaluation />
+            </div>
+          </div>
         </TabsContent>
         </div>
     </Tabs>

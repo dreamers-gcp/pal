@@ -35,3 +35,15 @@ export function isTimeOverlap(
 ): boolean {
   return startA < endB && startB < endA;
 }
+
+/**
+ * PostgREST `.or()` filter for listing sports bookings: every **approved** row (any requester)
+ * plus the signed-in user’s own rows at any status. Students and professors then see each
+ * other’s approved slots in the same list (RLS must allow `status = approved` reads).
+ */
+export function sportsBookingsVisibleOrFilter(
+  profileId: string,
+  profileEmail: string
+): string {
+  return `status.eq.approved,requester_id.eq.${profileId},requester_email.eq.${profileEmail}`;
+}

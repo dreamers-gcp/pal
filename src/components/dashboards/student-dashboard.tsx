@@ -55,6 +55,7 @@ import {
 import {
   SPORT_LABELS,
   SPORTS_VENUE_LABELS,
+  sportsBookingsVisibleOrFilter,
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
@@ -328,7 +329,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         const { data } = await supabase
           .from("sports_bookings")
           .select("*")
-          .or(`requester_id.eq.${profile.id},requester_email.eq.${profile.email}`)
+          .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
           .order("created_at", { ascending: false });
         setSportsBookings((data as SportsBooking[]) ?? []);
       } catch (error) {
@@ -542,7 +543,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     const { data } = await supabase
       .from("sports_bookings")
       .select("*")
-      .or(`requester_id.eq.${profile.id},requester_email.eq.${profile.email}`)
+      .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
       .order("created_at", { ascending: false });
     setSportsBookings((data as SportsBooking[]) ?? []);
   }
@@ -1003,16 +1004,14 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
               <CardContent className="py-4">
                 <p className="text-sm text-muted-foreground">
                   <GraduationCap className="inline h-4 w-4 mr-1 align-text-bottom" />
-                  No class groups yet — you&apos;ll see scheduled classes here once an admin assigns your roster.
-                  Your personal tasks from the Task Tracker still appear below.
+                  No class groups assigned yet — the calendar still shows approved campus bookings for
+                  everyone; subject filters and group-linked features unlock once your roster is set.
+                  Your Task Tracker tasks appear on the same calendar.
                 </p>
               </CardContent>
             </Card>
           )}
-          <StudentCalendar
-            studentGroupIds={filteredGroupIds}
-            studentId={profile.id}
-          />
+          <StudentCalendar studentId={profile.id} />
         </TabsContent>
 
         <TabsContent value="guest-house" className="mt-3 space-y-4">
@@ -1288,40 +1287,51 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {sportsBookings.map((b) => (
-                <Card key={b.id}>
-                  <CardContent className="pt-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium">{SPORT_LABELS[b.sport]}</p>
-                      <Badge
-                        className={
-                          b.status === "approved"
-                            ? "bg-accent/15 text-accent-foreground"
-                            : b.status === "rejected"
-                              ? "bg-destructive/10 text-destructive"
-                              : b.status === "clarification_needed"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-yellow-100 text-yellow-800"
-                        }
-                      >
-                        {formatGuestStatusLabel(b.status)}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {SPORTS_VENUE_LABELS[b.venue_code]}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
-                    </p>
-                    {b.purpose && <p className="text-sm">{b.purpose}</p>}
-                    {b.admin_note && (
-                      <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
-                        Admin note: {b.admin_note}
+              {sportsBookings.map((b) => {
+                const isMine =
+                  b.requester_id === profile.id ||
+                  (Boolean(b.requester_email) && b.requester_email === profile.email);
+                return (
+                  <Card key={b.id}>
+                    <CardContent className="pt-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">{SPORT_LABELS[b.sport]}</p>
+                        <Badge
+                          className={
+                            b.status === "approved"
+                              ? "bg-accent/15 text-accent-foreground"
+                              : b.status === "rejected"
+                                ? "bg-destructive/10 text-destructive"
+                                : b.status === "clarification_needed"
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-yellow-100 text-yellow-800"
+                          }
+                        >
+                          {formatGuestStatusLabel(b.status)}
+                        </Badge>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      <p className="text-sm text-muted-foreground">
+                        {SPORTS_VENUE_LABELS[b.venue_code]}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
+                      </p>
+                      {b.purpose && <p className="text-sm">{b.purpose}</p>}
+                      {!isMine && (
+                        <p className="text-xs text-muted-foreground">
+                          Booked by a{" "}
+                          {b.requester_role === "professor" ? "professor" : "student"}
+                        </p>
+                      )}
+                      {b.admin_note && (
+                        <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                          Admin note: {b.admin_note}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>

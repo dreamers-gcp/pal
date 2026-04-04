@@ -1,9 +1,9 @@
 "use client";
 
 import { format } from "date-fns";
-import { CalendarDays, Clock, MapPin, User, Users } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Send, User, Users } from "lucide-react";
 import type { CalendarRequest, RequestStatus } from "@/lib/types";
-import { toTitleCase } from "@/lib/utils";
+import { formatSubmittedAt, toTitleCase } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +124,12 @@ export function RequestCard({
             <MapPin className="h-4 w-4 shrink-0 text-muted-foreground/70" />
             <span className="truncate">
               {toTitleCase(request.classroom?.name ?? "—")}
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5 text-muted-foreground">
+            <Send className="h-4 w-4 shrink-0 text-muted-foreground/70" />
+            <span className="text-xs">
+              Submitted at {formatSubmittedAt(request.created_at)}
             </span>
           </div>
         </div>

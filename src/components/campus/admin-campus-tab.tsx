@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   AppointmentBooking,
@@ -19,8 +19,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { Inbox } from "lucide-react";
 import {
   APPOINTMENT_PROVIDER_LABELS,
   FACILITY_TYPE_LABELS,
@@ -28,7 +28,8 @@ import {
   facilityVenueLabel,
   timeSlice,
 } from "@/lib/campus-use-cases";
-import { CampusRequestsSkeleton } from "@/components/ui/loading-skeletons";
+import { BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
+import { formatSubmittedAt, sortByCreatedAtAsc } from "@/lib/utils";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -42,119 +43,108 @@ function fmt(s: RequestStatus): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-type Filter = "pending" | "approved" | "rejected" | "clarification_needed" | "all";
+export type CampusApprovalKind = "leave" | "facilities" | "mess" | "health";
 
-function filterRows<T extends { status: RequestStatus }>(rows: T[], f: Filter): T[] {
-  if (f === "all") return rows;
+type StatusFilter = "pending" | "approved" | "rejected" | "clarification_needed";
+
+const STAT_CONFIG: {
+  label: string;
+  value: StatusFilter;
+  color: string;
+  chip: string;
+}[] = [
+  { label: "Pending", value: "pending", color: "text-yellow-700", chip: "bg-yellow-100" },
+  {
+    label: "Approved",
+    value: "approved",
+    color: "text-accent-foreground",
+    chip: "bg-accent/20",
+  },
+  { label: "Rejected", value: "rejected", color: "text-destructive", chip: "bg-destructive/10" },
+  {
+    label: "Clarification",
+    value: "clarification_needed",
+    color: "text-primary",
+    chip: "bg-primary/10",
+  },
+];
+
+function filterByStatus<T extends { status: RequestStatus }>(
+  rows: T[],
+  f: StatusFilter
+): T[] {
   return rows.filter((r) => r.status === f);
 }
 
-const statButtons: { label: string; value: Filter }[] = [
-  { label: "Pending", value: "pending" },
-  { label: "Approved", value: "approved" },
-  { label: "Rejected", value: "rejected" },
-  { label: "Clarification", value: "clarification_needed" },
-];
-
-function StatusStrip({
-  value,
-  onChange,
-  counts,
-}: {
-  value: Filter;
-  onChange: (f: Filter) => void;
-  counts: Record<Filter, number>;
-}) {
-  return (
-    <div className="rounded-xl border bg-muted/25 p-2.5">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {statButtons.map((stat) => (
-          <button
-            key={stat.value}
-            type="button"
-            onClick={() => onChange(stat.value)}
-            className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-colors ${
-              value === stat.value
-                ? "border-primary/50 bg-primary/5"
-                : "bg-background hover:bg-muted/40"
-            }`}
-          >
-            <span className="text-xs text-muted-foreground">{stat.label}</span>
-            <span
-              className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${statusColors[stat.value] ?? "bg-muted"}`}
-            >
-              {counts[stat.value]}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+function countByStatus(rows: { status: RequestStatus }[], s: StatusFilter): number {
+  return rows.filter((r) => r.status === s).length;
 }
 
-export function AdminCampusTab({ profile }: { profile: Profile }) {
+const TABLE: Record<CampusApprovalKind, string> = {
+  leave: "student_leave_requests",
+  facilities: "facility_bookings",
+  mess: "mess_extra_requests",
+  health: "appointment_bookings",
+};
+
+/**
+ * Admin approval UI for one campus request type — same pattern as guest house / sports tabs.
+ */
+export function AdminCampusApprovalSection({
+  profile,
+  kind,
+}: {
+  profile: Profile;
+  kind: CampusApprovalKind;
+}) {
   const [leaves, setLeaves] = useState<StudentLeaveRequest[]>([]);
   const [facilities, setFacilities] = useState<FacilityBooking[]>([]);
   const [mess, setMess] = useState<MessExtraRequest[]>([]);
   const [appts, setAppts] = useState<AppointmentBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
-
-  const [fLeave, setFLeave] = useState<Filter>("pending");
-  const [fFac, setFFac] = useState<Filter>("pending");
-  const [fMess, setFMess] = useState<Filter>("pending");
-  const [fAppt, setFAppt] = useState<Filter>("pending");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
 
   const reload = useCallback(async () => {
+    setLoading(true);
     const supabase = createClient();
-    const [lr, fr, mr, ar] = await Promise.all([
-      supabase
+    if (kind === "leave") {
+      const { data } = await supabase
         .from("student_leave_requests")
         .select("*, student:profiles!student_leave_requests_student_id_fkey(*)")
-        .order("created_at", { ascending: false }),
-      supabase
+        .order("created_at", { ascending: false });
+      setLeaves((data as StudentLeaveRequest[]) ?? []);
+    } else if (kind === "facilities") {
+      const { data } = await supabase
         .from("facility_bookings")
         .select("*, requester:profiles!facility_bookings_requester_id_fkey(*)")
-        .order("created_at", { ascending: false }),
-      supabase
+        .order("created_at", { ascending: false });
+      setFacilities((data as FacilityBooking[]) ?? []);
+    } else if (kind === "mess") {
+      const { data } = await supabase
         .from("mess_extra_requests")
         .select("*, student:profiles!mess_extra_requests_student_id_fkey(*)")
-        .order("created_at", { ascending: false }),
-      supabase
+        .order("created_at", { ascending: false });
+      setMess((data as MessExtraRequest[]) ?? []);
+    } else {
+      const { data } = await supabase
         .from("appointment_bookings")
         .select("*, student:profiles!appointment_bookings_student_id_fkey(*)")
-        .order("created_at", { ascending: false }),
-    ]);
-    setLeaves((lr.data as StudentLeaveRequest[]) ?? []);
-    setFacilities((fr.data as FacilityBooking[]) ?? []);
-    setMess((mr.data as MessExtraRequest[]) ?? []);
-    setAppts((ar.data as AppointmentBooking[]) ?? []);
+        .order("created_at", { ascending: false });
+      setAppts((data as AppointmentBooking[]) ?? []);
+    }
     setLoading(false);
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  function counts<T extends { status: RequestStatus }>(rows: T[]): Record<Filter, number> {
-    return {
-      pending: rows.filter((r) => r.status === "pending").length,
-      approved: rows.filter((r) => r.status === "approved").length,
-      rejected: rows.filter((r) => r.status === "rejected").length,
-      clarification_needed: rows.filter((r) => r.status === "clarification_needed").length,
-      all: rows.length,
-    };
-  }
-
-  async function patch(
-    table: string,
-    id: string,
-    status: RequestStatus
-  ) {
+  async function patch(id: string, status: RequestStatus) {
     setUpdating(id);
     const supabase = createClient();
     const { error } = await supabase
-      .from(table)
+      .from(TABLE[kind])
       .update({
         status,
         reviewed_by: profile.id,
@@ -170,36 +160,118 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
     reload();
   }
 
-  const leaveCounts = counts(leaves);
-  const facCounts = counts(facilities);
-  const messCounts = counts(mess);
-  const apptCounts = counts(appts);
+  const rowsForCounts = useMemo((): { status: RequestStatus }[] => {
+    if (kind === "leave") return leaves;
+    if (kind === "facilities") return facilities;
+    if (kind === "mess") return mess;
+    return appts;
+  }, [kind, leaves, facilities, mess, appts]);
+
+  const filteredLeaves = useMemo(
+    () => filterByStatus(leaves, statusFilter),
+    [leaves, statusFilter]
+  );
+  const filteredFacilities = useMemo(
+    () => filterByStatus(facilities, statusFilter),
+    [facilities, statusFilter]
+  );
+  const filteredMess = useMemo(
+    () => filterByStatus(mess, statusFilter),
+    [mess, statusFilter]
+  );
+  const filteredAppts = useMemo(
+    () => filterByStatus(appts, statusFilter),
+    [appts, statusFilter]
+  );
+
+  const sortedLeaves = useMemo(
+    () => sortByCreatedAtAsc(filteredLeaves),
+    [filteredLeaves]
+  );
+  const sortedFacilities = useMemo(
+    () => sortByCreatedAtAsc(filteredFacilities),
+    [filteredFacilities]
+  );
+  const sortedMess = useMemo(
+    () => sortByCreatedAtAsc(filteredMess),
+    [filteredMess]
+  );
+  const sortedAppts = useMemo(
+    () => sortByCreatedAtAsc(filteredAppts),
+    [filteredAppts]
+  );
+
+  const emptyMessage =
+    kind === "leave"
+      ? "No leave requests in this status."
+      : kind === "facilities"
+        ? "No facility bookings in this status."
+        : kind === "mess"
+          ? "No mess extra-guest requests in this status."
+          : "No appointment requests in this status.";
 
   return (
-    <Tabs defaultValue="leave" className="gap-4">
-      <TabsList className="flex w-full flex-wrap h-auto gap-1">
-        <TabsTrigger value="leave">Leave ({leaves.length})</TabsTrigger>
-        <TabsTrigger value="facilities">Facilities ({facilities.length})</TabsTrigger>
-        <TabsTrigger value="mess">Mess ({mess.length})</TabsTrigger>
-        <TabsTrigger value="health">Counsellor / Doctors ({appts.length})</TabsTrigger>
-      </TabsList>
+    <div className="space-y-6">
+      <div className="rounded-xl border bg-muted/25 p-2.5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {STAT_CONFIG.map((stat) => (
+            <button
+              key={stat.value}
+              type="button"
+              onClick={() => setStatusFilter(stat.value)}
+              className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-colors ${
+                statusFilter === stat.value
+                  ? "border-primary/50 bg-primary/5"
+                  : "bg-background hover:bg-muted/40"
+              }`}
+            >
+              <span className="text-xs text-muted-foreground">{stat.label}</span>
+              <span
+                className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}
+              >
+                {countByStatus(rowsForCounts, stat.value)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <TabsContent value="leave" className="space-y-4">
-        <StatusStrip value={fLeave} onChange={setFLeave} counts={leaveCounts} />
-        {loading ? (
-          <div className="py-2" aria-busy>
-            <span className="sr-only">Loading leave requests</span>
-            <CampusRequestsSkeleton />
-          </div>
-        ) : filterRows(leaves, fLeave).length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              No leave requests.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {filterRows(leaves, fLeave).map((r) => (
+      {loading ? (
+        <div className="py-6">
+          <BookingCardsSkeleton count={4} />
+        </div>
+      ) : kind === "leave" && sortedLeaves.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Inbox className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">{emptyMessage}</p>
+          </CardContent>
+        </Card>
+      ) : kind === "facilities" && sortedFacilities.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Inbox className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">{emptyMessage}</p>
+          </CardContent>
+        </Card>
+      ) : kind === "mess" && sortedMess.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Inbox className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">{emptyMessage}</p>
+          </CardContent>
+        </Card>
+      ) : kind === "health" && sortedAppts.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Inbox className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">{emptyMessage}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {kind === "leave" &&
+            sortedLeaves.map((r) => (
               <Card key={r.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
@@ -213,13 +285,16 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
+                  <p className="text-xs text-muted-foreground">
+                    Submitted at {formatSubmittedAt(r.created_at)}
+                  </p>
                   {r.reason && <p>{r.reason}</p>}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("student_leave_requests", r.id, "approved")}
+                      onClick={() => patch(r.id, "approved")}
                     >
                       Approve
                     </Button>
@@ -227,7 +302,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("student_leave_requests", r.id, "rejected")}
+                      onClick={() => patch(r.id, "rejected")}
                     >
                       Reject
                     </Button>
@@ -235,9 +310,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() =>
-                        patch("student_leave_requests", r.id, "clarification_needed")
-                      }
+                      onClick={() => patch(r.id, "clarification_needed")}
                     >
                       Clarify
                     </Button>
@@ -245,26 +318,8 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        )}
-      </TabsContent>
-
-      <TabsContent value="facilities" className="space-y-4">
-        <StatusStrip value={fFac} onChange={setFFac} counts={facCounts} />
-        {loading ? (
-          <div className="py-2" aria-busy>
-            <span className="sr-only">Loading facility requests</span>
-            <CampusRequestsSkeleton />
-          </div>
-        ) : filterRows(facilities, fFac).length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              No facility bookings (auditorium, computer hall, board room, conference).
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {filterRows(facilities, fFac).map((b) => (
+          {kind === "facilities" &&
+            sortedFacilities.map((b) => (
               <Card key={b.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
@@ -280,13 +335,16 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
+                  <p className="text-xs text-muted-foreground">
+                    Submitted at {formatSubmittedAt(b.created_at)}
+                  </p>
                   {b.purpose && <p>{b.purpose}</p>}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={updating === b.id}
-                      onClick={() => patch("facility_bookings", b.id, "approved")}
+                      onClick={() => patch(b.id, "approved")}
                     >
                       Approve
                     </Button>
@@ -294,7 +352,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === b.id}
-                      onClick={() => patch("facility_bookings", b.id, "rejected")}
+                      onClick={() => patch(b.id, "rejected")}
                     >
                       Reject
                     </Button>
@@ -302,7 +360,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === b.id}
-                      onClick={() => patch("facility_bookings", b.id, "clarification_needed")}
+                      onClick={() => patch(b.id, "clarification_needed")}
                     >
                       Clarify
                     </Button>
@@ -310,26 +368,8 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        )}
-      </TabsContent>
-
-      <TabsContent value="mess" className="space-y-4">
-        <StatusStrip value={fMess} onChange={setFMess} counts={messCounts} />
-        {loading ? (
-          <div className="py-2" aria-busy>
-            <span className="sr-only">Loading mess requests</span>
-            <CampusRequestsSkeleton />
-          </div>
-        ) : filterRows(mess, fMess).length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              No mess extra-guest requests.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {filterRows(mess, fMess).map((r) => (
+          {kind === "mess" &&
+            sortedMess.map((r) => (
               <Card key={r.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
@@ -344,13 +384,16 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
+                  <p className="text-xs text-muted-foreground">
+                    Submitted at {formatSubmittedAt(r.created_at)}
+                  </p>
                   {r.notes && <p>{r.notes}</p>}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("mess_extra_requests", r.id, "approved")}
+                      onClick={() => patch(r.id, "approved")}
                     >
                       Approve
                     </Button>
@@ -358,7 +401,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("mess_extra_requests", r.id, "rejected")}
+                      onClick={() => patch(r.id, "rejected")}
                     >
                       Reject
                     </Button>
@@ -366,7 +409,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("mess_extra_requests", r.id, "clarification_needed")}
+                      onClick={() => patch(r.id, "clarification_needed")}
                     >
                       Clarify
                     </Button>
@@ -374,26 +417,8 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        )}
-      </TabsContent>
-
-      <TabsContent value="health" className="space-y-4">
-        <StatusStrip value={fAppt} onChange={setFAppt} counts={apptCounts} />
-        {loading ? (
-          <div className="py-2" aria-busy>
-            <span className="sr-only">Loading appointment requests</span>
-            <CampusRequestsSkeleton />
-          </div>
-        ) : filterRows(appts, fAppt).length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              No appointment requests.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {filterRows(appts, fAppt).map((r) => (
+          {kind === "health" &&
+            sortedAppts.map((r) => (
               <Card key={r.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
@@ -408,13 +433,16 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
+                  <p className="text-xs text-muted-foreground">
+                    Submitted at {formatSubmittedAt(r.created_at)}
+                  </p>
                   {r.notes && <p>{r.notes}</p>}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("appointment_bookings", r.id, "approved")}
+                      onClick={() => patch(r.id, "approved")}
                     >
                       Approve
                     </Button>
@@ -422,7 +450,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() => patch("appointment_bookings", r.id, "rejected")}
+                      onClick={() => patch(r.id, "rejected")}
                     >
                       Reject
                     </Button>
@@ -430,9 +458,7 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                       size="sm"
                       variant="outline"
                       disabled={updating === r.id}
-                      onClick={() =>
-                        patch("appointment_bookings", r.id, "clarification_needed")
-                      }
+                      onClick={() => patch(r.id, "clarification_needed")}
                     >
                       Clarify
                     </Button>
@@ -440,9 +466,8 @@ export function AdminCampusTab({ profile }: { profile: Profile }) {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        )}
-      </TabsContent>
-    </Tabs>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,23 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
-import type { CalendarRequest, Classroom, StudentTask } from "@/lib/types";
+import type {
+  CalendarRequest,
+  Classroom,
+  FacilityBooking,
+  StudentTask,
+} from "@/lib/types";
 import { RequestCalendar } from "@/components/request-calendar";
 
 interface StudentCalendarProps {
-  studentGroupIds: string[];
   studentId: string;
 }
 
-export function StudentCalendar({
-  studentGroupIds,
-  studentId,
-}: StudentCalendarProps) {
+export function StudentCalendar({ studentId }: StudentCalendarProps) {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [bookings, setBookings] = useState<CalendarRequest[]>([]);
+  const [facilityBookings, setFacilityBookings] = useState<FacilityBooking[]>([]);
   const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+  const [loadingFacility, setLoadingFacility] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(true);
 
   const fetchStudentTasks = useCallback(async () => {
@@ -53,72 +57,82 @@ export function StudentCalendar({
   }, [fetchStudentTasks]);
 
   useEffect(() => {
-    const onTasksChanged = () => {
+    function onTasksChanged() {
       void fetchStudentTasks();
-    };
+    }
     window.addEventListener("pal:student-tasks-changed", onTasksChanged);
     return () =>
       window.removeEventListener("pal:student-tasks-changed", onTasksChanged);
   }, [fetchStudentTasks]);
 
+  /** Same window as professor “All rooms”: campus-wide approved bookings (not limited to the student’s groups). */
   useEffect(() => {
-    if (studentGroupIds.length === 0) {
-      setBookings([]);
-      setLoadingBookings(false);
-      return;
-    }
     const supabase = createClient();
+    const from = format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd");
+    const to = format(endOfMonth(addMonths(new Date(), 5)), "yyyy-MM-dd");
+
     setLoadingBookings(true);
-    async function fetchBookings() {
-      const { data: direct } = await supabase
-        .from("calendar_requests")
-        .select(
-          "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
-        )
-        .eq("status", "approved")
-        .in("student_group_id", studentGroupIds)
-        .order("event_date", { ascending: true })
-        .order("start_time", { ascending: true });
+    setLoadingFacility(true);
 
-      const { data: links } = await supabase
-        .from("calendar_request_groups")
-        .select("calendar_request_id")
-        .in("student_group_id", studentGroupIds);
+    supabase
+      .from("calendar_requests")
+      .select(
+        "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*), student_groups:calendar_request_groups(student_group:student_groups(*))"
+      )
+      .eq("status", "approved")
+      .gte("event_date", from)
+      .lte("event_date", to)
+      .order("event_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setBookings([]);
+        } else {
+          const transformed = (data ?? []).map((req: any) => ({
+            ...req,
+            student_groups:
+              req.student_groups?.map((sg: any) => sg.student_group) || [],
+          }));
+          setBookings(transformed);
+        }
+        setLoadingBookings(false);
+      });
 
-      const directIds = new Set((direct ?? []).map((e) => e.id));
-      const extraIds = (links ?? [])
-        .map((l) => l.calendar_request_id)
-        .filter((id) => !directIds.has(id));
+    supabase
+      .from("facility_bookings")
+      .select("*, requester:profiles!facility_bookings_requester_id_fkey(*)")
+      .eq("status", "approved")
+      .gte("booking_date", from)
+      .lte("booking_date", to)
+      .order("booking_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          setFacilityBookings([]);
+        } else {
+          setFacilityBookings((data as FacilityBooking[]) ?? []);
+        }
+        setLoadingFacility(false);
+      });
+  }, []);
 
-      let all = direct ?? [];
-      if (extraIds.length > 0) {
-        const { data: extra } = await supabase
-          .from("calendar_requests")
-          .select(
-            "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
-          )
-          .eq("status", "approved")
-          .in("id", extraIds)
-          .order("event_date", { ascending: true })
-          .order("start_time", { ascending: true });
-        if (extra) all = [...all, ...extra];
-      }
-
-      setBookings(all);
-      setLoadingBookings(false);
-    }
-
-    fetchBookings();
-  }, [studentGroupIds]);
-
-  const loading = loadingBookings || loadingTasks;
+  const loading = loadingBookings || loadingFacility || loadingTasks;
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Colored blocks are approved classroom sessions;{" "}
+        <span className="font-medium text-teal-700 dark:text-teal-400">teal</span> blocks are
+        approved facility bookings (auditorium, halls, rooms). Everyone sees the same occupied
+        slots.
+      </p>
       <RequestCalendar
         bookings={bookings}
         studentTasks={studentTasks}
         classrooms={classrooms}
+        facilityBookings={facilityBookings}
         loading={loading}
         colorBy="classroom"
         showDescription={false}
