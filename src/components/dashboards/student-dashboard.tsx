@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
   CalendarRequest,
   GuestHouseBooking,
-  GuestHouseCode,
   SportsBooking,
   SportType,
   SportsVenueCode,
@@ -48,14 +47,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { toast } from "sonner";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
-import {
-  GUEST_HOUSE_LABELS,
-  roomsByFloorForGuestHouse,
-} from "@/lib/guest-house";
+import { roomsNeededForGuestCount } from "@/lib/guest-house";
+import { GuestHouseAllocationReadout } from "@/components/guest-house-allocation-readout";
 import {
   SPORT_LABELS,
   SPORTS_VENUE_LABELS,
-  sportsBookingsVisibleOrFilter,
+  SPORT_TYPES_ORDER,
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
@@ -124,16 +121,15 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [guestSubmitting, setGuestSubmitting] = useState(false);
   const [guestName, setGuestName] = useState("");
   const [guestPurpose, setGuestPurpose] = useState("");
-  const [guestHouse, setGuestHouse] = useState<GuestHouseCode>("international_centre");
-  const [guestRoom, setGuestRoom] = useState("");
+  const [guestCount, setGuestCount] = useState(1);
+  const [guestRoomCount, setGuestRoomCount] = useState(1);
   const [guestCheckIn, setGuestCheckIn] = useState("");
   const [guestCheckOut, setGuestCheckOut] = useState("");
-  const [guestUnavailableRooms, setGuestUnavailableRooms] = useState<Set<string>>(new Set());
   const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
   const [sportsSubmitting, setSportsSubmitting] = useState(false);
-  const [sportType, setSportType] = useState<SportType>("badminton");
-  const [sportVenue, setSportVenue] = useState<SportsVenueCode>("badminton_court_1");
+  const [sportType, setSportType] = useState<SportType>("cricket");
+  const [sportVenue, setSportVenue] = useState<SportsVenueCode>("cricket_ground");
   const [sportDate, setSportDate] = useState("");
   const [sportStartTime, setSportStartTime] = useState("17:00");
   const [sportEndTime, setSportEndTime] = useState("18:00");
@@ -141,6 +137,31 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [unavailableSportsVenues, setUnavailableSportsVenues] = useState<Set<SportsVenueCode>>(new Set());
   /** Tick so "Upcoming" → "Ongoing" updates without navigating away. */
   const [now, setNow] = useState(() => new Date());
+
+  const guestRoomMin = useMemo(
+    () => roomsNeededForGuestCount(Math.max(1, Math.floor(Number(guestCount) || 1))),
+    [guestCount]
+  );
+  const prevGuestCountRef = useRef(guestCount);
+  const prevGuestRoomMinRef = useRef(guestRoomMin);
+  useEffect(() => {
+    const newMin = guestRoomMin;
+    const oldMin = prevGuestRoomMinRef.current;
+    const prevGuests = prevGuestCountRef.current;
+
+    setGuestRoomCount((prev) => {
+      if (guestCount !== prevGuests) {
+        if (guestCount < prevGuests && prev <= oldMin) {
+          return newMin;
+        }
+        return Math.max(newMin, prev);
+      }
+      return Math.max(newMin, prev);
+    });
+
+    prevGuestCountRef.current = guestCount;
+    prevGuestRoomMinRef.current = newMin;
+  }, [guestRoomMin, guestCount]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -329,7 +350,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         const { data } = await supabase
           .from("sports_bookings")
           .select("*")
-          .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
+          .eq("requester_id", profile.id)
           .order("created_at", { ascending: false });
         setSportsBookings((data as SportsBooking[]) ?? []);
       } catch (error) {
@@ -350,6 +371,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       setUnavailableSportsVenues(new Set());
       return;
     }
+    let cancelled = false;
     const supabase = createClient();
     supabase
       .from("sports_bookings")
@@ -357,15 +379,21 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       .eq("sport", sportType)
       .eq("booking_date", sportDate)
       .eq("status", "approved")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Sports availability check failed", error);
+          setUnavailableSportsVenues(new Set());
+          return;
+        }
         const blocked = new Set<SportsVenueCode>();
         for (const row of data ?? []) {
           if (
             isTimeOverlap(
               sportStartTime,
               sportEndTime,
-              row.start_time.slice(0, 5),
-              row.end_time.slice(0, 5)
+              String(row.start_time ?? ""),
+              String(row.end_time ?? "")
             )
           ) {
             blocked.add(row.venue_code as SportsVenueCode);
@@ -373,6 +401,9 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         }
         setUnavailableSportsVenues(blocked);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [sportType, sportDate, sportStartTime, sportEndTime]);
 
   const filteredEvents =
@@ -416,37 +447,45 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     [sportType, sportVenue]
   );
 
-  useEffect(() => {
-    if (!guestCheckIn || !guestCheckOut) {
-      setGuestUnavailableRooms(new Set());
-      return;
-    }
+  const sportsSlotBlocked = useMemo(
+    () => unavailableSportsVenues.has(sportVenue),
+    [unavailableSportsVenues, sportVenue]
+  );
 
-    const supabase = createClient();
-    supabase
-      .from("guest_house_bookings")
-      .select("room_number, check_in_date, check_out_date")
-      .eq("guest_house", guestHouse)
-      .eq("status", "approved")
-      .then(({ data }) => {
-        const occupied = new Set<string>();
-        for (const row of data ?? []) {
-          if (!row.room_number) continue;
-          const overlaps =
-            guestCheckIn <= row.check_out_date && row.check_in_date <= guestCheckOut;
-          if (overlaps) occupied.add(row.room_number);
-        }
-        setGuestUnavailableRooms(occupied);
-      });
-  }, [guestHouse, guestCheckIn, guestCheckOut]);
+  /** Only this user’s requests (defense in depth if the query ever mis-filters). */
+  const mySportsBookings = useMemo(
+    () =>
+      sportsBookings.filter(
+        (b) =>
+          b.requester_id === profile.id ||
+          (Boolean(b.requester_email) && b.requester_email === profile.email)
+      ),
+    [sportsBookings, profile.id, profile.email]
+  );
 
   async function submitGuestBooking() {
     if (!guestName.trim() || !guestCheckIn || !guestCheckOut) {
       toast.error("Please fill guest name and stay dates.");
       return;
     }
-    if (!guestRoom) {
-      toast.error("Please select a room.");
+    const count = Math.max(1, Math.floor(Number(guestCount) || 1));
+    if (count > 200) {
+      toast.error("Guest count must be 200 or fewer.");
+      return;
+    }
+    const minRooms = roomsNeededForGuestCount(count);
+    const roomsRequested = Math.max(
+      minRooms,
+      Math.floor(Number(guestRoomCount) || minRooms)
+    );
+    if (roomsRequested < minRooms) {
+      toast.error(
+        `Request at least ${minRooms} room(s) for ${count} guest(s) (max 4 guests per room).`
+      );
+      return;
+    }
+    if (roomsRequested > 200) {
+      toast.error("Room count must be 200 or fewer.");
       return;
     }
     if (guestCheckOut < guestCheckIn) {
@@ -457,28 +496,16 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     setGuestSubmitting(true);
     const supabase = createClient();
 
-    const { data: roomClash } = await supabase
-      .from("guest_house_bookings")
-      .select("id, check_in_date, check_out_date")
-      .eq("guest_house", guestHouse)
-      .eq("room_number", guestRoom)
-      .eq("status", "approved");
-    const hasOverlap = (roomClash ?? []).some(
-      (b) => guestCheckIn <= b.check_out_date && b.check_in_date <= guestCheckOut
-    );
-    if (hasOverlap) {
-      toast.error("Selected room is already booked for overlapping dates.");
-      setGuestSubmitting(false);
-      return;
-    }
-
     const { error } = await supabase.from("guest_house_bookings").insert({
       requester_id: profile.id,
       requester_email: profile.email,
       guest_name: guestName.trim(),
       purpose: guestPurpose.trim() || null,
-      guest_house: guestHouse,
-      room_number: guestRoom || null,
+      guest_count: count,
+      requested_room_count: roomsRequested,
+      guest_house: null,
+      room_number: null,
+      allocated_rooms: null,
       check_in_date: guestCheckIn,
       check_out_date: guestCheckOut,
     });
@@ -489,10 +516,11 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       return;
     }
 
-    toast.success("Guest house booking submitted.");
+    toast.success("Guest house request submitted. An admin will assign guest houses and rooms.");
     setGuestName("");
     setGuestPurpose("");
-    setGuestRoom("");
+    setGuestCount(1);
+    setGuestRoomCount(1);
     setGuestCheckIn("");
     setGuestCheckOut("");
     setGuestSubmitting(false);
@@ -515,7 +543,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       return;
     }
     if (unavailableSportsVenues.has(sportVenue)) {
-      toast.error("Selected venue is already booked for this time.");
+      toast.error("Slot is already booked");
       return;
     }
 
@@ -543,7 +571,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     const { data } = await supabase
       .from("sports_bookings")
       .select("*")
-      .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
+      .eq("requester_id", profile.id)
       .order("created_at", { ascending: false });
     setSportsBookings((data as SportsBooking[]) ?? []);
   }
@@ -1019,107 +1047,98 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             <CardHeader>
               <CardTitle>Request Guest House Booking</CardTitle>
               <CardDescription>
-                Submit a guest stay request for admin approval.
+                An admin assigns specific guest houses and rooms after approval.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-xl border p-4 space-y-4">
-                  <p className="text-sm font-semibold">Booking Details</p>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Guest Name</label>
-                      <Input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Guest full name" />
+              <div className="rounded-xl border p-4 space-y-4 max-w-2xl">
+                <p className="text-sm font-semibold">Booking details</p>
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2 min-w-0">
+                      <label className="text-sm font-medium">Guest name</label>
+                      <Input
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        placeholder="Guest full name"
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Guest House</label>
-                      <Select
-                        value={guestHouse}
-                        onValueChange={(v) => {
-                          setGuestHouse(v as GuestHouseCode);
-                          setGuestRoom("");
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue>
-                            {GUEST_HOUSE_LABELS[guestHouse]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="international_centre">International Centre</SelectItem>
-                          <SelectItem value="mdp_building">MDP Building</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Check-in</label>
-                      <DatePicker value={guestCheckIn} onChange={setGuestCheckIn} min={new Date().toISOString().split("T")[0]} placeholder="Pick date" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Check-out</label>
-                      <DatePicker value={guestCheckOut} onChange={setGuestCheckOut} min={guestCheckIn || new Date().toISOString().split("T")[0]} placeholder="Pick date" />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm font-medium">Purpose (optional)</label>
-                      <Textarea rows={2} value={guestPurpose} onChange={(e) => setGuestPurpose(e.target.value)} placeholder="Visit purpose/details" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Room Selection</p>
-                    <span className="text-xs text-muted-foreground">
-                      {guestRoom || "Not selected"}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border p-3 space-y-3">
-                    {!guestCheckIn || !guestCheckOut ? (
-                      <p className="text-xs text-muted-foreground">
-                        Pick check-in and check-out dates to see room availability.
+                    <div className="space-y-2 min-w-0">
+                      <label className="text-sm font-medium">Number of guests</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={200}
+                        value={guestCount}
+                        className="tabular-nums"
+                        onChange={(e) =>
+                          setGuestCount(Math.max(1, parseInt(e.target.value, 10) || 1))
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        Max 4 guests per room.
                       </p>
-                    ) : (
-                      roomsByFloorForGuestHouse(guestHouse).map((section) => (
-                        <div key={section.floor} className="space-y-2">
-                          <p className="text-xs font-medium leading-none text-muted-foreground">
-                            Floor {section.floor}
-                          </p>
-                          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-                            {section.rooms.map((room) => {
-                              const unavailable = guestUnavailableRooms.has(room);
-                              const selected = guestRoom === room;
-                              return (
-                                <button
-                                  key={room}
-                                  type="button"
-                                  onClick={() => !unavailable && setGuestRoom(room)}
-                                  disabled={unavailable}
-                                  className={`flex min-h-9 min-w-0 items-center justify-center rounded border px-1 py-2 text-center text-[11px] font-medium leading-tight transition-colors ${
-                                    selected
-                                      ? "border-primary/70 bg-primary/10 text-primary"
-                                      : unavailable
-                                        ? "cursor-not-allowed border-muted bg-muted/40 text-muted-foreground line-through"
-                                        : "bg-background hover:bg-muted/40"
-                                  }`}
-                                >
-                                  <span className="line-clamp-2 break-words">{room}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))
-                    )}
+                    </div>
+                    <div className="space-y-2 min-w-0">
+                      <label className="text-sm font-medium">Number of rooms</label>
+                      <Input
+                        type="number"
+                        min={guestRoomMin}
+                        max={200}
+                        value={guestRoomCount}
+                        className="tabular-nums w-full"
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!Number.isFinite(v)) return;
+                          setGuestRoomCount(Math.max(guestRoomMin, Math.min(200, v)));
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground leading-snug text-pretty">
+                        At least {guestRoomMin} room{guestRoomMin === 1 ? "" : "s"} for your guests.
+                        You may request additional rooms if you need them.
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Blocked rooms already have approved bookings for this stay range.
-                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 min-w-0">
+                      <label className="text-sm font-medium">Check-in</label>
+                      <DatePicker
+                        value={guestCheckIn}
+                        onChange={setGuestCheckIn}
+                        min={new Date().toISOString().split("T")[0]}
+                        placeholder="Pick date"
+                      />
+                    </div>
+                    <div className="space-y-2 min-w-0">
+                      <label className="text-sm font-medium">Check-out</label>
+                      <DatePicker
+                        value={guestCheckOut}
+                        onChange={setGuestCheckOut}
+                        min={guestCheckIn || new Date().toISOString().split("T")[0]}
+                        placeholder="Pick date"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Purpose (optional)</label>
+                    <Textarea
+                      rows={2}
+                      value={guestPurpose}
+                      onChange={(e) => setGuestPurpose(e.target.value)}
+                      placeholder="Visit purpose/details"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={submitGuestBooking} disabled={guestSubmitting}>
-                  {guestSubmitting ? "Submitting..." : "Submit booking request"}
-                </Button>
+                <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-end">
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto sm:min-w-[200px]"
+                    onClick={submitGuestBooking}
+                    disabled={guestSubmitting}
+                  >
+                    {guestSubmitting ? "Submitting..." : "Submit booking request"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1156,9 +1175,25 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {GUEST_HOUSE_LABELS[b.guest_house]}
-                      {b.room_number ? ` • Room ${b.room_number}` : ""}
+                      {b.guest_count ?? 1} guest{(b.guest_count ?? 1) === 1 ? "" : "s"}
+                      {" "}
+                      ·{" "}
+                      {b.requested_room_count ??
+                        roomsNeededForGuestCount(b.guest_count ?? 1)}{" "}
+                      room
+                      {(b.requested_room_count ??
+                        roomsNeededForGuestCount(b.guest_count ?? 1)) === 1
+                        ? ""
+                        : "s"}{" "}
+                      requested
                     </p>
+                    {b.status === "approved" ? (
+                      <GuestHouseAllocationReadout booking={b} />
+                    ) : b.status === "pending" ? (
+                      <p className="text-xs text-muted-foreground">
+                        Awaiting guest house & room assignment from admin.
+                      </p>
+                    ) : null}
                     <p className="text-sm text-muted-foreground">
                       {b.check_in_date} to {b.check_out_date}
                     </p>
@@ -1192,8 +1227,11 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                           <SelectValue>{SPORT_LABELS[sportType]}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="badminton">Badminton</SelectItem>
-                          <SelectItem value="cricket">Cricket</SelectItem>
+                          {SPORT_TYPES_ORDER.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {SPORT_LABELS[s]}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1232,7 +1270,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                 <div className="rounded-xl border p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold">
-                      {sportType === "badminton" ? "Court Selection" : "Ground Selection"}
+                      Venue
                     </p>
                     <span className="text-xs text-muted-foreground">
                       {SPORTS_VENUE_LABELS[sportVenue]}
@@ -1261,25 +1299,30 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       );
                     })}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Blocked venues already have approved bookings for this date/time.
-                  </p>
                 </div>
               </div>
               <ResourceAvailabilityCalendar resource={sportsAvailabilityResource} />
+              {sportsSlotBlocked && (
+                <p className="text-sm text-destructive">Slot is already booked</p>
+              )}
               <div className="flex justify-end">
-                <Button onClick={submitSportsBooking} disabled={sportsSubmitting}>
+                <Button
+                  onClick={submitSportsBooking}
+                  disabled={sportsSubmitting || sportsSlotBlocked}
+                >
                   {sportsSubmitting ? "Submitting..." : "Submit"}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {sportsLoading ? (
+          <div className="mt-6 space-y-3">
+            <p className="text-sm font-semibold">Your Past Requests</p>
+            {sportsLoading ? (
             <div className="py-4">
               <BookingCardsSkeleton count={3} />
             </div>
-          ) : sportsBookings.length === 0 ? (
+          ) : mySportsBookings.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
                 No sports booking requests yet.
@@ -1287,11 +1330,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {sportsBookings.map((b) => {
-                const isMine =
-                  b.requester_id === profile.id ||
-                  (Boolean(b.requester_email) && b.requester_email === profile.email);
-                return (
+              {mySportsBookings.map((b) => (
                   <Card key={b.id}>
                     <CardContent className="pt-4 space-y-2">
                       <div className="flex items-center justify-between">
@@ -1317,12 +1356,6 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                         {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
                       </p>
                       {b.purpose && <p className="text-sm">{b.purpose}</p>}
-                      {!isMine && (
-                        <p className="text-xs text-muted-foreground">
-                          Booked by a{" "}
-                          {b.requester_role === "professor" ? "professor" : "student"}
-                        </p>
-                      )}
                       {b.admin_note && (
                         <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
                           Admin note: {b.admin_note}
@@ -1330,10 +1363,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       )}
                     </CardContent>
                   </Card>
-                );
-              })}
+              ))}
             </div>
           )}
+          </div>
         </TabsContent>
 
         <TabsContent value="campus" className="mt-3">

@@ -28,6 +28,8 @@ export function DatePicker({
   placeholder = "Pick a date",
   disabled,
   className,
+  /** date-fns format; default is shorter than full month + ordinal (PPP). */
+  displayFormat = "MMM d, yyyy",
 }: {
   value: string;
   onChange: (nextISO: string) => void;
@@ -36,6 +38,7 @@ export function DatePicker({
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  displayFormat?: string;
 }) {
   const selected = value ? new Date(`${value}T00:00:00`) : undefined;
   const minDate = min ? new Date(`${min}T00:00:00`) : undefined;
@@ -50,13 +53,17 @@ export function DatePicker({
             variant="outline"
             disabled={disabled}
             className={cn(
-              "w-full justify-start text-left font-normal",
+              "w-full min-w-0 justify-start text-left font-normal",
               !value && "text-muted-foreground",
               className
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {value ? format(new Date(`${value}T00:00:00`), "PPP") : placeholder}
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {value
+                ? format(new Date(`${value}T00:00:00`), displayFormat)
+                : placeholder}
+            </span>
           </Button>
         }
       />

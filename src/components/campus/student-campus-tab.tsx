@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
-  AppointmentBooking,
   AppointmentProviderCode,
-  FacilityBooking,
-  FacilityBookingType,
   MessExtraRequest,
   MessMealPeriod,
   Profile,
@@ -25,7 +22,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import {
   Select,
   SelectContent,
@@ -37,12 +33,13 @@ import { toast } from "sonner";
 import {
   APPOINTMENT_PROVIDER_LABELS,
   MEAL_PERIOD_LABELS,
-  facilityVenueLabel,
+  addMinutesToHHmm,
+  appointmentDurationMinutes,
+  appointmentStartTimeOptions,
   normalizeTimeForDb,
   providersForService,
   timeSlice,
   tomorrowDateString,
-  venuesForFacilityType,
 } from "@/lib/campus-use-cases";
 import { isTimeOverlap } from "@/lib/sports-booking";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
@@ -59,26 +56,24 @@ function fmtStatus(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+type CampusServiceTab = "leave" | "mess" | "health";
+
+const CAMPUS_SERVICE_LABELS: Record<CampusServiceTab, string> = {
+  leave: "Leave request",
+  mess: "Dining hall — extra guests",
+  health: "Counsellor & doctor appointments",
+};
+
 export function StudentCampusTab({ profile }: { profile: Profile }) {
+  const [campusService, setCampusService] = useState<CampusServiceTab>("leave");
+
   const [leaves, setLeaves] = useState<StudentLeaveRequest[]>([]);
-  const [auditorium, setAuditorium] = useState<FacilityBooking[]>([]);
   const [mess, setMess] = useState<MessExtraRequest[]>([]);
-  const [appts, setAppts] = useState<AppointmentBooking[]>([]);
 
   const [lStart, setLStart] = useState("");
   const [lEnd, setLEnd] = useState("");
   const [lReason, setLReason] = useState("");
   const [lSubmit, setLSubmit] = useState(false);
-
-  const [aDate, setADate] = useState("");
-  const [aVenue, setAVenue] = useState(
-    () => venuesForFacilityType("auditorium")[0]?.code ?? "auditorium1"
-  );
-  const [aStart, setAStart] = useState("14:00");
-  const [aEnd, setAEnd] = useState("16:00");
-  const [aPurpose, setAPurpose] = useState("");
-  const [aBlocked, setABlocked] = useState(false);
-  const [aSubmit, setASubmit] = useState(false);
 
   const [mDate, setMDate] = useState(tomorrowDateString());
   const [mPeriod, setMPeriod] = useState<MessMealPeriod>("lunch");
@@ -90,7 +85,6 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
   const [prov, setProv] = useState<AppointmentProviderCode>("counsellor_1");
   const [pDate, setPDate] = useState("");
   const [pStart, setPStart] = useState("10:00");
-  const [pEnd, setPEnd] = useState("10:30");
   const [pNotes, setPNotes] = useState("");
   const [pBlocked, setPBlocked] = useState(false);
   const [pSubmit, setPSubmit] = useState(false);
@@ -102,16 +96,22 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
     setProv(opts[0]);
   }, [svc]);
 
-  const auditoriumAvailabilityResource = useMemo(
-    () =>
-      ({
-        kind: "facility" as const,
-        facilityType: "auditorium" as const,
-        venueCode: aVenue,
-        label: facilityVenueLabel("auditorium", aVenue),
-      }),
-    [aVenue]
+  const apptDurationMins = appointmentDurationMinutes(svc);
+  const pStartOptions = useMemo(
+    () => appointmentStartTimeOptions(apptDurationMins),
+    [apptDurationMins]
   );
+  const pEndComputed = useMemo(
+    () => addMinutesToHHmm(pStart, apptDurationMins),
+    [pStart, apptDurationMins]
+  );
+
+  useEffect(() => {
+    if (pStartOptions.length === 0) return;
+    if (!pStartOptions.some((o) => o.value === pStart)) {
+      setPStart(pStartOptions[0]!.value);
+    }
+  }, [svc, pStartOptions, pStart]);
 
   const appointmentAvailabilityResource = useMemo(
     () =>
@@ -125,33 +125,20 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
 
   const reload = useCallback(async () => {
     const supabase = createClient();
-    const [lr, ar, mr, pr] = await Promise.all([
+    const [lr, mr] = await Promise.all([
       supabase
         .from("student_leave_requests")
         .select("*")
         .eq("student_id", profile.id)
         .order("created_at", { ascending: false }),
       supabase
-        .from("facility_bookings")
-        .select("*")
-        .eq("requester_id", profile.id)
-        .eq("facility_type", "auditorium")
-        .order("created_at", { ascending: false }),
-      supabase
         .from("mess_extra_requests")
-        .select("*")
-        .eq("student_id", profile.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("appointment_bookings")
         .select("*")
         .eq("student_id", profile.id)
         .order("created_at", { ascending: false }),
     ]);
     setLeaves((lr.data as StudentLeaveRequest[]) ?? []);
-    setAuditorium((ar.data as FacilityBooking[]) ?? []);
     setMess((mr.data as MessExtraRequest[]) ?? []);
-    setAppts((pr.data as AppointmentBooking[]) ?? []);
   }, [profile.id]);
 
   useEffect(() => {
@@ -159,41 +146,13 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
   }, [reload]);
 
   useEffect(() => {
-    if (!aDate || !aStart || !aEnd) {
-      setABlocked(false);
-      return;
-    }
-    const supabase = createClient();
-    const st = normalizeTimeForDb(aStart);
-    const et = normalizeTimeForDb(aEnd);
-    supabase
-      .from("facility_bookings")
-      .select("start_time, end_time")
-      .eq("facility_type", "auditorium")
-      .eq("venue_code", aVenue)
-      .eq("booking_date", aDate)
-      .eq("status", "approved")
-      .then(({ data }) => {
-        const clash = (data ?? []).some((row) =>
-          isTimeOverlap(
-            timeSlice(st),
-            timeSlice(et),
-            timeSlice(row.start_time),
-            timeSlice(row.end_time)
-          )
-        );
-        setABlocked(clash);
-      });
-  }, [aDate, aStart, aEnd, aVenue]);
-
-  useEffect(() => {
-    if (!pDate || !pStart || !pEnd) {
+    if (!pDate || !pStart) {
       setPBlocked(false);
       return;
     }
     const supabase = createClient();
     const st = normalizeTimeForDb(pStart);
-    const et = normalizeTimeForDb(pEnd);
+    const et = normalizeTimeForDb(pEndComputed);
     supabase
       .from("appointment_bookings")
       .select("start_time, end_time")
@@ -211,7 +170,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
         );
         setPBlocked(clash);
       });
-  }, [pDate, pStart, pEnd, prov]);
+  }, [pDate, pStart, pEndComputed, prov]);
 
   async function submitLeave() {
     if (!lStart || !lEnd) {
@@ -250,42 +209,6 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
     }
     toast.success("Leave request submitted.");
     setLReason("");
-    reload();
-  }
-
-  async function submitAuditorium() {
-    if (!aDate) {
-      toast.error("Pick a date.");
-      return;
-    }
-    if (aStart >= aEnd) {
-      toast.error("End time after start time.");
-      return;
-    }
-    if (aBlocked) {
-      toast.error("Slot unavailable.");
-      return;
-    }
-    setASubmit(true);
-    const supabase = createClient();
-    const { error } = await supabase.from("facility_bookings").insert({
-      requester_id: profile.id,
-      requester_email: profile.email,
-      requester_role: "student",
-      facility_type: "auditorium",
-      venue_code: aVenue,
-      booking_date: aDate,
-      start_time: normalizeTimeForDb(aStart),
-      end_time: normalizeTimeForDb(aEnd),
-      purpose: aPurpose.trim() || null,
-    });
-    setASubmit(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Auditorium request submitted.");
-    setAPurpose("");
     reload();
   }
 
@@ -337,12 +260,8 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
       toast.error("Pick a date.");
       return;
     }
-    if (pStart >= pEnd) {
-      toast.error("End time after start.");
-      return;
-    }
     if (pBlocked) {
-      toast.error("That slot is already booked.");
+      toast.error("Slot is already booked");
       return;
     }
     setPSubmit(true);
@@ -353,7 +272,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
       provider_code: prov,
       booking_date: pDate,
       start_time: normalizeTimeForDb(pStart),
-      end_time: normalizeTimeForDb(pEnd),
+      end_time: normalizeTimeForDb(pEndComputed),
       notes: pNotes.trim() || null,
     });
     setPSubmit(false);
@@ -367,276 +286,251 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Leave, auditorium, dining (extra guests), counsellor and doctor bookings
-        are sent to an admin for approval. Track status below each form.
+        Choose a campus service below. Leave, dining extras, and counsellor or doctor
+        bookings are sent to an admin for approval. Your past requests for leave and
+        mess appear under those forms.
       </p>
 
-      {/* Leave */}
       <Card>
         <CardHeader>
-          <CardTitle>Leave request</CardTitle>
+          <CardTitle>Campus services</CardTitle>
           <CardDescription>
-            Request time away from campus. Admins approve or follow up here and
-            on the admin dashboard.
+            Select the type of request, then complete the form that appears.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>From</Label>
-              <DatePicker value={lStart} onChange={setLStart} />
-            </div>
-            <div className="space-y-2">
-              <Label>To</Label>
-              <DatePicker value={lEnd} onChange={setLEnd} min={lStart || undefined} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Reason (optional)</Label>
-            <Textarea value={lReason} onChange={(e) => setLReason(e.target.value)} rows={2} />
-          </div>
-          <Button onClick={submitLeave} disabled={lSubmit}>
-            {lSubmit ? "Submitting…" : "Submit leave request"}
-          </Button>
-          {leaves.length > 0 && (
-            <ul className="mt-4 space-y-2 border-t pt-4 text-sm">
-              {leaves.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span>
-                    {r.start_date} → {r.end_date}
-                  </span>
-                  <Badge className={badge(r.status)}>{fmtStatus(r.status)}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Auditorium */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Auditorium booking</CardTitle>
-          <CardDescription>
-            Three auditoriums — choose a hall, date, and time. Admin approves like
-            guest house requests.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label>Auditorium</Label>
+        <CardContent className="space-y-6">
+          <div className="space-y-2 max-w-md">
+            <Label htmlFor="campus-service">Request type</Label>
             <Select
-              value={aVenue}
-              onValueChange={(v) => v && setAVenue(v)}
+              value={campusService}
+              onValueChange={(v) => v && setCampusService(v as CampusServiceTab)}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose an auditorium">
-                  {facilityVenueLabel("auditorium", aVenue)}
+              <SelectTrigger id="campus-service" className="w-full">
+                <SelectValue placeholder="Choose a service">
+                  {CAMPUS_SERVICE_LABELS[campusService]}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {venuesForFacilityType("auditorium").map((v) => (
-                  <SelectItem key={v.code} value={v.code}>
-                    {v.label}
+                {(Object.keys(CAMPUS_SERVICE_LABELS) as CampusServiceTab[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {CAMPUS_SERVICE_LABELS[key]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <ResourceAvailabilityCalendar resource={auditoriumAvailabilityResource} />
-          <DatePicker value={aDate} onChange={setADate} />
-          <TimeRangeSelect
-            startValue={aStart}
-            endValue={aEnd}
-            onStartChange={setAStart}
-            onEndChange={setAEnd}
-          />
-          {aBlocked && (
-            <p className="text-sm text-destructive">Overlaps an approved booking.</p>
-          )}
-          <Textarea
-            placeholder="Purpose / event name"
-            value={aPurpose}
-            onChange={(e) => setAPurpose(e.target.value)}
-            rows={2}
-          />
-          <Button onClick={submitAuditorium} disabled={aSubmit || aBlocked}>
-            {aSubmit ? "Submitting…" : "Request auditorium"}
-          </Button>
-          {auditorium.length > 0 && (
-            <ul className="mt-4 space-y-2 border-t pt-4 text-sm">
-              {auditorium.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span>
-                    {facilityVenueLabel(
-                      r.facility_type as FacilityBookingType,
-                      r.venue_code
-                    )}{" "}
-                    · {r.booking_date} {timeSlice(r.start_time)}–{timeSlice(r.end_time)}
-                  </span>
-                  <Badge className={badge(r.status)}>{fmtStatus(r.status)}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Mess */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Dining hall — extra guests</CardTitle>
-          <CardDescription>
-            Tell the mess vendor one day ahead how many extra people join you for a
-            meal.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <DatePicker value={mDate} onChange={setMDate} min={minMess} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Meal</Label>
-              <Select
-                value={mPeriod}
-                onValueChange={(v) => v && setMPeriod(v as MessMealPeriod)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose meal">
-                    {MEAL_PERIOD_LABELS[mPeriod]}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(MEAL_PERIOD_LABELS) as MessMealPeriod[]).map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {MEAL_PERIOD_LABELS[k]}
-                    </SelectItem>
+          {campusService === "leave" && (
+            <div className="rounded-xl border bg-muted/15 p-4 space-y-4">
+              <div>
+                <p className="font-medium">Leave request</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Request time away from campus. Admins approve or follow up on the admin
+                  dashboard.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>From</Label>
+                  <DatePicker value={lStart} onChange={setLStart} />
+                </div>
+                <div className="space-y-2">
+                  <Label>To</Label>
+                  <DatePicker value={lEnd} onChange={setLEnd} min={lStart || undefined} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Reason (optional)</Label>
+                <Textarea value={lReason} onChange={(e) => setLReason(e.target.value)} rows={2} />
+              </div>
+              <Button onClick={submitLeave} disabled={lSubmit}>
+                {lSubmit ? "Submitting…" : "Submit leave request"}
+              </Button>
+              {leaves.length > 0 && (
+                <ul className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
+                  {leaves.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {r.start_date} → {r.end_date}
+                      </span>
+                      <Badge className={badge(r.status)}>{fmtStatus(r.status)}</Badge>
+                    </li>
                   ))}
-                </SelectContent>
-              </Select>
+                </ul>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>Extra guests</Label>
-              <Input
-                type="number"
-                min={1}
-                max={50}
-                value={mCount}
-                onChange={(e) => setMCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+          )}
+
+          {campusService === "mess" && (
+            <div className="rounded-xl border bg-muted/15 p-4 space-y-4">
+              <div>
+                <p className="font-medium">Dining hall — extra guests</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tell the mess vendor one day ahead how many extra people join you for a
+                  meal.
+                </p>
+              </div>
+              <DatePicker value={mDate} onChange={setMDate} min={minMess} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Meal</Label>
+                  <Select
+                    value={mPeriod}
+                    onValueChange={(v) => v && setMPeriod(v as MessMealPeriod)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose meal">
+                        {MEAL_PERIOD_LABELS[mPeriod]}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(MEAL_PERIOD_LABELS) as MessMealPeriod[]).map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {MEAL_PERIOD_LABELS[k]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Extra guests</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={mCount}
+                    onChange={(e) => setMCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  />
+                </div>
+              </div>
+              <Textarea
+                placeholder="Notes (optional)"
+                value={mNotes}
+                onChange={(e) => setMNotes(e.target.value)}
+                rows={2}
               />
-            </div>
-          </div>
-          <Textarea
-            placeholder="Notes (optional)"
-            value={mNotes}
-            onChange={(e) => setMNotes(e.target.value)}
-            rows={2}
-          />
-          <Button onClick={submitMess} disabled={mSubmit}>
-            {mSubmit ? "Submitting…" : "Submit mess request"}
-          </Button>
-          {mess.length > 0 && (
-            <ul className="mt-4 space-y-2 border-t pt-4 text-sm">
-              {mess.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span>
-                    {r.meal_date} · {MEAL_PERIOD_LABELS[r.meal_period]} · +
-                    {r.extra_guest_count}
-                  </span>
-                  <Badge className={badge(r.status)}>{fmtStatus(r.status)}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Health appointments */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Counsellor & doctor slots</CardTitle>
-          <CardDescription>
-            One counsellor and two doctors — choose service, date, and time. Admin
-            confirms.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Service</Label>
-              <Select
-                value={svc}
-                onValueChange={(v) => v && setSvc(v as "counsellor" | "doctor")}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose service">
-                    {svc === "counsellor" ? "Counsellor" : "Doctor"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="counsellor">Counsellor</SelectItem>
-                  <SelectItem value="doctor">Doctor</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select
-                value={prov}
-                onValueChange={(v) => v && setProv(v as AppointmentProviderCode)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose provider">
-                    {APPOINTMENT_PROVIDER_LABELS[prov]}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {providersForService(svc).map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {APPOINTMENT_PROVIDER_LABELS[c]}
-                    </SelectItem>
+              <Button onClick={submitMess} disabled={mSubmit}>
+                {mSubmit ? "Submitting…" : "Submit mess request"}
+              </Button>
+              {mess.length > 0 && (
+                <ul className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
+                  {mess.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {r.meal_date} · {MEAL_PERIOD_LABELS[r.meal_period]} · +
+                        {r.extra_guest_count}
+                      </span>
+                      <Badge className={badge(r.status)}>{fmtStatus(r.status)}</Badge>
+                    </li>
                   ))}
-                </SelectContent>
-              </Select>
+                </ul>
+              )}
             </div>
-          </div>
-          <ResourceAvailabilityCalendar resource={appointmentAvailabilityResource} />
-          <DatePicker value={pDate} onChange={setPDate} />
-          <TimeRangeSelect
-            startValue={pStart}
-            endValue={pEnd}
-            onStartChange={setPStart}
-            onEndChange={setPEnd}
-          />
-          {pBlocked && (
-            <p className="text-sm text-destructive">Slot taken for this provider.</p>
           )}
-          <Textarea
-            placeholder="Notes (optional)"
-            value={pNotes}
-            onChange={(e) => setPNotes(e.target.value)}
-            rows={2}
-          />
-          <Button onClick={submitAppt} disabled={pSubmit || pBlocked}>
-            {pSubmit ? "Submitting…" : "Request appointment"}
-          </Button>
-          {appts.length > 0 && (
-            <ul className="mt-4 space-y-2 border-t pt-4 text-sm">
-              {appts.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span>
-                    {APPOINTMENT_PROVIDER_LABELS[r.provider_code]} · {r.booking_date}{" "}
-                    {timeSlice(r.start_time)}–{timeSlice(r.end_time)}
-                  </span>
-                  <Badge className={badge(r.status)}>{fmtStatus(r.status)}</Badge>
-                </li>
-              ))}
-            </ul>
+
+          {campusService === "health" && (
+            <div className="rounded-xl border bg-muted/15 p-4 space-y-4">
+              <div>
+                <p className="font-medium">Counsellor & doctor slots</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  One counsellor and two doctors — choose service, date, and start time.
+                  Sessions are 45 minutes (counsellor) or 15 minutes (doctor). Admin
+                  confirms.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Service</Label>
+                  <Select
+                    value={svc}
+                    onValueChange={(v) => v && setSvc(v as "counsellor" | "doctor")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose service">
+                        {svc === "counsellor" ? "Counsellor" : "Doctor"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="counsellor">Counsellor</SelectItem>
+                      <SelectItem value="doctor">Doctor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Provider</Label>
+                  <Select
+                    value={prov}
+                    onValueChange={(v) => v && setProv(v as AppointmentProviderCode)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose provider">
+                        {APPOINTMENT_PROVIDER_LABELS[prov]}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providersForService(svc).map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {APPOINTMENT_PROVIDER_LABELS[c]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <ResourceAvailabilityCalendar resource={appointmentAvailabilityResource} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2 min-w-0">
+                  <Label>Date</Label>
+                  <DatePicker
+                    value={pDate}
+                    onChange={setPDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    placeholder="Pick a date"
+                  />
+                </div>
+                <div className="space-y-2 min-w-0">
+                  <Label>Start time</Label>
+                  <Select
+                    value={pStart}
+                    onValueChange={(v) => v && setPStart(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Start time">
+                        {pStartOptions.find((o) => o.value === pStart)?.label ?? pStart}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pStartOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {svc === "doctor" ? "15-minute" : "45-minute"} session (end time is set
+                automatically).
+              </p>
+              {pBlocked && (
+                <p className="text-sm text-destructive">Slot is already booked</p>
+              )}
+              <Textarea
+                placeholder="Notes (optional)"
+                value={pNotes}
+                onChange={(e) => setPNotes(e.target.value)}
+                rows={2}
+              />
+              <Button onClick={submitAppt} disabled={pSubmit || pBlocked}>
+                {pSubmit ? "Submitting…" : "Request appointment"}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
-
     </div>
   );
 }

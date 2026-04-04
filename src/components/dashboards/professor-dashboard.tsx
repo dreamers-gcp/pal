@@ -54,7 +54,7 @@ import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import {
   SPORT_LABELS,
   SPORTS_VENUE_LABELS,
-  sportsBookingsVisibleOrFilter,
+  SPORT_TYPES_ORDER,
   venuesForSport,
   isTimeOverlap,
 } from "@/lib/sports-booking";
@@ -122,8 +122,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
   const [sportsSubmitting, setSportsSubmitting] = useState(false);
-  const [sportType, setSportType] = useState<SportType>("badminton");
-  const [sportVenue, setSportVenue] = useState<SportsVenueCode>("badminton_court_1");
+  const [sportType, setSportType] = useState<SportType>("cricket");
+  const [sportVenue, setSportVenue] = useState<SportsVenueCode>("cricket_ground");
   const [sportDate, setSportDate] = useState("");
   const [sportStartTime, setSportStartTime] = useState("17:00");
   const [sportEndTime, setSportEndTime] = useState("18:00");
@@ -177,7 +177,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         const { data } = await supabase
           .from("sports_bookings")
           .select("*")
-          .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
+          .eq("requester_id", profile.id)
           .order("created_at", { ascending: false });
         setSportsBookings((data as SportsBooking[]) ?? []);
       } catch (error) {
@@ -198,6 +198,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       setUnavailableSportsVenues(new Set());
       return;
     }
+    let cancelled = false;
     const supabase = createClient();
     supabase
       .from("sports_bookings")
@@ -205,15 +206,21 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       .eq("sport", sportType)
       .eq("booking_date", sportDate)
       .eq("status", "approved")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Sports availability check failed", error);
+          setUnavailableSportsVenues(new Set());
+          return;
+        }
         const blocked = new Set<SportsVenueCode>();
         for (const row of data ?? []) {
           if (
             isTimeOverlap(
               sportStartTime,
               sportEndTime,
-              row.start_time.slice(0, 5),
-              row.end_time.slice(0, 5)
+              String(row.start_time ?? ""),
+              String(row.end_time ?? "")
             )
           ) {
             blocked.add(row.venue_code as SportsVenueCode);
@@ -221,6 +228,9 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         }
         setUnavailableSportsVenues(blocked);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [sportType, sportDate, sportStartTime, sportEndTime]);
 
   useEffect(() => {
@@ -323,6 +333,21 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     [sportType, sportVenue]
   );
 
+  const sportsSlotBlocked = useMemo(
+    () => unavailableSportsVenues.has(sportVenue),
+    [unavailableSportsVenues, sportVenue]
+  );
+
+  const mySportsBookings = useMemo(
+    () =>
+      sportsBookings.filter(
+        (b) =>
+          b.requester_id === profile.id ||
+          (Boolean(b.requester_email) && b.requester_email === profile.email)
+      ),
+    [sportsBookings, profile.id, profile.email]
+  );
+
   function openNewRequest(kind: CalendarRequestKind = "class") {
     setBookingRequestKind(kind);
     setPrefill(undefined);
@@ -347,7 +372,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       return;
     }
     if (unavailableSportsVenues.has(sportVenue)) {
-      toast.error("Selected venue is already booked for this time.");
+      toast.error("Slot is already booked");
       return;
     }
     setSportsSubmitting(true);
@@ -374,7 +399,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     const { data } = await supabase
       .from("sports_bookings")
       .select("*")
-      .or(sportsBookingsVisibleOrFilter(profile.id, profile.email))
+      .eq("requester_id", profile.id)
       .order("created_at", { ascending: false });
     setSportsBookings((data as SportsBooking[]) ?? []);
   }
@@ -771,8 +796,11 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                           <SelectValue>{SPORT_LABELS[sportType]}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="badminton">Badminton</SelectItem>
-                          <SelectItem value="cricket">Cricket</SelectItem>
+                          {SPORT_TYPES_ORDER.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {SPORT_LABELS[s]}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -799,9 +827,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                 </div>
                 <div className="rounded-xl border p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">
-                      {sportType === "badminton" ? "Court Selection" : "Ground Selection"}
-                    </p>
+                    <p className="text-sm font-semibold">Venue</p>
                     <span className="text-xs text-muted-foreground">{SPORTS_VENUE_LABELS[sportVenue]}</span>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -827,25 +853,30 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       );
                     })}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Blocked venues already have approved bookings for this date/time.
-                  </p>
                 </div>
               </div>
               <ResourceAvailabilityCalendar resource={sportsAvailabilityResource} />
+              {sportsSlotBlocked && (
+                <p className="text-sm text-destructive">Slot is already booked</p>
+              )}
               <div className="flex justify-end">
-                <Button onClick={submitSportsBooking} disabled={sportsSubmitting}>
+                <Button
+                  onClick={submitSportsBooking}
+                  disabled={sportsSubmitting || sportsSlotBlocked}
+                >
                   {sportsSubmitting ? "Submitting..." : "Submit"}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {sportsLoading ? (
+          <div className="mt-6 space-y-3">
+            <p className="text-sm font-semibold">Your Past Requests</p>
+            {sportsLoading ? (
             <div className="py-4">
               <BookingCardsSkeleton count={3} />
             </div>
-          ) : sportsBookings.length === 0 ? (
+          ) : mySportsBookings.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
                 No sports booking requests yet.
@@ -853,11 +884,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {sportsBookings.map((b) => {
-                const isMine =
-                  b.requester_id === profile.id ||
-                  (Boolean(b.requester_email) && b.requester_email === profile.email);
-                return (
+              {mySportsBookings.map((b) => (
                   <Card key={b.id}>
                     <CardContent className="pt-4 space-y-2">
                       <div className="flex items-center justify-between">
@@ -871,12 +898,6 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                         {b.booking_date} • {b.start_time.slice(0, 5)} - {b.end_time.slice(0, 5)}
                       </p>
                       {b.purpose && <p className="text-sm">{b.purpose}</p>}
-                      {!isMine && (
-                        <p className="text-xs text-muted-foreground">
-                          Booked by a{" "}
-                          {b.requester_role === "professor" ? "professor" : "student"}
-                        </p>
-                      )}
                       {b.admin_note && (
                         <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
                           Admin note: {b.admin_note}
@@ -884,10 +905,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       )}
                     </CardContent>
                   </Card>
-                );
-              })}
+              ))}
             </div>
           )}
+          </div>
         </TabsContent>
 
         <TabsContent value="campus" className="mt-6">

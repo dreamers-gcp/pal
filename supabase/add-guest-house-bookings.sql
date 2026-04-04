@@ -18,8 +18,13 @@ create table if not exists public.guest_house_bookings (
   requester_email text,
   guest_name text not null,
   purpose text,
-  guest_house public.guest_house_code not null,
+  guest_house public.guest_house_code,
   room_number text,
+  guest_count integer not null default 1
+    check (guest_count >= 1 and guest_count <= 200),
+  requested_room_count integer not null default 1
+    check (requested_room_count >= 1 and requested_room_count <= 200),
+  allocated_rooms jsonb,
   check_in_date date not null,
   check_out_date date not null,
   status public.request_status not null default 'pending',

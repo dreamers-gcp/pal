@@ -4,14 +4,27 @@ create table if not exists public.sports_bookings (
   requester_id uuid references public.profiles(id) on delete set null,
   requester_email text,
   requester_role text not null check (requester_role in ('student', 'professor')),
-  sport text not null check (sport in ('badminton', 'cricket')),
+  sport text not null check (
+    sport in (
+      'cricket',
+      'badminton',
+      'basketball',
+      'football',
+      'table_tennis',
+      'lawn_tennis',
+      'snooker'
+    )
+  ),
   venue_code text not null check (
     venue_code in (
-      'badminton_court_1',
-      'badminton_court_2',
-      'badminton_court_3',
-      'badminton_court_4',
-      'cricket_main_ground'
+      'cricket_ground',
+      'badminton_court',
+      'basketball_court',
+      'football_field',
+      'table_tennis',
+      'lawn_tennis',
+      'snooker_board_1',
+      'snooker_board_2'
     )
   ),
   booking_date date not null,

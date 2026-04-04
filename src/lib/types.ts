@@ -163,14 +163,28 @@ export interface CalendarRequest {
 
 export type GuestHouseCode = "international_centre" | "mdp_building";
 
+/** Admin-assigned room (after approval). */
+export interface GuestHouseRoomAllocation {
+  guest_house: GuestHouseCode;
+  room_number: string;
+}
+
 export interface GuestHouseBooking {
   id: string;
   requester_id: string | null;
   requester_email: string | null;
   guest_name: string;
   purpose: string | null;
-  guest_house: GuestHouseCode;
+  /** Set when admin approves; null while pending (requester does not choose). */
+  guest_house: GuestHouseCode | null;
+  /** Legacy single room; also first room when using allocated_rooms. */
   room_number: string | null;
+  /** Number of guests (max 4 per room; admin assigns enough rooms). */
+  guest_count?: number;
+  /** Rooms requested (≥ ceil(guest_count/4)); student may request extra rooms. */
+  requested_room_count?: number | null;
+  /** Admin allocation; set on approval. */
+  allocated_rooms: GuestHouseRoomAllocation[] | null;
   check_in_date: string;
   check_out_date: string;
   status: RequestStatus;
@@ -181,14 +195,25 @@ export interface GuestHouseBooking {
   requester?: Profile;
 }
 
-export type SportType = "badminton" | "cricket";
+/** Campus sports; most have one venue, snooker has two boards. */
+export type SportType =
+  | "cricket"
+  | "badminton"
+  | "basketball"
+  | "football"
+  | "table_tennis"
+  | "lawn_tennis"
+  | "snooker";
 
 export type SportsVenueCode =
-  | "badminton_court_1"
-  | "badminton_court_2"
-  | "badminton_court_3"
-  | "badminton_court_4"
-  | "cricket_main_ground";
+  | "cricket_ground"
+  | "badminton_court"
+  | "basketball_court"
+  | "football_field"
+  | "table_tennis"
+  | "lawn_tennis"
+  | "snooker_board_1"
+  | "snooker_board_2";
 
 export interface SportsBooking {
   id: string;

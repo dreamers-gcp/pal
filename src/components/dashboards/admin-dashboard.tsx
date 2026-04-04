@@ -10,6 +10,8 @@ import type {
   StudentEnrollment,
   Classroom,
   GuestHouseBooking,
+  GuestHouseCode,
+  GuestHouseRoomAllocation,
   SportsBooking,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -69,11 +71,18 @@ import type { ProfessorAssignment } from "@/lib/types";
 import { coerceCredits, formatCreditsDisplay } from "@/lib/credits-parse";
 import {
   GUEST_HOUSE_LABELS,
+  GUEST_HOUSE_CODES,
   roomsByFloorForGuestHouse,
+  allocatedRoomsForBooking,
+  guestRoomKey,
+  roomsNeededForGuestCount,
+  MAX_GUESTS_PER_ROOM,
+  TOTAL_GUEST_HOUSE_ROOM_COUNT,
 } from "@/lib/guest-house";
 import { SPORT_LABELS, SPORTS_VENUE_LABELS } from "@/lib/sports-booking";
 import { AdminCampusApprovalSection } from "@/components/campus/admin-campus-tab";
 import { AdminRequestSchedulePanel } from "@/components/admin/admin-request-schedule-panel";
+import { GuestHouseAllocationReadout } from "@/components/guest-house-allocation-readout";
 import {
   downloadProfessorRosterXlsx,
   downloadStudentRosterXlsx,
@@ -163,12 +172,16 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [guestHouseLoading, setGuestHouseLoading] = useState(true);
   const [selectedGuestBooking, setSelectedGuestBooking] = useState<GuestHouseBooking | null>(null);
   const [guestAdminNote, setGuestAdminNote] = useState("");
-  const [guestSelectedRoom, setGuestSelectedRoom] = useState("");
+  const [guestSelectedAllocations, setGuestSelectedAllocations] = useState<
+    GuestHouseRoomAllocation[]
+  >([]);
   const [guestUpdating, setGuestUpdating] = useState(false);
   const [guestStatusFilter, setGuestStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "clarification_needed" | "all"
   >("pending");
-  const [selectedGuestFocusedRoom, setSelectedGuestFocusedRoom] = useState<string | null>(null);
+  const [selectedGuestFocusKey, setSelectedGuestFocusKey] = useState<string | null>(
+    null
+  );
   const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
   const [sportsUpdatingId, setSportsUpdatingId] = useState<string | null>(null);
@@ -347,20 +360,38 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   ) {
     setGuestUpdating(true);
     const supabase = createClient();
-    const roomToSave =
-      status === "approved" ? guestSelectedRoom : booking.room_number;
+    const guestCount = booking.guest_count ?? 1;
+    const minRooms = roomsNeededForGuestCount(guestCount);
 
-    if (status === "approved" && !roomToSave) {
-      toast.error("Pick a room before approving.");
-      setGuestUpdating(false);
-      return;
+    if (status === "approved") {
+      if (guestSelectedAllocations.length < minRooms) {
+        toast.error(
+          `Select at least ${minRooms} room(s) for ${guestCount} guest(s) (max ${MAX_GUESTS_PER_ROOM} guests per room).`
+        );
+        setGuestUpdating(false);
+        return;
+      }
+      const capacity = guestSelectedAllocations.length * MAX_GUESTS_PER_ROOM;
+      if (capacity < guestCount) {
+        toast.error(
+          `Selected rooms fit at most ${capacity} guests; this request needs capacity for ${guestCount}.`
+        );
+        setGuestUpdating(false);
+        return;
+      }
     }
 
+    const firstAlloc = guestSelectedAllocations[0];
     const { error } = await supabase
       .from("guest_house_bookings")
       .update({
         status,
-        room_number: roomToSave ?? null,
+        allocated_rooms:
+          status === "approved" ? guestSelectedAllocations : null,
+        guest_house:
+          status === "approved" && firstAlloc ? firstAlloc.guest_house : null,
+        room_number:
+          status === "approved" && firstAlloc ? firstAlloc.room_number : null,
         admin_note: (adminNoteOverride ?? guestAdminNote) || null,
         reviewed_by: profile.id,
         updated_at: new Date().toISOString(),
@@ -379,7 +410,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       );
       setSelectedGuestBooking(null);
       setGuestAdminNote("");
-      setGuestSelectedRoom("");
+      setGuestSelectedAllocations([]);
+      setSelectedGuestFocusKey(null);
       fetchGuestHouseBookings();
     }
     setGuestUpdating(false);
@@ -426,24 +458,24 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const unavailableRoomsForSelectedBooking = useMemo(() => {
     if (!selectedGuestBooking) return new Set<string>();
     const selected = selectedGuestBooking;
-    const checkIn = new Date(selected.check_in_date).getTime();
-    const checkOut = new Date(selected.check_out_date).getTime();
-    const blocked = new Set(
-      guestHouseBookings
-        .filter((b) => b.id !== selected.id)
-        .filter((b) => b.guest_house === selected.guest_house)
-        .filter((b) => b.status === "approved")
-        .filter((b) => !!b.room_number)
-        .filter((b) => {
-          const inMs = new Date(b.check_in_date).getTime();
-          const outMs = new Date(b.check_out_date).getTime();
-          return checkIn <= outMs && inMs <= checkOut;
-        })
-        .map((b) => b.room_number as string)
-    );
-    // For already approved requests, treat its own assigned room as booked too.
-    if (selected.status === "approved" && selected.room_number) {
-      blocked.add(selected.room_number);
+    const blocked = new Set<string>();
+
+    const overlapsStay = (b: GuestHouseBooking) =>
+      selected.check_in_date <= b.check_out_date &&
+      b.check_in_date <= selected.check_out_date;
+
+    for (const b of guestHouseBookings) {
+      if (b.id === selected.id) continue;
+      if (b.status !== "approved") continue;
+      if (!overlapsStay(b)) continue;
+      for (const a of allocatedRoomsForBooking(b)) {
+        blocked.add(guestRoomKey(a.guest_house, a.room_number));
+      }
+    }
+    if (selected.status === "approved") {
+      for (const a of allocatedRoomsForBooking(selected)) {
+        blocked.add(guestRoomKey(a.guest_house, a.room_number));
+      }
     }
     return blocked;
   }, [guestHouseBookings, selectedGuestBooking]);
@@ -456,36 +488,18 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         availableRooms: 0,
       };
     }
-
-    const allRooms = roomsByFloorForGuestHouse(selectedGuestBooking.guest_house)
-      .flatMap((floor) => floor.rooms);
-    const totalRooms = allRooms.length;
+    const totalRooms = TOTAL_GUEST_HOUSE_ROOM_COUNT;
     const bookedRooms = unavailableRoomsForSelectedBooking.size;
     const availableRooms = Math.max(totalRooms - bookedRooms, 0);
 
     return { totalRooms, bookedRooms, availableRooms };
   }, [selectedGuestBooking, unavailableRoomsForSelectedBooking]);
 
-  const selectedGuestRoomBookings = useMemo(() => {
-    if (!selectedGuestBooking || !selectedGuestFocusedRoom) return [];
-    return guestHouseBookings
-      .filter((b) => b.guest_house === selectedGuestBooking.guest_house)
-      .filter((b) => b.status === "approved")
-      .filter((b) => b.room_number === selectedGuestFocusedRoom)
-      .filter(
-        (b) =>
-          selectedGuestBooking.check_in_date <= b.check_out_date &&
-          b.check_in_date <= selectedGuestBooking.check_out_date
-      )
-      .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date));
-  }, [guestHouseBookings, selectedGuestBooking, selectedGuestFocusedRoom]);
-
   const selectedGuestRoomBookingMap = useMemo(() => {
     const map = new Map<string, GuestHouseBooking[]>();
     if (!selectedGuestBooking) return map;
     for (const b of guestHouseBookings) {
-      if (b.guest_house !== selectedGuestBooking.guest_house) continue;
-      if (b.status !== "approved" || !b.room_number) continue;
+      if (b.status !== "approved") continue;
       if (
         !(
           selectedGuestBooking.check_in_date <= b.check_out_date &&
@@ -494,13 +508,20 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       ) {
         continue;
       }
-      const key = b.room_number;
-      const arr = map.get(key) ?? [];
-      arr.push(b);
-      map.set(key, arr);
+      for (const a of allocatedRoomsForBooking(b)) {
+        const key = guestRoomKey(a.guest_house, a.room_number);
+        const arr = map.get(key) ?? [];
+        arr.push(b);
+        map.set(key, arr);
+      }
     }
     return map;
   }, [guestHouseBookings, selectedGuestBooking]);
+
+  const selectedGuestRoomBookings = useMemo(() => {
+    if (!selectedGuestBooking || !selectedGuestFocusKey) return [];
+    return selectedGuestRoomBookingMap.get(selectedGuestFocusKey) ?? [];
+  }, [selectedGuestRoomBookingMap, selectedGuestBooking, selectedGuestFocusKey]);
 
   const allTerms = [...new Set(enrollments.map((e) => e.term))].sort();
   const allSubjects = [...new Set(enrollments.map((e) => e.subject))].sort();
@@ -1040,88 +1061,109 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
         {/* ========== GUEST HOUSE TAB ========== */}
         <TabsContent value="request-guest-house-requests" className="mt-6 space-y-6">
-          <div className="space-y-6">
-              <div className="rounded-xl border bg-muted/25 p-2.5">
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { label: "Pending", value: "pending", color: "text-yellow-700", chip: "bg-yellow-100" },
-                    { label: "Approved", value: "approved", color: "text-accent-foreground", chip: "bg-accent/20" },
-                    { label: "Rejected", value: "rejected", color: "text-destructive", chip: "bg-destructive/10" },
-                    { label: "Clarification", value: "clarification_needed", color: "text-primary", chip: "bg-primary/10" },
-                  ].map((stat) => (
-                    <button
-                      key={stat.value}
-                      type="button"
-                      onClick={() => setGuestStatusFilter(stat.value as typeof guestStatusFilter)}
-                      className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-colors ${
-                        guestStatusFilter === stat.value
-                          ? "border-primary/50 bg-primary/5"
-                          : "bg-background hover:bg-muted/40"
-                      }`}
-                    >
-                      <span className="text-xs text-muted-foreground">{stat.label}</span>
-                      <span className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}>
-                        {filterGuestByStatus(stat.value).length}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+          <Tabs defaultValue="guest-house-approvals" className="w-full">
+            <TabsList className="mb-6 flex h-auto w-full min-h-10 p-0">
+              <TabsTrigger value="guest-house-approvals" className="flex-1 rounded-none py-2.5">
+                Approvals
+              </TabsTrigger>
+              <TabsTrigger value="guest-house-availability" className="flex-1 rounded-none py-2.5">
+                Availability
+              </TabsTrigger>
+            </TabsList>
 
-              {guestHouseLoading ? (
-                <div className="py-6">
-                  <BookingCardsSkeleton count={4} />
+            <TabsContent value="guest-house-approvals" className="space-y-6">
+                <div className="rounded-xl border bg-muted/25 p-2.5">
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: "Pending", value: "pending", color: "text-yellow-700", chip: "bg-yellow-100" },
+                      { label: "Approved", value: "approved", color: "text-accent-foreground", chip: "bg-accent/20" },
+                      { label: "Rejected", value: "rejected", color: "text-destructive", chip: "bg-destructive/10" },
+                      { label: "Clarification", value: "clarification_needed", color: "text-primary", chip: "bg-primary/10" },
+                    ].map((stat) => (
+                      <button
+                        key={stat.value}
+                        type="button"
+                        onClick={() => setGuestStatusFilter(stat.value as typeof guestStatusFilter)}
+                        className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-colors ${
+                          guestStatusFilter === stat.value
+                            ? "border-primary/50 bg-primary/5"
+                            : "bg-background hover:bg-muted/40"
+                        }`}
+                      >
+                        <span className="text-xs text-muted-foreground">{stat.label}</span>
+                        <span className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}>
+                          {filterGuestByStatus(stat.value).length}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : sortByCreatedAtAsc(filterGuestByStatus(guestStatusFilter)).length === 0 ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No guest house bookings in this status.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {sortByCreatedAtAsc(filterGuestByStatus(guestStatusFilter)).map((b) => (
-                    <Card
-                      key={b.id}
-                      className="cursor-pointer transition-shadow hover:shadow-md"
-                      onClick={() => {
-                        setSelectedGuestBooking(b);
-                        setGuestAdminNote(b.admin_note ?? "");
-                        setGuestSelectedRoom(b.room_number ?? "");
-                      }}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <CardTitle className="text-base">{b.guest_name}</CardTitle>
-                          <Badge className={statusColors[b.status] ?? "bg-muted text-foreground"}>
-                            {formatGuestStatusLabel(b.status)}
-                          </Badge>
-                        </div>
-                        <CardDescription>
-                          {GUEST_HOUSE_LABELS[b.guest_house]}
-                          {b.room_number ? ` • Room ${b.room_number}` : ""}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-1 text-sm text-muted-foreground">
-                        <p>
-                          {b.check_in_date} to {b.check_out_date}
-                        </p>
-                        <p>{b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}</p>
-                        {b.purpose && <p className="line-clamp-2">{b.purpose}</p>}
-                        <p className="text-xs text-muted-foreground">
-                          Submitted at {formatSubmittedAt(b.created_at)}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-          </div>
-          <AdminRequestSchedulePanel
-            mode="guest_house"
-            className="mt-8 border-t border-border/80 pt-6"
-          />
+
+                {guestHouseLoading ? (
+                  <div className="py-6">
+                    <BookingCardsSkeleton count={4} />
+                  </div>
+                ) : sortByCreatedAtAsc(filterGuestByStatus(guestStatusFilter)).length === 0 ? (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground">No guest house bookings in this status.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {sortByCreatedAtAsc(filterGuestByStatus(guestStatusFilter)).map((b) => (
+                      <Card
+                        key={b.id}
+                        className="cursor-pointer transition-shadow hover:shadow-md"
+                        onClick={() => {
+                          setSelectedGuestBooking(b);
+                          setGuestAdminNote(b.admin_note ?? "");
+                          setGuestSelectedAllocations(
+                            b.status === "approved" ? allocatedRoomsForBooking(b) : []
+                          );
+                          setSelectedGuestFocusKey(null);
+                        }}
+                      >
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <CardTitle className="text-base">{b.guest_name}</CardTitle>
+                            <Badge className={statusColors[b.status] ?? "bg-muted text-foreground"}>
+                              {formatGuestStatusLabel(b.status)}
+                            </Badge>
+                          </div>
+                          <CardDescription>
+                            {b.guest_count ?? 1} guest(s) ·{" "}
+                            {b.requested_room_count ??
+                              roomsNeededForGuestCount(b.guest_count ?? 1)}{" "}
+                            room(s) requested (min{" "}
+                            {roomsNeededForGuestCount(b.guest_count ?? 1)})
+                            {b.status === "pending" ? " · Awaiting allocation" : ""}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm text-muted-foreground">
+                          {b.status === "approved" && (
+                            <GuestHouseAllocationReadout booking={b} compact />
+                          )}
+                          <p>
+                            {b.check_in_date} to {b.check_out_date}
+                          </p>
+                          <p>{b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}</p>
+                          {b.purpose && <p className="line-clamp-2">{b.purpose}</p>}
+                          <p className="text-xs text-muted-foreground">
+                            Submitted at {formatSubmittedAt(b.created_at)}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+            </TabsContent>
+
+            <TabsContent value="guest-house-availability" className="space-y-6">
+              <AdminRequestSchedulePanel mode="guest_house" />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="request-sports-requests" className="mt-6 space-y-6">
@@ -1624,7 +1666,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             onClick={() => {
               setSelectedGuestBooking(null);
               setGuestAdminNote("");
-              setGuestSelectedRoom("");
+              setGuestSelectedAllocations([]);
+              setSelectedGuestFocusKey(null);
             }}
           />
           <aside
@@ -1639,7 +1682,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 onClick={() => {
                   setSelectedGuestBooking(null);
                   setGuestAdminNote("");
-                  setGuestSelectedRoom("");
+                  setGuestSelectedAllocations([]);
+                  setSelectedGuestFocusKey(null);
                 }}
                 aria-label="Close"
               >
@@ -1650,7 +1694,12 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               <div className="pt-2">
                 <h2 className="text-lg font-semibold">{selectedGuestBooking.guest_name}</h2>
                 <p className="text-sm text-muted-foreground">
-                  {GUEST_HOUSE_LABELS[selectedGuestBooking.guest_house]}
+                  {selectedGuestBooking.guest_count ?? 1} guest(s) ·{" "}
+                  {selectedGuestBooking.requested_room_count ??
+                    roomsNeededForGuestCount(selectedGuestBooking.guest_count ?? 1)}{" "}
+                  room(s) requested (min{" "}
+                  {roomsNeededForGuestCount(selectedGuestBooking.guest_count ?? 1)}) · max{" "}
+                  {MAX_GUESTS_PER_ROOM} guests per room
                 </p>
               </div>
               <div className="space-y-1.5 text-sm">
@@ -1671,6 +1720,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     {selectedGuestBooking.purpose}
                   </p>
                 )}
+                {selectedGuestBooking.status === "approved" &&
+                  allocatedRoomsForBooking(selectedGuestBooking).length > 0 && (
+                    <GuestHouseAllocationReadout
+                      booking={selectedGuestBooking}
+                      compact
+                      className="mt-1"
+                    />
+                  )}
               </div>
 
               <div className="space-y-2">
@@ -1701,78 +1758,101 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               </div>
 
               <div className="space-y-2">
-                <Label>Room (required for approval)</Label>
-                <div className="rounded-lg border p-3 space-y-3">
+                <Label>Allocate rooms (required for approval)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Select rooms across both guest houses. Tap a blocked room to see overlapping
+                  bookings.
+                </p>
+                <div className="rounded-lg border p-3 space-y-4">
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-primary/70" />
                       Selected
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <span className="h-2 w-2 rounded-full bg-muted-foreground/60" />
-                      Booked for This Stay
+                      <span className="h-2 w-2 rounded-full bg-amber-600/80" />
+                      Unavailable
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-emerald-600/70" />
-                      Available
+                      Free
                     </span>
                   </div>
-                  {roomsByFloorForGuestHouse(selectedGuestBooking.guest_house).map((section) => (
-                    <div key={section.floor} className="space-y-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Floor {section.floor}
-                      </p>
-                      <div className="grid grid-cols-8 gap-1">
-                        {section.rooms.map((room) => {
-                          const unavailable =
-                            unavailableRoomsForSelectedBooking.has(room);
-                          const roomBookings = selectedGuestRoomBookingMap.get(room) ?? [];
-                          const selected =
-                            selectedGuestBooking.status !== "approved" &&
-                            guestSelectedRoom === room;
-                          return (
-                            <button
-                              key={room}
-                              type="button"
-                              onMouseEnter={() =>
-                                unavailable ? setSelectedGuestFocusedRoom(room) : undefined
-                              }
-                              onFocus={() =>
-                                unavailable ? setSelectedGuestFocusedRoom(room) : undefined
-                              }
-                              onClick={() => {
-                                if (unavailable) {
-                                  setSelectedGuestFocusedRoom(room);
-                                } else {
-                                  setGuestSelectedRoom(room);
-                                  setSelectedGuestFocusedRoom(null);
-                                }
-                              }}
-                              title={unavailable ? bookingTooltipText(roomBookings) : undefined}
-                              className={`rounded border px-1 py-1 text-[11px] font-medium transition-colors ${
-                                unavailable
-                                  ? "border-muted bg-muted/40 text-muted-foreground line-through"
-                                  : selected
-                                    ? "border-primary/70 bg-primary/10 text-primary"
-                                    : "border-emerald-700/40 bg-emerald-600/10 text-emerald-800 hover:bg-emerald-600/20"
-                              }`}
-                            >
-                              {room}
-                            </button>
-                          );
-                        })}
-                      </div>
+                  {GUEST_HOUSE_CODES.map((house) => (
+                    <div key={house} className="space-y-2">
+                      <p className="text-xs font-semibold">{GUEST_HOUSE_LABELS[house]}</p>
+                      {roomsByFloorForGuestHouse(house).map((section) => (
+                        <div key={`${house}-${section.floor}`} className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Floor {section.floor}
+                          </p>
+                          <div className="grid grid-cols-8 gap-1">
+                            {section.rooms.map((room) => {
+                              const key = guestRoomKey(house, room);
+                              const roomBookings =
+                                selectedGuestRoomBookingMap.get(key) ?? [];
+                              const isSelected = guestSelectedAllocations.some(
+                                (a) => guestRoomKey(a.guest_house, a.room_number) === key
+                              );
+                              const blocked =
+                                unavailableRoomsForSelectedBooking.has(key) && !isSelected;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onMouseEnter={() =>
+                                    blocked ? setSelectedGuestFocusKey(key) : undefined
+                                  }
+                                  onFocus={() =>
+                                    blocked ? setSelectedGuestFocusKey(key) : undefined
+                                  }
+                                  onClick={() => {
+                                    if (blocked) {
+                                      setSelectedGuestFocusKey(key);
+                                      return;
+                                    }
+                                    if (isSelected) {
+                                      setGuestSelectedAllocations((prev) =>
+                                        prev.filter(
+                                          (a) =>
+                                            guestRoomKey(a.guest_house, a.room_number) !== key
+                                        )
+                                      );
+                                    } else {
+                                      setGuestSelectedAllocations((prev) => [
+                                        ...prev,
+                                        { guest_house: house, room_number: room },
+                                      ]);
+                                    }
+                                    setSelectedGuestFocusKey(null);
+                                  }}
+                                  title={blocked ? bookingTooltipText(roomBookings) : undefined}
+                                  className={`rounded border px-1 py-1 text-[11px] font-medium transition-colors ${
+                                    blocked
+                                      ? "border-amber-600/45 bg-amber-500/15 text-amber-900 line-through dark:text-amber-100"
+                                      : isSelected
+                                        ? "border-primary/70 bg-primary/10 text-primary"
+                                        : "border-emerald-700/40 bg-emerald-600/10 text-emerald-800 hover:bg-emerald-600/20"
+                                  }`}
+                                >
+                                  {room}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
-                {selectedGuestFocusedRoom && (
+                {selectedGuestFocusKey && (
                   <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
                     <p className="text-xs font-semibold">
-                      Bookings for Room {selectedGuestFocusedRoom}
+                      Bookings for {selectedGuestFocusKey.replace(":", " · ")}
                     </p>
                     {selectedGuestRoomBookings.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        No approved bookings overlap this request stay.
+                        No overlapping approved bookings for this stay window.
                       </p>
                     ) : (
                       <div className="space-y-1.5">

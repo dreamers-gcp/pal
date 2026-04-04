@@ -150,3 +150,47 @@ export function normalizeTimeForDb(t: string): string {
 export function timeSlice(t: string): string {
   return t.slice(0, 5);
 }
+
+/** Default session length for counsellor / doctor appointments (student booking). */
+export const APPOINTMENT_COUNSELLOR_MINUTES = 45;
+export const APPOINTMENT_DOCTOR_MINUTES = 15;
+
+export function appointmentDurationMinutes(
+  service: "counsellor" | "doctor"
+): number {
+  return service === "doctor"
+    ? APPOINTMENT_DOCTOR_MINUTES
+    : APPOINTMENT_COUNSELLOR_MINUTES;
+}
+
+function formatTime12h(h24: number, minute: number): string {
+  const h12 = h24 % 12 || 12;
+  const ampm = h24 < 12 ? "AM" : "PM";
+  return `${h12}:${String(minute).padStart(2, "0")} ${ampm}`;
+}
+
+/** Add minutes to HH:mm; result stays on the same calendar day (before midnight). */
+export function addMinutesToHHmm(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map((x) => parseInt(x, 10));
+  const total = (h ?? 0) * 60 + (m ?? 0) + minutes;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+}
+
+/**
+ * Start-time options (15-minute steps) where start + duration fits strictly before midnight.
+ */
+export function appointmentStartTimeOptions(
+  durationMins: number,
+  stepMinutes = 15
+): { value: string; label: string }[] {
+  const options: { value: string; label: string }[] = [];
+  for (let t = 0; t + durationMins < 24 * 60; t += stepMinutes) {
+    const h = Math.floor(t / 60);
+    const min = t % 60;
+    const value = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    options.push({ value, label: formatTime12h(h, min) });
+  }
+  return options;
+}

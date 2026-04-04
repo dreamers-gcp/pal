@@ -5,6 +5,7 @@ import type {
   AppointmentProviderCode,
   Classroom,
   FacilityBookingType,
+  GuestHouseBooking,
   GuestHouseCode,
   SportType,
   SportsVenueCode,
@@ -16,7 +17,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -39,9 +42,261 @@ import {
 import {
   SPORT_LABELS,
   SPORTS_VENUE_LABELS,
+  SPORT_TYPES_ORDER,
   venuesForSport,
 } from "@/lib/sports-booking";
-import { GUEST_HOUSE_LABELS, roomOptionsForGuestHouse } from "@/lib/guest-house";
+import { createClient } from "@/lib/supabase/client";
+import {
+  allocatedRoomsForBooking,
+  GUEST_HOUSE_CODES,
+  GUEST_HOUSE_LABELS,
+  guestRoomKey,
+  roomOptionsForGuestHouse,
+  roomsByFloorForGuestHouse,
+  TOTAL_GUEST_HOUSE_ROOM_COUNT,
+} from "@/lib/guest-house";
+
+function bookingTooltipText(bookings: GuestHouseBooking[]): string {
+  if (!bookings.length) return "";
+  return bookings
+    .map(
+      (b) =>
+        `${b.guest_name}: ${b.check_in_date} to ${b.check_out_date} (${b.requester?.full_name ?? b.requester_email ?? "Unknown"})`
+    )
+    .join("\n");
+}
+
+type GuestHouseScope = GuestHouseCode | "all";
+
+function GuestHouseDateRangeAvailability({
+  startDate,
+  endDate,
+  guestHouseScope,
+}: {
+  startDate: string;
+  endDate: string;
+  guestHouseScope: GuestHouseScope;
+}) {
+  const [rows, setRows] = useState<GuestHouseBooking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+
+  const houses: GuestHouseCode[] =
+    guestHouseScope === "all" ? GUEST_HOUSE_CODES : [guestHouseScope];
+
+  useEffect(() => {
+    setFocusKey(null);
+  }, [startDate, endDate, guestHouseScope]);
+
+  useEffect(() => {
+    const start = startDate.trim();
+    const end = endDate.trim();
+    if (!start || !end) {
+      setRows([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    if (start > end) {
+      setRows([]);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      const supabase = createClient();
+      const { data, error: qErr } = await supabase
+        .from("guest_house_bookings")
+        .select(
+          "id, check_in_date, check_out_date, guest_name, room_number, guest_house, allocated_rooms, requester_email, requester:profiles!guest_house_bookings_requester_id_fkey(full_name)"
+        )
+        .eq("status", "approved")
+        .lte("check_in_date", end)
+        .gte("check_out_date", start);
+      if (cancelled) return;
+      if (qErr) {
+        setError(qErr.message);
+        setRows([]);
+      } else {
+        setRows((data ?? []) as unknown as GuestHouseBooking[]);
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [startDate, endDate]);
+
+  const roomBookingMap = useMemo(() => {
+    const map = new Map<string, GuestHouseBooking[]>();
+    const start = startDate.trim();
+    const end = endDate.trim();
+    if (!start || !end || start > end) return map;
+    for (const b of rows) {
+      if (!(start <= b.check_out_date && b.check_in_date <= end)) continue;
+      for (const a of allocatedRoomsForBooking(b)) {
+        const key = guestRoomKey(a.guest_house, a.room_number);
+        const arr = map.get(key) ?? [];
+        arr.push(b);
+        map.set(key, arr);
+      }
+    }
+    return map;
+  }, [rows, startDate, endDate]);
+
+  const { totalRooms, bookedRooms, availableRooms } = useMemo(() => {
+    const totalRooms =
+      guestHouseScope === "all"
+        ? TOTAL_GUEST_HOUSE_ROOM_COUNT
+        : roomOptionsForGuestHouse(guestHouseScope).length;
+    let booked = 0;
+    for (const key of roomBookingMap.keys()) {
+      const house = key.split(":")[0] as GuestHouseCode;
+      if (houses.includes(house)) booked += 1;
+    }
+    return {
+      totalRooms,
+      bookedRooms: booked,
+      availableRooms: Math.max(totalRooms - booked, 0),
+    };
+  }, [roomBookingMap, guestHouseScope, houses]);
+
+  const focusBookings = focusKey ? (roomBookingMap.get(focusKey) ?? []) : [];
+
+  const start = startDate.trim();
+  const end = endDate.trim();
+
+  if (!start || !end) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Select a start date and end date to load room availability.
+      </p>
+    );
+  }
+
+  if (start > end) {
+    return (
+      <p className="text-sm text-destructive">
+        End date must be on or after start date.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border p-3 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-md border bg-emerald-500/10 px-2 py-1.5">
+            <p className="text-[11px] text-muted-foreground">Available</p>
+            <p className="text-sm font-semibold text-emerald-700">{availableRooms}</p>
+          </div>
+          <div className="rounded-md border bg-amber-500/10 px-2 py-1.5">
+            <p className="text-[11px] text-muted-foreground">Booked</p>
+            <p className="text-sm font-semibold text-amber-700">{bookedRooms}</p>
+          </div>
+          <div className="rounded-md border bg-muted px-2 py-1.5">
+            <p className="text-[11px] text-muted-foreground">Rooms in view</p>
+            <p className="text-sm font-semibold">{totalRooms}</p>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <Skeleton className="h-[280px] w-full rounded-lg" />
+      ) : (
+        <div className="rounded-lg border p-3 space-y-4">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-600/80" />
+              Booked
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-600/70" />
+              Free
+            </span>
+          </div>
+          {houses.map((house) => (
+            <div key={house} className="space-y-2">
+              <p className="text-xs font-semibold">{GUEST_HOUSE_LABELS[house]}</p>
+              {roomsByFloorForGuestHouse(house).map((section) => (
+                <div key={`${house}-${section.floor}`} className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Floor {section.floor}
+                  </p>
+                  <div className="grid grid-cols-8 gap-1">
+                    {section.rooms.map((room) => {
+                      const key = guestRoomKey(house, room);
+                      const roomBookings = roomBookingMap.get(key) ?? [];
+                      const blocked = roomBookings.length > 0;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onMouseEnter={() =>
+                            blocked ? setFocusKey(key) : undefined
+                          }
+                          onFocus={() => (blocked ? setFocusKey(key) : undefined)}
+                          onClick={() => {
+                            if (blocked) setFocusKey(key);
+                            else setFocusKey(null);
+                          }}
+                          title={blocked ? bookingTooltipText(roomBookings) : undefined}
+                          className={`rounded border px-1 py-1 text-[11px] font-medium transition-colors ${
+                            blocked
+                              ? "border-amber-600/45 bg-amber-500/15 text-amber-900 line-through dark:text-amber-100"
+                              : "border-emerald-700/40 bg-emerald-600/10 text-emerald-800 hover:bg-emerald-600/20"
+                          }`}
+                        >
+                          {room}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {focusKey && (
+        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+          <p className="text-xs font-semibold">
+            Bookings for {focusKey.replace(":", " · ")}
+          </p>
+          {focusBookings.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No bookings for this room.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {focusBookings.map((b) => (
+                <div
+                  key={b.id}
+                  className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                >
+                  <p className="font-medium">{b.guest_name}</p>
+                  <p className="text-muted-foreground">
+                    {b.check_in_date} to {b.check_out_date}
+                    {" • "}
+                    {b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export type AdminRequestScheduleMode =
   | "event"
@@ -78,22 +333,18 @@ export function AdminRequestSchedulePanel({
     );
   }, [classrooms]);
 
-  const [sport, setSport] = useState<SportType>("badminton");
+  const [sport, setSport] = useState<SportType>("cricket");
   const [sportVenue, setSportVenue] = useState<SportsVenueCode>(() =>
-    venuesForSport("badminton")[0]!
+    venuesForSport("cricket")[0]!
   );
   useEffect(() => {
     const v = venuesForSport(sport)[0];
     if (v) setSportVenue(v);
   }, [sport]);
 
-  const [guestHouse, setGuestHouse] = useState<GuestHouseCode>("international_centre");
-  const [guestRoom, setGuestRoom] = useState("");
-  useEffect(() => {
-    const opts = roomOptionsForGuestHouse(guestHouse);
-    const first = opts[0] ?? "";
-    setGuestRoom((prev) => (opts.includes(prev) ? prev : first));
-  }, [guestHouse]);
+  const [guestHouseScope, setGuestHouseScope] = useState<GuestHouseScope>("all");
+  const [guestAvailStart, setGuestAvailStart] = useState("");
+  const [guestAvailEnd, setGuestAvailEnd] = useState("");
 
   const [facType, setFacType] = useState<FacilityBookingType>("auditorium");
   const [facVenue, setFacVenue] = useState("");
@@ -129,13 +380,7 @@ export function AdminRequestSchedulePanel({
           label: SPORTS_VENUE_LABELS[sportVenue],
         };
       case "guest_house":
-        if (!guestRoom) return null;
-        return {
-          kind: "guest_house",
-          guestHouse,
-          roomNumber: guestRoom,
-          label: `${GUEST_HOUSE_LABELS[guestHouse]} · ${guestRoom}`,
-        };
+        return null;
       case "leave":
         return { kind: "leave" };
       case "mess":
@@ -163,8 +408,6 @@ export function AdminRequestSchedulePanel({
     classrooms,
     sport,
     sportVenue,
-    guestHouse,
-    guestRoom,
     facType,
     facVenue,
     prov,
@@ -176,7 +419,7 @@ export function AdminRequestSchedulePanel({
       : mode === "sports"
         ? "Sports venue schedule"
         : mode === "guest_house"
-          ? "Guest house room schedule"
+          ? "Guest house availability"
           : mode === "leave"
             ? "Approved leave (all students)"
             : mode === "mess"
@@ -190,8 +433,17 @@ export function AdminRequestSchedulePanel({
       <CardHeader className="pb-3">
         <CardTitle className="text-base">{headline}</CardTitle>
         <CardDescription>
-          Week view matches request forms: shaded blocks are approved; empty slots are
-          free.
+          {mode === "guest_house" ? (
+            <>
+              Choose a stay window and which building(s) to inspect. Room tiles match
+              the guest request sidebar: booked rooms are shaded; free rooms are green.
+            </>
+          ) : (
+            <>
+              Week view matches request forms: shaded blocks are approved; empty slots are
+              free.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -239,7 +491,7 @@ export function AdminRequestSchedulePanel({
                   <SelectValue>{SPORT_LABELS[sport]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(SPORT_LABELS) as SportType[]).map((s) => (
+                  {SPORT_TYPES_ORDER.map((s) => (
                     <SelectItem key={s} value={s}>
                       {SPORT_LABELS[s]}
                     </SelectItem>
@@ -270,16 +522,23 @@ export function AdminRequestSchedulePanel({
 
         {mode === "guest_house" && (
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Guest house</Label>
               <Select
-                value={guestHouse}
-                onValueChange={(v) => v && setGuestHouse(v as GuestHouseCode)}
+                value={guestHouseScope}
+                onValueChange={(v) =>
+                  v && setGuestHouseScope(v as GuestHouseScope)
+                }
               >
                 <SelectTrigger className="rounded-lg">
-                  <SelectValue>{GUEST_HOUSE_LABELS[guestHouse]}</SelectValue>
+                  <SelectValue>
+                    {guestHouseScope === "all"
+                      ? "All guest houses"
+                      : GUEST_HOUSE_LABELS[guestHouseScope]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All guest houses</SelectItem>
                   {(Object.keys(GUEST_HOUSE_LABELS) as GuestHouseCode[]).map((gh) => (
                     <SelectItem key={gh} value={gh}>
                       {GUEST_HOUSE_LABELS[gh]}
@@ -289,24 +548,23 @@ export function AdminRequestSchedulePanel({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Room</Label>
-              <Select
-                value={guestRoom}
-                onValueChange={(v) => setGuestRoom(v ?? "")}
-              >
-                <SelectTrigger className="rounded-lg">
-                  <SelectValue placeholder="Room">
-                    {guestRoom ? formatUiLabel(guestRoom) : null}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {roomOptionsForGuestHouse(guestHouse).map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {formatUiLabel(r)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Start date</Label>
+              <DatePicker
+                value={guestAvailStart}
+                onChange={setGuestAvailStart}
+                placeholder="Pick date"
+                className="rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End date</Label>
+              <DatePicker
+                value={guestAvailEnd}
+                onChange={setGuestAvailEnd}
+                min={guestAvailStart || undefined}
+                placeholder="Pick date"
+                className="rounded-lg"
+              />
             </div>
           </div>
         )}
@@ -396,7 +654,15 @@ export function AdminRequestSchedulePanel({
           </div>
         )}
 
-        <ResourceAvailabilityCalendar resource={resource} adminView />
+        {mode === "guest_house" ? (
+          <GuestHouseDateRangeAvailability
+            startDate={guestAvailStart}
+            endDate={guestAvailEnd}
+            guestHouseScope={guestHouseScope}
+          />
+        ) : (
+          <ResourceAvailabilityCalendar resource={resource} adminView />
+        )}
       </CardContent>
     </Card>
   );

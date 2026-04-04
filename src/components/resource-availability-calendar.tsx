@@ -35,6 +35,8 @@ import {
   combineDateAndTimeLocal,
   facilityVenueCodesForFilter,
 } from "@/lib/campus-use-cases";
+import type { GuestHouseBooking } from "@/lib/types";
+import { allocatedRoomsForBooking } from "@/lib/guest-house";
 
 const BUSY_COLOR = "#64748b";
 
@@ -331,38 +333,36 @@ export function ResourceAvailabilityCalendar({
 
         if (spec.kind === "guest_house") {
           const roomStr = String(spec.roomNumber).trim();
-          const roomNum = Number(roomStr);
-          const roomFilter =
-            Number.isFinite(roomNum) && String(roomNum) === roomStr
-              ? [roomStr, roomNum]
-              : [roomStr];
           const { data, error: qErr } = await supabase
             .from("guest_house_bookings")
-            .select("id, check_in_date, check_out_date, guest_name, room_number")
-            .eq("guest_house", spec.guestHouse)
-            .in("room_number", roomFilter)
+            .select(
+              "id, check_in_date, check_out_date, guest_name, room_number, guest_house, allocated_rooms"
+            )
             .eq("status", "approved")
             .gte("check_out_date", from)
             .lte("check_in_date", to)
             .order("check_in_date", { ascending: true });
           if (qErr) throw qErr;
+          const rows = (data ?? []).filter((raw) => {
+            const r = raw as GuestHouseBooking;
+            return allocatedRoomsForBooking(r).some(
+              (a) =>
+                a.guest_house === spec.guestHouse &&
+                String(a.room_number) === roomStr
+            );
+          });
           setEvents(
-            (data ?? [])
-              .filter(
-                (r: { room_number?: string | number }) =>
-                  String(r.room_number) === roomStr
-              )
-              .map((r: any) => {
-                const start = parseISO(`${r.check_in_date}T00:00:00`);
-                const end = addDays(parseISO(`${r.check_out_date}T00:00:00`), 1);
-                return {
-                  id: r.id,
-                  title: r.guest_name ? `Guest · ${r.guest_name}` : "Booked",
-                  start,
-                  end,
-                  allDay: true,
-                } as BusyEvent;
-              })
+            rows.map((r: any) => {
+              const start = parseISO(`${r.check_in_date}T00:00:00`);
+              const end = addDays(parseISO(`${r.check_out_date}T00:00:00`), 1);
+              return {
+                id: r.id,
+                title: r.guest_name ? `Guest · ${r.guest_name}` : "Booked",
+                start,
+                end,
+                allDay: true,
+              } as BusyEvent;
+            })
           );
           return;
         }
