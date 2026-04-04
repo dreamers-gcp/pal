@@ -412,7 +412,7 @@ export function ResourceAvailabilityCalendar({
   }
 
   return (
-    <div className={`space-y-2 ${className ?? ""}`}>
+    <div className={`min-w-0 max-w-full space-y-2 ${className ?? ""}`}>
       <div>
         <p className="text-sm font-medium text-foreground">
           Availability for {title}
@@ -437,8 +437,15 @@ export function ResourceAvailabilityCalendar({
           />
         </div>
       ) : (
-        <div className="rounded-lg border bg-background overflow-hidden p-1.5">
-          <div className={compact ? "h-[260px]" : "h-[320px]"}>
+        <div className="max-w-full min-w-0 overflow-hidden rounded-lg border bg-background p-1.5">
+          <div className="overflow-x-auto">
+            <div
+              className={
+                compact
+                  ? "h-[260px] min-w-[560px] max-sm:h-[240px]"
+                  : "h-[320px] min-w-[560px] max-sm:h-[280px]"
+              }
+            >
             <BigCalendar
               localizer={localizer}
               events={events}
@@ -473,6 +480,7 @@ export function ResourceAvailabilityCalendar({
                 },
               })}
             />
+            </div>
           </div>
         </div>
       )}

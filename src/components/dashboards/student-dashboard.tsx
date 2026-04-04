@@ -59,6 +59,7 @@ import {
 import { StudentCampusTab } from "@/components/campus/student-campus-tab";
 import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 import { cn } from "@/lib/utils";
+import { useClientTodayIso } from "@/hooks/use-client-today";
 
 /** Local calendar day for an event (no UTC shift from date-only strings). */
 function eventBaseLocalDate(e: CalendarRequest): Date | null {
@@ -137,6 +138,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [unavailableSportsVenues, setUnavailableSportsVenues] = useState<Set<SportsVenueCode>>(new Set());
   /** Tick so "Upcoming" → "Ongoing" updates without navigating away. */
   const [now, setNow] = useState(() => new Date());
+  const todayIso = useClientTodayIso();
 
   const guestRoomMin = useMemo(
     () => roomsNeededForGuestCount(Math.max(1, Math.floor(Number(guestCount) || 1))),
@@ -581,7 +583,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   }
 
   return (
-    <Tabs defaultValue="events" className="gap-1">
+    <Tabs defaultValue="events" className="min-w-0 w-full max-w-full gap-1">
         {/* Desktop: left rail — wide (icons+labels) or narrow (icons only), like a classic app sidebar */}
         <aside
           className={cn(
@@ -702,7 +704,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           )}
         >
             <div>
-              <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+              <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
                 {greeting}, {profile.full_name}!
               </h1>
             </div>
@@ -1110,7 +1112,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={guestCheckIn}
                         onChange={setGuestCheckIn}
-                        min={new Date().toISOString().split("T")[0]}
+                        min={todayIso}
                         placeholder="Pick date"
                       />
                     </div>
@@ -1119,7 +1121,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={guestCheckOut}
                         onChange={setGuestCheckOut}
-                        min={guestCheckIn || new Date().toISOString().split("T")[0]}
+                        min={guestCheckIn || todayIso}
                         placeholder="Pick date"
                       />
                     </div>
@@ -1245,7 +1247,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={sportDate}
                         onChange={setSportDate}
-                        min={new Date().toISOString().split("T")[0]}
+                        min={todayIso}
                         placeholder="Pick date"
                       />
                     </div>

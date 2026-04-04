@@ -20,6 +20,13 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Parse YYYY-MM-DD as a local calendar day (same on server and client for a given string). */
+function isoDateOnlyToLocalDate(iso: string): Date {
+  const [y, mo, d] = iso.split("T")[0].split("-").map((x) => parseInt(x, 10));
+  if (Number.isNaN(y) || Number.isNaN(mo) || Number.isNaN(d)) return new Date(NaN);
+  return new Date(y, mo - 1, d);
+}
+
 export function DatePicker({
   value,
   onChange,
@@ -40,9 +47,9 @@ export function DatePicker({
   className?: string;
   displayFormat?: string;
 }) {
-  const selected = value ? new Date(`${value}T00:00:00`) : undefined;
-  const minDate = min ? new Date(`${min}T00:00:00`) : undefined;
-  const maxDate = max ? new Date(`${max}T00:00:00`) : undefined;
+  const selected = value ? isoDateOnlyToLocalDate(value) : undefined;
+  const minDate = min ? isoDateOnlyToLocalDate(min) : undefined;
+  const maxDate = max ? isoDateOnlyToLocalDate(max) : undefined;
 
   return (
     <Popover>
@@ -61,7 +68,7 @@ export function DatePicker({
             <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
             <span className="truncate">
               {value
-                ? format(new Date(`${value}T00:00:00`), displayFormat)
+                ? format(isoDateOnlyToLocalDate(value), displayFormat)
                 : placeholder}
             </span>
           </Button>
@@ -81,7 +88,7 @@ export function DatePicker({
             if (max && iso > max) return true;
             return false;
           }}
-          defaultMonth={selected ?? minDate ?? new Date()}
+          defaultMonth={selected ?? minDate}
           initialFocus
         />
       </PopoverContent>

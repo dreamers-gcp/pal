@@ -43,6 +43,7 @@ import {
 } from "@/lib/campus-use-cases";
 import { isTimeOverlap } from "@/lib/sports-booking";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
+import { useClientTodayIso } from "@/hooks/use-client-today";
 
 function badge(status: string) {
   if (status === "approved") return "bg-accent/15 text-accent-foreground";
@@ -89,6 +90,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
   const [pBlocked, setPBlocked] = useState(false);
   const [pSubmit, setPSubmit] = useState(false);
 
+  const todayIso = useClientTodayIso();
   const minMess = tomorrowDateString();
 
   useEffect(() => {
@@ -486,7 +488,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
                   <DatePicker
                     value={pDate}
                     onChange={setPDate}
-                    min={new Date().toISOString().split("T")[0]}
+                    min={todayIso}
                     placeholder="Pick a date"
                   />
                 </div>

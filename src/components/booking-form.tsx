@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
+import { useClientTodayIso } from "@/hooks/use-client-today";
 
 export interface BookingFormPrefill {
   classroomId?: string;
@@ -63,6 +64,7 @@ export function BookingForm({
   const [endTime, setEndTime] = useState(prefill?.endTime || "");
   const [requestKind, setRequestKind] =
     useState<CalendarRequestKind>(defaultRequestKind);
+  const todayIso = useClientTodayIso();
 
   useEffect(() => {
     setRequestKind(defaultRequestKind);
@@ -310,7 +312,7 @@ export function BookingForm({
           <DatePicker
             value={eventDate}
             onChange={setEventDate}
-            min={new Date().toISOString().split("T")[0]}
+            min={todayIso}
             placeholder="Pick a date"
           />
         </div>

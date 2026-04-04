@@ -46,6 +46,7 @@ import {
   TimetableGeneratorSkeleton,
   WeeklySlotGridSkeleton,
 } from "@/components/ui/loading-skeletons";
+import { useClientTodayIso } from "@/hooks/use-client-today";
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -113,6 +114,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
   const [approving, setApproving] = useState(false);
 
   const [expandedTimetable, setExpandedTimetable] = useState<string | null>(null);
+  const todayIso = useClientTodayIso();
 
   const fetchData = useCallback(async () => {
     const supabase = createClient();
@@ -525,7 +527,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                   <DatePicker
                     value={startDate}
                     onChange={setStartDate}
-                    min={new Date().toISOString().split("T")[0]}
+                    min={todayIso}
                     placeholder="Pick start date"
                   />
                 </div>
@@ -537,7 +539,7 @@ export function TimetableGenerator({ profile }: { profile: Profile }) {
                   <DatePicker
                     value={endDate}
                     onChange={setEndDate}
-                    min={startDate || new Date().toISOString().split("T")[0]}
+                    min={startDate || todayIso}
                     placeholder="Pick end date"
                     disabled={!startDate}
                   />

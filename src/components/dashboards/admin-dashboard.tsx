@@ -824,7 +824,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           )}
         >
             <div>
-              <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+              <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
                 Admin Dashboard
               </h1>
               <p className="mt-1 text-muted-foreground">
@@ -968,7 +968,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         {/* Request sections — primary nav is the sidebar under Requests */}
         <TabsContent value="request-event-requests" className="mt-6 space-y-6">
               <div className="rounded-xl border bg-muted/25 p-2.5">
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     {
                       label: "Pending",
@@ -1066,7 +1066,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
         {/* ========== GUEST HOUSE TAB ========== */}
         <TabsContent value="request-guest-house-requests" className="mt-6 space-y-6">
-          <Tabs defaultValue="guest-house-approvals" className="w-full">
+          <Tabs defaultValue="guest-house-approvals" className="w-full min-w-0 max-w-full">
             <TabsList className="mb-6 flex h-auto w-full min-h-10 p-0">
               <TabsTrigger value="guest-house-approvals" className="flex-1 rounded-none py-2.5">
                 Approvals
@@ -1078,7 +1078,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
             <TabsContent value="guest-house-approvals" className="space-y-6">
                 <div className="rounded-xl border bg-muted/25 p-2.5">
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
                       { label: "Pending", value: "pending", color: "text-yellow-700", chip: "bg-yellow-100" },
                       { label: "Approved", value: "approved", color: "text-accent-foreground", chip: "bg-accent/20" },
@@ -1174,7 +1174,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="request-sports-requests" className="mt-6 space-y-6">
           <div className="space-y-6">
               <div className="rounded-xl border bg-muted/25 p-2.5">
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     { label: "Pending", value: "pending", color: "text-yellow-700", chip: "bg-yellow-100" },
                     { label: "Approved", value: "approved", color: "text-accent-foreground", chip: "bg-accent/20" },
@@ -1299,7 +1299,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="students" className="mt-6 space-y-6">
           {studentsLoading ? (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <Skeleton key={i} className="h-14 rounded-lg" />
                 ))}
@@ -1319,7 +1319,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             <>
               {/* Compact summary strip */}
               <div className="rounded-xl border bg-muted/25 p-2.5">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {[
                     {
                       label: "Total in Roster",
@@ -1421,66 +1421,68 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </Button>
               </div>
 
-              {/* Student roster list */}
-              <div className="rounded-lg border bg-white">
-                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
-                  <span>Name</span>
-                  <span>Email</span>
-                  <span>Subjects / Groups</span>
-                  <span className="text-center">Status</span>
-                </div>
-                {filteredRoster.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No students match the selected filters.
+              {/* Student roster list — horizontal scroll on narrow screens */}
+              <div className="rounded-lg border bg-white overflow-x-auto">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                    <span>Name</span>
+                    <span>Email</span>
+                    <span>Subjects / Groups</span>
+                    <span className="text-center">Status</span>
                   </div>
-                ) : (
-                  filteredRoster.map((entry) => (
-                    <div
-                      key={entry.email}
-                      className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium truncate">
-                          {entry.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm text-muted-foreground truncate">
-                          {entry.email}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {entry.subjects.length > 0 ? (
-                          entry.subjects.map((subj) => (
-                            <span
-                              key={subj}
-                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium"
-                            >
-                              {subj}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No groups</span>
-                        )}
-                      </div>
-                      <div className="flex justify-center">
-                        {entry.signedUp ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent-foreground px-2.5 py-0.5 text-xs font-medium">
-                            <Check className="h-3 w-3" />
-                            Signed up
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2.5 py-0.5 text-xs font-medium">
-                            <Clock className="h-3 w-3" />
-                            Pending
-                          </span>
-                        )}
-                      </div>
+                  {filteredRoster.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      No students match the selected filters.
                     </div>
-                  ))
-                )}
+                  ) : (
+                    filteredRoster.map((entry) => (
+                      <div
+                        key={entry.email}
+                        className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate">
+                            {entry.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm text-muted-foreground truncate">
+                            {entry.email}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {entry.subjects.length > 0 ? (
+                            entry.subjects.map((subj) => (
+                              <span
+                                key={subj}
+                                className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium"
+                              >
+                                {subj}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No groups</span>
+                          )}
+                        </div>
+                        <div className="flex justify-center">
+                          {entry.signedUp ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent-foreground px-2.5 py-0.5 text-xs font-medium">
+                              <Check className="h-3 w-3" />
+                              Signed up
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2.5 py-0.5 text-xs font-medium">
+                              <Clock className="h-3 w-3" />
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1494,7 +1496,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="professors" className="mt-6 space-y-6">
           {profLoading ? (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <Skeleton key={i} className="h-14 rounded-lg" />
                 ))}
@@ -1514,7 +1516,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             <>
               {/* Compact summary strip */}
               <div className="rounded-xl border bg-muted/25 p-2.5">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {[
                     {
                       label: "Total Professors",
@@ -1608,48 +1610,50 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 </Button>
               </div>
 
-              {/* Professor roster list */}
-              <div className="rounded-lg border bg-white">
-                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
-                  <span>Name</span>
-                  <span>Email</span>
-                  <span>Subjects</span>
-                  <span className="text-right">Total Credits</span>
-                </div>
-                {filteredProfRoster.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No professors match the selected filters.
+              {/* Professor roster list — horizontal scroll on narrow screens */}
+              <div className="rounded-lg border bg-white overflow-x-auto">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                    <span>Name</span>
+                    <span>Email</span>
+                    <span>Subjects</span>
+                    <span className="text-right">Total Credits</span>
                   </div>
-                ) : (
-                  filteredProfRoster.map((entry) => (
-                    <div
-                      key={entry.email}
-                      className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium truncate">{entry.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm text-muted-foreground truncate">{entry.email}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {entry.subjects.map((subj) => (
-                          <span
-                            key={subj}
-                            className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium"
-                          >
-                            {subj}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="text-sm font-medium text-right">
-                        {formatCreditsDisplay(entry.totalCredits)}
-                      </div>
+                  {filteredProfRoster.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      No professors match the selected filters.
                     </div>
-                  ))
-                )}
+                  ) : (
+                    filteredProfRoster.map((entry) => (
+                      <div
+                        key={entry.email}
+                        className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate">{entry.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm text-muted-foreground truncate">{entry.email}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {entry.subjects.map((subj) => (
+                            <span
+                              key={subj}
+                              className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium"
+                            >
+                              {subj}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="text-sm font-medium text-right">
+                          {formatCreditsDisplay(entry.totalCredits)}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1666,7 +1670,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       {selectedGuestBooking && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/20"
+            className="fixed inset-0 z-[45] bg-black/20"
             aria-hidden
             onClick={() => {
               setSelectedGuestBooking(null);
@@ -1676,7 +1680,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             }}
           />
           <aside
-            className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            className="fixed top-16 bottom-0 right-0 z-[60] flex w-full max-w-md flex-col border-l bg-background shadow-2xl animate-in slide-in-from-right duration-200"
             role="dialog"
             aria-label="Review guest house booking"
           >
@@ -1738,7 +1742,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               <div className="space-y-2">
                 <Label>Availability Overview</Label>
                 <div className="rounded-lg border p-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <div className="rounded-md border bg-emerald-500/10 px-2 py-1.5">
                       <p className="text-[11px] text-muted-foreground">Available</p>
                       <p className="text-sm font-semibold text-emerald-700">
@@ -1791,7 +1795,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                           <p className="text-xs font-medium text-muted-foreground">
                             Floor {section.floor}
                           </p>
-                          <div className="grid grid-cols-8 gap-1">
+                          <div className="grid grid-cols-4 gap-1 sm:grid-cols-8">
                             {section.rooms.map((room) => {
                               const key = guestRoomKey(house, room);
                               const roomBookings =
@@ -1935,7 +1939,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       {selectedRequest && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/20"
+            className="fixed inset-0 z-[45] bg-black/20"
             aria-hidden
             onClick={() => {
               setSelectedRequest(null);
@@ -1943,7 +1947,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             }}
           />
           <aside
-            className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            className="fixed top-16 bottom-0 right-0 z-[60] flex w-full max-w-md flex-col border-l bg-background shadow-2xl animate-in slide-in-from-right duration-200"
             role="dialog"
             aria-label="Review request"
           >

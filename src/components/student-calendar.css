@@ -200,3 +200,28 @@
 .rbc-allday-cell {
   border-bottom: 1px solid var(--border);
 }
+
+/* Narrow screens: stack toolbar, keep week grid scrollable via parent overflow-x-auto */
+@media (max-width: 639px) {
+  .rbc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .rbc-toolbar .rbc-toolbar-label {
+    font-size: 1rem;
+    order: -1;
+    width: 100%;
+    text-align: center;
+    flex: none;
+  }
+
+  .rbc-time-view {
+    font-size: 0.8125rem;
+  }
+
+  .rbc-time-gutter .rbc-label {
+    font-size: 0.65rem;
+  }
+}

@@ -428,7 +428,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
 
   return (
     <>
-    <Tabs defaultValue="my-requests">
+    <Tabs defaultValue="my-requests" className="min-w-0 w-full max-w-full">
         <aside
           className={cn(
             "fixed left-0 top-16 z-[45] hidden h-[calc(100dvh-4rem)] flex-col border-r border-[rgba(0,0,0,0.06)] bg-white transition-[width] duration-200 ease-out md:flex",
@@ -537,7 +537,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           )}
         >
             <div>
-              <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
+              <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
                 {greeting}, {profile.full_name}!
               </h1>
             </div>
@@ -934,12 +934,12 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
       {bookingSidebarOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/20"
+            className="fixed inset-0 z-[45] bg-black/20"
             aria-hidden
             onClick={() => setBookingSidebarOpen(false)}
           />
           <aside
-            className="fixed top-0 right-0 z-50 h-full w-full max-w-xl bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            className="fixed top-16 bottom-0 right-0 z-[60] flex w-full max-w-xl flex-col border-l bg-background shadow-2xl animate-in slide-in-from-right duration-200"
             role="dialog"
             aria-label="New event request"
           >

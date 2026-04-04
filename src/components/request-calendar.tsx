@@ -248,17 +248,17 @@ function EventDetailCard({
         </div>
       </div>
       <div className="px-4 pb-4 space-y-2.5">
-        <div className="flex items-center gap-3 text-sm text-foreground">
-          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span>{toTitleCase(request.classroom?.name ?? "—")}</span>
+        <div className="flex min-w-0 items-center gap-3 text-sm text-foreground">
+          <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 break-words">{toTitleCase(request.classroom?.name ?? "—")}</span>
         </div>
-        <div className="flex items-center gap-3 text-sm text-foreground">
-          <User className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span>{toTitleCase(professorDisplay)}</span>
+        <div className="flex min-w-0 items-center gap-3 text-sm text-foreground">
+          <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 break-words">{toTitleCase(professorDisplay)}</span>
         </div>
-        <div className="flex items-center gap-3 text-sm text-foreground">
-          <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span>{toTitleCase(groupNames)}</span>
+        <div className="flex min-w-0 items-center gap-3 text-sm text-foreground">
+          <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 break-words">{toTitleCase(groupNames)}</span>
         </div>
         <div className="flex items-center gap-3 text-sm text-foreground">
           <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -275,7 +275,7 @@ function EventDetailCard({
         {showDescription && request.description && (
           <div className="flex items-start gap-3 text-sm text-foreground pt-1 border-t">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-            <span className="text-muted-foreground">{request.description}</span>
+            <span className="break-words text-muted-foreground">{request.description}</span>
           </div>
         )}
       </div>
@@ -333,7 +333,7 @@ function FacilityDetailCard({
         {booking.purpose && (
           <div className="flex items-start gap-3 text-sm text-foreground pt-1 border-t">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-            <span className="text-muted-foreground">{booking.purpose}</span>
+            <span className="break-words text-muted-foreground">{booking.purpose}</span>
           </div>
         )}
         <p className="text-xs text-muted-foreground pt-2">
@@ -521,7 +521,7 @@ export function RequestCalendar({
   }
 
   return (
-    <div className="space-y-2 relative">
+    <div className="relative min-w-0 max-w-full space-y-2">
       {alwaysShowCalendar &&
         bookings.length === 0 &&
         taskCount === 0 &&
@@ -529,8 +529,9 @@ export function RequestCalendar({
         emptyMessage && (
         <p className="text-center text-sm text-muted-foreground">{emptyMessage}</p>
       )}
-      <div className="rounded-lg border bg-background overflow-hidden p-2">
-        <div className="h-[720px]">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-background p-2">
+        <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+          <div className="h-[min(720px,calc(100dvh-12rem))] min-h-[280px] min-w-[640px]">
           <BigCalendar
             localizer={localizer}
             events={events}
@@ -577,6 +578,7 @@ export function RequestCalendar({
               };
             }}
           />
+          </div>
         </div>
       </div>
 
@@ -584,12 +586,12 @@ export function RequestCalendar({
       {selectedPanel && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[45] bg-black/20"
             aria-hidden
             onClick={() => setSelectedPanel(null)}
           />
           <aside
-            className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+            className="fixed top-16 bottom-0 right-0 z-[60] flex w-full max-w-md flex-col border-l bg-background shadow-2xl animate-in slide-in-from-right duration-200"
             role="dialog"
             aria-label={
               selectedPanel.kind === "task"

@@ -3,15 +3,19 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
-import type { User } from "@supabase/supabase-js";
+import type { AuthChangeEvent, User } from "@supabase/supabase-js";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  /** Only true until the first `getUser()` + profile load finishes — never during later auth events. */
   const [loading, setLoading] = useState(true);
 
   const mountedRef = useRef(true);
-  const inflightRef = useRef(0);
+  const profileIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    profileIdRef.current = profile?.id ?? null;
+  }, [profile?.id]);
 
   const resolveUser = useCallback(async (supabase: ReturnType<typeof createClient>, nextUser: User | null) => {
     if (!nextUser) {
@@ -53,7 +57,6 @@ export function useAuth() {
     const supabase = createClient();
 
     async function initialLoad() {
-      inflightRef.current++;
       setLoading(true);
       try {
         const {
@@ -69,8 +72,7 @@ export function useAuth() {
           setProfile(null);
         }
       } finally {
-        inflightRef.current--;
-        if (mountedRef.current && inflightRef.current === 0) {
+        if (mountedRef.current) {
           setLoading(false);
         }
       }
@@ -80,11 +82,20 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
       if (event === "INITIAL_SESSION") return;
 
-      inflightRef.current++;
-      setLoading(true);
+      // Tab focus runs _recoverAndRefresh() → often SIGNED_IN (not just TOKEN_REFRESHED).
+      // Same user: skip profile refetch; still handle sign-out and profile-affecting events.
+      const uid = session?.user?.id;
+      if (
+        uid &&
+        uid === profileIdRef.current &&
+        (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")
+      ) {
+        return;
+      }
+
       try {
         await resolveUser(supabase, session?.user ?? null);
       } catch (err) {
@@ -92,11 +103,6 @@ export function useAuth() {
           console.error("Auth state change handler failed", err);
           setUser(null);
           setProfile(null);
-        }
-      } finally {
-        inflightRef.current--;
-        if (mountedRef.current && inflightRef.current === 0) {
-          setLoading(false);
         }
       }
     });
