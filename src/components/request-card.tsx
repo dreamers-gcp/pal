@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarDays,
   Clock,
+  ListChecks,
   MapPin,
   Send,
   User,
@@ -14,6 +15,10 @@ import {
 } from "lucide-react";
 import type { CalendarRequest, RequestStatus } from "@/lib/types";
 import { requestKindLabel } from "@/lib/calendar-request-metadata";
+import {
+  decodeCalendarRequestInfra,
+  formatInfraRequirementsLines,
+} from "@/lib/calendar-request-infra";
 import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { formatSubmittedAt, toTitleCase } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +71,9 @@ export function RequestCard({
       ? request.student_groups.map((g) => g.name).join(", ")
       : request.student_group?.name ?? "—";
   const subjectLabels = decodeCalendarRequestSubjects(request.subject);
+  const infraLines = formatInfraRequirementsLines(
+    decodeCalendarRequestInfra(request.infra_requirements)
+  );
 
   return (
     <Card
@@ -139,6 +147,12 @@ export function RequestCard({
               <span className="min-w-0 leading-snug">
                 {subjectLabels.join(", ")}
               </span>
+            </div>
+          )}
+          {infraLines.length > 0 && (
+            <div className="flex items-start gap-2.5 text-muted-foreground">
+              <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground/70 mt-0.5" />
+              <span className="min-w-0 leading-snug">{infraLines.join(" · ")}</span>
             </div>
           )}
           <div className="flex items-center gap-2.5 text-muted-foreground">

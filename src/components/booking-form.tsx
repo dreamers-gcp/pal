@@ -33,6 +33,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
 import { SubjectMultiSelect } from "@/components/ui/subject-combobox";
+import { encodeCalendarRequestInfra } from "@/lib/calendar-request-infra";
 import { encodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { useClientTodayIso } from "@/hooks/use-client-today";
 import { groupsForProfessorBookingForm } from "@/lib/professor-booking-groups";
@@ -40,6 +41,9 @@ import { groupsForProfessorBookingForm } from "@/lib/professor-booking-groups";
 function normalizeRequestKind(k: CalendarRequestKind): CalendarRequestKind {
   return k === "class" ? "extra_class" : k;
 }
+
+/** Sentinel for Radix/Base UI Select (no empty string value). */
+const VENUE_SELECT_NONE = "__bf_venue_none__";
 
 export interface BookingFormPrefill {
   classroomId?: string;
@@ -89,6 +93,13 @@ export function BookingForm({
   const [requestKind, setRequestKind] = useState<CalendarRequestKind>(() =>
     normalizeRequestKind(defaultRequestKind)
   );
+  const [infraMic, setInfraMic] = useState("");
+  const [infraSofa, setInfraSofa] = useState("");
+  const [infraMomento, setInfraMomento] = useState("");
+  const [infraBouquet, setInfraBouquet] = useState("");
+  const [infraVideoRecording, setInfraVideoRecording] = useState(false);
+  const [infraPhotography, setInfraPhotography] = useState(false);
+  const [infraStage, setInfraStage] = useState(false);
   const todayIso = useClientTodayIso();
 
   useEffect(() => {
@@ -205,10 +216,46 @@ export function BookingForm({
       return;
     }
 
+    if (!classroomId?.trim()) {
+      toast.error("Please select a venue");
+      return;
+    }
+
     if (conflictWarning) {
       toast.error("Cannot book — this slot is already taken");
       return;
     }
+
+    function parseOptionalCount(raw: string): number | undefined | "bad" {
+      const t = raw.trim();
+      if (t === "") return undefined;
+      if (!/^\d+$/.test(t)) return "bad";
+      return Number.parseInt(t, 10);
+    }
+
+    const micN = parseOptionalCount(infraMic);
+    const sofaN = parseOptionalCount(infraSofa);
+    const momentoN = parseOptionalCount(infraMomento);
+    const bouquetN = parseOptionalCount(infraBouquet);
+    if (
+      micN === "bad" ||
+      sofaN === "bad" ||
+      momentoN === "bad" ||
+      bouquetN === "bad"
+    ) {
+      toast.error("Infrastructure counts must be whole numbers (0 or more).");
+      return;
+    }
+
+    const infraPayload = encodeCalendarRequestInfra({
+      mic_count: micN,
+      sofa_count: sofaN,
+      momento_count: momentoN,
+      bouquet_count: bouquetN,
+      video_recording: infraVideoRecording,
+      photography: infraPhotography,
+      stage: infraStage,
+    });
 
     setSubmitting(true);
     const supabase = createClient();
@@ -227,6 +274,7 @@ export function BookingForm({
         start_time: startTime,
         end_time: endTime,
         request_kind: requestKind === "class" ? "extra_class" : requestKind,
+        infra_requirements: infraPayload,
       })
       .select()
       .single();
@@ -303,6 +351,27 @@ export function BookingForm({
     [allowedVenueNames, venueByLabel]
   );
 
+  const venueSelectLabel = useMemo(() => {
+    if (!classroomId) return "Select venue";
+    if (showAdHocVenueOption && prefillClassroom?.id === classroomId) {
+      return `${prefillClassroom.name} (from calendar)`;
+    }
+    for (const name of allowedVenueNames) {
+      const row = venueByLabel.get(name);
+      if (row?.id === classroomId) return name;
+    }
+    return (
+      classrooms.find((c) => c.id === classroomId)?.name ?? "Select venue"
+    );
+  }, [
+    classroomId,
+    showAdHocVenueOption,
+    prefillClassroom,
+    allowedVenueNames,
+    venueByLabel,
+    classrooms,
+  ]);
+
   const classroomAvailabilityResource = useMemo(() => {
     if (!classroomId) return null;
     return {
@@ -371,6 +440,60 @@ export function BookingForm({
             </SelectContent>
           </Select>
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="bf-venue">
+            Venue
+            <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={classroomId || VENUE_SELECT_NONE}
+            onValueChange={(v) =>
+              setClassroomId(
+                !v || v === VENUE_SELECT_NONE ? "" : String(v)
+              )
+            }
+          >
+            <SelectTrigger id="bf-venue" className="w-full">
+              <SelectValue>{venueSelectLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={VENUE_SELECT_NONE}>Select venue</SelectItem>
+              {showAdHocVenueOption && prefillClassroom && (
+                <SelectItem value={prefillClassroom.id}>
+                  {prefillClassroom.name} (from calendar)
+                </SelectItem>
+              )}
+              {allowedVenueNames.map((name) => {
+                const row = venueByLabel.get(name);
+                if (!row) return null;
+                return (
+                  <SelectItem key={name} value={row.id}>
+                    {name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Available venues depend on request type.
+          </p>
+          {missingVenueSeeds.length > 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Missing venue rows in the database: {missingVenueSeeds.join(", ")}. Run{" "}
+              <code className="rounded bg-muted px-1">expand-professor-request-kinds-and-venues.sql</code>{" "}
+              in Supabase (SQL Editor).
+            </p>
+          )}
+        </div>
+
+        {classroomAvailabilityResource && (
+          <ResourceAvailabilityCalendar
+            resource={classroomAvailabilityResource}
+            compact={variant === "panel"}
+          />
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="bf-title">
             Event Title
@@ -427,52 +550,97 @@ export function BookingForm({
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="bf-venue">
-            Venue
-            <span className="text-destructive">*</span>
-          </Label>
-          <select
-            id="bf-venue"
-            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={classroomId}
-            onChange={(e) => setClassroomId(e.target.value)}
-            required
-          >
-            <option value="">Select venue</option>
-            {showAdHocVenueOption && prefillClassroom && (
-              <option value={prefillClassroom.id}>
-                {prefillClassroom.name} (from calendar)
-              </option>
-            )}
-            {allowedVenueNames.map((name) => {
-              const row = venueByLabel.get(name);
-              if (!row) return null;
-              return (
-                <option key={name} value={row.id}>
-                  {name}
-                </option>
-              );
-            })}
-          </select>
-          <p className="text-xs text-muted-foreground">
-            Available venues depend on request type.
+        <fieldset className="space-y-3 rounded-lg border border-border/80 bg-muted/20 px-3 py-3">
+          <legend className="px-1 text-sm font-medium text-foreground">
+            Infrastructure requirements (optional)
+          </legend>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Specify what you need arranged for the event. Leave blank if not applicable.
           </p>
-          {missingVenueSeeds.length > 0 && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              Missing venue rows in the database: {missingVenueSeeds.join(", ")}. Run{" "}
-              <code className="rounded bg-muted px-1">expand-professor-request-kinds-and-venues.sql</code>{" "}
-              in Supabase (SQL Editor).
-            </p>
-          )}
-        </div>
-
-        {classroomAvailabilityResource && (
-          <ResourceAvailabilityCalendar
-            resource={classroomAvailabilityResource}
-            compact={variant === "panel"}
-          />
-        )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="bf-infra-mic" className="text-xs font-normal">
+                No. of mics
+              </Label>
+              <Input
+                id="bf-infra-mic"
+                inputMode="numeric"
+                placeholder="—"
+                value={infraMic}
+                onChange={(e) => setInfraMic(e.target.value.replace(/\D/g, ""))}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bf-infra-sofa" className="text-xs font-normal">
+                No. of sofas
+              </Label>
+              <Input
+                id="bf-infra-sofa"
+                inputMode="numeric"
+                placeholder="—"
+                value={infraSofa}
+                onChange={(e) => setInfraSofa(e.target.value.replace(/\D/g, ""))}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bf-infra-momento" className="text-xs font-normal">
+                No. of momento
+              </Label>
+              <Input
+                id="bf-infra-momento"
+                inputMode="numeric"
+                placeholder="—"
+                value={infraMomento}
+                onChange={(e) => setInfraMomento(e.target.value.replace(/\D/g, ""))}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bf-infra-bouquet" className="text-xs font-normal">
+                No. of bouquets
+              </Label>
+              <Input
+                id="bf-infra-bouquet"
+                inputMode="numeric"
+                placeholder="—"
+                value={infraBouquet}
+                onChange={(e) => setInfraBouquet(e.target.value.replace(/\D/g, ""))}
+                className="h-9"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2.5 pt-1">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 rounded border border-input accent-primary"
+                checked={infraVideoRecording}
+                onChange={(e) => setInfraVideoRecording(e.target.checked)}
+              />
+              Video recording
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 rounded border border-input accent-primary"
+                checked={infraPhotography}
+                onChange={(e) => setInfraPhotography(e.target.checked)}
+              />
+              Photography
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 rounded border border-input accent-primary"
+                checked={infraStage}
+                onChange={(e) => setInfraStage(e.target.checked)}
+              />
+              Stage
+            </label>
+          </div>
+        </fieldset>
 
         <div className="space-y-2">
           <Label>

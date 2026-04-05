@@ -1,3 +1,5 @@
+import type { CalendarRequestInfraRequirements } from "./calendar-request-infra";
+
 export type UserRole = "student" | "professor" | "admin";
 
 export type RequestStatus =
@@ -182,6 +184,8 @@ export interface CalendarRequest {
   /** Set by admin when approving (required in app on approve). */
   assigned_hall?: string | null;
   admin_spoc?: string | null;
+  /** Optional infrastructure needs (jsonb). */
+  infra_requirements?: CalendarRequestInfraRequirements | null;
   reviewed_by: string | null;
   created_at: string;
   updated_at: string;
