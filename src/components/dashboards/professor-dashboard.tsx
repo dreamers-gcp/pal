@@ -72,7 +72,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [prefill, setPrefill] = useState<BookingFormPrefill | undefined>();
   const [formKey, setFormKey] = useState(0);
   const [bookingRequestKind, setBookingRequestKind] =
-    useState<CalendarRequestKind>("class");
+    useState<CalendarRequestKind>("extra_class");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
 
@@ -168,6 +168,15 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!bookingSidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [bookingSidebarOpen]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -314,12 +323,13 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     return sorted;
   }, [calendarViewMode, calendarRoomFilter, requests, allApprovedBookings]);
 
-  const greeting = useMemo(() => {
+  const [greeting, setGreeting] = useState("Hello");
+  useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    if (hour < 21) return "Good evening";
-    return "Good night";
+    if (hour < 12) setGreeting("Good morning");
+    else if (hour < 17) setGreeting("Good afternoon");
+    else if (hour < 21) setGreeting("Good evening");
+    else setGreeting("Good night");
   }, []);
 
   const sportsAvailabilityResource = useMemo(
@@ -348,7 +358,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     [sportsBookings, profile.id, profile.email]
   );
 
-  function openNewRequest(kind: CalendarRequestKind = "class") {
+  function openNewRequest(kind: CalendarRequestKind = "extra_class") {
     setBookingRequestKind(kind);
     setPrefill(undefined);
     setFormKey((k) => k + 1);
@@ -405,7 +415,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   }
 
   function handleCalendarSlotSelect(slot: CalendarSlotInfo) {
-    setBookingRequestKind("class");
+    setBookingRequestKind("extra_class");
     const classroomId =
       calendarViewMode === "all-rooms" && calendarRoomFilter
         ? calendarRoomFilter
@@ -652,19 +662,11 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
-              onClick={() => openNewRequest("class")}
+              onClick={() => openNewRequest("extra_class")}
               className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium h-8 gap-1.5 px-2.5 transition-all hover:bg-primary/80 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Plus className="h-4 w-4" />
-              New class request
-            </button>
-            <button
-              type="button"
-              onClick={() => openNewRequest("exam")}
-              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-input bg-background text-sm font-medium h-8 gap-1.5 px-2.5 transition-all hover:bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <Plus className="h-4 w-4" />
-              Schedule exam
+              Create new request
             </button>
           </div>
 
@@ -717,7 +719,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             </div>
             <button
               type="button"
-              onClick={() => openNewRequest("class")}
+              onClick={() => openNewRequest("extra_class")}
               className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium h-9 gap-1.5 px-3 transition-all hover:bg-primary/80 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Plus className="h-4 w-4" />
@@ -930,30 +932,29 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
         </div>
     </Tabs>
 
-      {/* Booking sidebar — New request + calendar slot selection (matches admin review panel) */}
+      {/* Full-screen new request (popover/select layers use z-[110]) */}
       {bookingSidebarOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-[45] bg-black/20"
-            aria-hidden
-            onClick={() => setBookingSidebarOpen(false)}
-          />
-          <aside
-            className="fixed top-16 bottom-0 right-0 z-[60] flex w-full max-w-xl flex-col border-l bg-background shadow-2xl animate-in slide-in-from-right duration-200"
-            role="dialog"
-            aria-label="New event request"
-          >
-            <div className="flex items-center justify-end p-2 border-b shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setBookingSidebarOpen(false)}
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-4 pt-2">
+        <div
+          className="fixed inset-0 z-[100] flex flex-col bg-background animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create new request"
+        >
+          <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b px-4 sm:px-6">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Create new request
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setBookingSidebarOpen(false)}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="mx-auto w-full max-w-2xl px-4 py-6 pb-12 sm:px-6">
               <BookingForm
                 key={formKey}
                 variant="panel"
@@ -966,8 +967,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                 onClose={() => setBookingSidebarOpen(false)}
               />
             </div>
-          </aside>
-        </>
+          </div>
+        </div>
       )}
     </>
   );

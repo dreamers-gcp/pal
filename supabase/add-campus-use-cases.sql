@@ -6,17 +6,33 @@
 -- 1) Calendar: distinguish class sessions vs exams (professor scheduling)
 -- ---------------------------------------------------------------------------
 alter table public.calendar_requests
-  add column if not exists request_kind text not null default 'class'
-  check (request_kind in ('class', 'exam'));
+  add column if not exists request_kind text not null default 'extra_class'
+  check (
+    request_kind in (
+      'guest_speaker_session',
+      'extra_class',
+      'exam',
+      'conclave',
+      'conference',
+      'student_event',
+      'faculty_meeting'
+    )
+  );
 
 comment on column public.calendar_requests.request_kind is
-  'class = regular teaching block; exam = exam scheduling (same approval flow).';
+  'Professor event category: guest speaker, extra class, exam, conclave, conference, student event, faculty meeting.';
 
 -- ---------------------------------------------------------------------------
--- 2) Exam Hall as a bookable classroom (professor picks like any room)
+-- 2) Venue-style classrooms (professor “Venue” dropdown)
 -- ---------------------------------------------------------------------------
 insert into public.classrooms (name, capacity)
-values ('Exam Hall', 200)
+values
+  ('Class room', 40),
+  ('Exam hall', 200),
+  ('Seminar hall', 80),
+  ('Board room', 20),
+  ('Auditorium', 300),
+  ('Computer hall', 50)
 on conflict (name) do nothing;
 
 -- ---------------------------------------------------------------------------

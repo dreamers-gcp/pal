@@ -696,12 +696,15 @@ function CurrentTimeLine({
   hourStart: number;
   hourHeight: number;
 }) {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    setNow(new Date());
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  if (!now) return null;
 
   const minutes = now.getHours() * 60 + now.getMinutes();
   const offset = minutes - hourStart * 60;

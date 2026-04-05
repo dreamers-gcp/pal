@@ -3,9 +3,22 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CalendarRequestKind, Classroom, StudentGroup } from "@/lib/types";
+import {
+  CALENDAR_REQUEST_KINDS,
+  CALENDAR_REQUEST_KIND_LABELS,
+  PROFESSOR_VENUE_NAMES,
+  resolveProfessorVenues,
+} from "@/lib/calendar-request-metadata";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DialogContent,
@@ -18,7 +31,14 @@ import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
+import { SubjectMultiSelect } from "@/components/ui/subject-combobox";
+import { encodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { useClientTodayIso } from "@/hooks/use-client-today";
+import { groupsForProfessorBookingForm } from "@/lib/professor-booking-groups";
+
+function normalizeRequestKind(k: CalendarRequestKind): CalendarRequestKind {
+  return k === "class" ? "extra_class" : k;
+}
 
 export interface BookingFormPrefill {
   classroomId?: string;
@@ -32,7 +52,7 @@ interface BookingFormProps {
   classrooms: Classroom[];
   studentGroups: StudentGroup[];
   prefill?: BookingFormPrefill;
-  /** Class session vs exam scheduling (stored on calendar_requests.request_kind). */
+  /** Initial row for `calendar_requests.request_kind`. */
   defaultRequestKind?: CalendarRequestKind;
   onSuccess: () => void;
   onClose: () => void;
@@ -45,7 +65,7 @@ export function BookingForm({
   classrooms,
   studentGroups,
   prefill,
-  defaultRequestKind = "class",
+  defaultRequestKind = "extra_class",
   onSuccess,
   onClose,
   variant = "dialog",
@@ -56,18 +76,22 @@ export function BookingForm({
   const [timeRangeWarning, setTimeRangeWarning] = useState("");
 
   const [title, setTitle] = useState("");
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [description, setDescription] = useState("");
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [classroomId, setClassroomId] = useState(prefill?.classroomId || "");
   const [eventDate, setEventDate] = useState(prefill?.eventDate || "");
   const [startTime, setStartTime] = useState(prefill?.startTime || "");
   const [endTime, setEndTime] = useState(prefill?.endTime || "");
-  const [requestKind, setRequestKind] =
-    useState<CalendarRequestKind>(defaultRequestKind);
+  const [requestKind, setRequestKind] = useState<CalendarRequestKind>(() =>
+    normalizeRequestKind(defaultRequestKind)
+  );
   const todayIso = useClientTodayIso();
 
   useEffect(() => {
-    setRequestKind(defaultRequestKind);
+    setRequestKind(normalizeRequestKind(defaultRequestKind));
   }, [defaultRequestKind]);
 
   useEffect(() => {
@@ -76,6 +100,40 @@ export function BookingForm({
     if (prefill?.startTime) setStartTime(prefill.startTime);
     if (prefill?.endTime) setEndTime(prefill.endTime);
   }, [prefill]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    setSubjectsLoading(true);
+    supabase
+      .from("student_enrollments")
+      .select("subject")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Failed to load subjects from enrollments", error);
+          setSubjectOptions([]);
+        } else {
+          const seen = new Set<string>();
+          const list: string[] = [];
+          for (const row of data ?? []) {
+            const s = String(row.subject ?? "").trim();
+            if (s && !seen.has(s)) {
+              seen.add(s);
+              list.push(s);
+            }
+          }
+          list.sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" })
+          );
+          setSubjectOptions(list);
+        }
+        setSubjectsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggleGroup(id: string) {
     setSelectedGroupIds((prev) =>
@@ -115,7 +173,7 @@ export function BookingForm({
         });
         setConflictWarning(
           conflict
-            ? "This classroom is already booked during the selected time. Please pick a different time or room."
+            ? "This venue is already booked during the selected time. Please pick a different time or venue."
             : ""
         );
       });
@@ -143,13 +201,14 @@ export function BookingForm({
       .insert({
         professor_id: profileId,
         title,
+        subject: encodeCalendarRequestSubjects(selectedSubjects),
         description: description || null,
         student_group_id: selectedGroupIds[0], // Keep the first group for backward compatibility
         classroom_id: classroomId,
         event_date: eventDate,
         start_time: startTime,
         end_time: endTime,
-        request_kind: requestKind,
+        request_kind: requestKind === "class" ? "extra_class" : requestKind,
       })
       .select()
       .single();
@@ -188,6 +247,39 @@ export function BookingForm({
 
   const selectedRoom = classrooms.find((c) => c.id === classroomId);
 
+  const groupsForBooking = useMemo(
+    () => groupsForProfessorBookingForm(studentGroups),
+    [studentGroups]
+  );
+
+  const venueByLabel = useMemo(
+    () => resolveProfessorVenues(classrooms),
+    [classrooms]
+  );
+
+  const prefillClassroom = useMemo(
+    () =>
+      prefill?.classroomId
+        ? classrooms.find((c) => c.id === prefill.classroomId)
+        : undefined,
+    [prefill?.classroomId, classrooms]
+  );
+
+  const prefillIsListedVenue = useMemo(() => {
+    if (!prefillClassroom) return false;
+    const n = prefillClassroom.name.trim().toLowerCase();
+    return PROFESSOR_VENUE_NAMES.some((label) => label.trim().toLowerCase() === n);
+  }, [prefillClassroom]);
+
+  const showAdHocVenueOption = Boolean(
+    prefillClassroom && !prefillIsListedVenue
+  );
+
+  const missingVenueSeeds = useMemo(
+    () => PROFESSOR_VENUE_NAMES.filter((name) => !venueByLabel.get(name)),
+    [venueByLabel]
+  );
+
   const classroomAvailabilityResource = useMemo(() => {
     if (!classroomId) return null;
     return {
@@ -200,7 +292,8 @@ export function BookingForm({
   const descriptionText =
     selectedRoom && eventDate ? (
       <>
-        Booking <strong>{selectedRoom.name}</strong> on <strong>{eventDate}</strong>
+        Booking <strong>{selectedRoom.name}</strong> (venue) on{" "}
+        <strong>{eventDate}</strong>
         {startTime && (
           <>
             {" "}
@@ -210,7 +303,7 @@ export function BookingForm({
         . Fill in the remaining details.
       </>
     ) : (
-      "Request to block a time slot for student groups and a classroom. An admin will review your request."
+      "Request to block a time slot for student groups and a venue. An admin will review your request."
     );
 
   const header =
@@ -228,24 +321,32 @@ export function BookingForm({
       </div>
     );
 
+  const requestKindSelectValue =
+    requestKind === "class" ? "extra_class" : requestKind;
+
   const form = (
     <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="bf-request-kind">Request type</Label>
-          <select
-            id="bf-request-kind"
-            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={requestKind}
-            onChange={(e) =>
-              setRequestKind(e.target.value as CalendarRequestKind)
+          <Select
+            value={requestKindSelectValue}
+            onValueChange={(v) =>
+              setRequestKind(v as CalendarRequestKind)
             }
           >
-            <option value="class">Class / teaching block</option>
-            <option value="exam">Exam scheduling</option>
-          </select>
-          <p className="text-xs text-muted-foreground">
-            Exams use the same approval flow as classes. Pick Exam Hall or any room as needed.
-          </p>
+            <SelectTrigger id="bf-request-kind" className="w-full">
+              <SelectValue>
+                {CALENDAR_REQUEST_KIND_LABELS[requestKindSelectValue]}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {CALENDAR_REQUEST_KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {CALENDAR_REQUEST_KIND_LABELS[kind]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="bf-title">
@@ -271,38 +372,81 @@ export function BookingForm({
           />
         </div>
 
-        {/* Multi-select student groups dropdown */}
-        <GroupMultiSelect
-          groups={studentGroups}
-          selectedIds={selectedGroupIds}
-          onToggle={toggleGroup}
-        />
+        {/* Multi-select student groups (fixed program list) */}
+        {groupsForBooking.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5 px-3 py-3 text-sm text-amber-800 dark:text-amber-200">
+            No program groups found (GMP-A … BM-D). Run{" "}
+            <code className="rounded bg-muted px-1 text-foreground">
+              add-calendar-request-subject-and-program-groups.sql
+            </code>{" "}
+            in Supabase SQL Editor.
+          </div>
+        ) : (
+          <GroupMultiSelect
+            groups={groupsForBooking}
+            selectedIds={selectedGroupIds}
+            onToggle={toggleGroup}
+          />
+        )}
 
         <div className="space-y-2">
-          <Label htmlFor="bf-classroom">
-            Classroom
+          <Label htmlFor="bf-subject">Subjects (optional)</Label>
+          <SubjectMultiSelect
+            id="bf-subject"
+            options={subjectOptions}
+            value={selectedSubjects}
+            onChange={setSelectedSubjects}
+            loading={subjectsLoading}
+            placeholder="Search and select subjects from enrollments"
+          />
+          <p className="text-xs text-muted-foreground">
+            Distinct subjects from the student enrollment roster (admin CSV).
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="bf-venue">
+            Venue
             <span className="text-destructive">*</span>
           </Label>
           <select
-            id="bf-classroom"
+            id="bf-venue"
             className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             value={classroomId}
             onChange={(e) => setClassroomId(e.target.value)}
             required
           >
-            <option value="">Select room</option>
-            {classrooms.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.capacity ? `(${c.capacity})` : ""}
+            <option value="">Select venue</option>
+            {showAdHocVenueOption && prefillClassroom && (
+              <option value={prefillClassroom.id}>
+                {prefillClassroom.name} (from calendar)
               </option>
-            ))}
+            )}
+            {PROFESSOR_VENUE_NAMES.map((name) => {
+              const row = venueByLabel.get(name);
+              if (!row) return null;
+              return (
+                <option key={name} value={row.id}>
+                  {name}
+                </option>
+              );
+            })}
           </select>
+          {missingVenueSeeds.length > 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Missing venue rows in the database: {missingVenueSeeds.join(", ")}. Run{" "}
+              <code className="rounded bg-muted px-1">expand-professor-request-kinds-and-venues.sql</code>{" "}
+              in Supabase (SQL Editor).
+            </p>
+          )}
         </div>
 
-        <ResourceAvailabilityCalendar
-          resource={classroomAvailabilityResource}
-          compact={variant === "panel"}
-        />
+        {classroomAvailabilityResource && (
+          <ResourceAvailabilityCalendar
+            resource={classroomAvailabilityResource}
+            compact={variant === "panel"}
+          />
+        )}
 
         <div className="space-y-2">
           <Label>
@@ -370,7 +514,13 @@ export function BookingForm({
         <Button
           type="submit"
           className="w-full"
-          disabled={submitting || !!conflictWarning || !!pastWarning || !!timeRangeWarning}
+          disabled={
+            submitting ||
+            !!conflictWarning ||
+            !!pastWarning ||
+            !!timeRangeWarning ||
+            groupsForBooking.length === 0
+          }
         >
           {submitting
             ? "Submitting..."
@@ -458,7 +608,7 @@ function GroupMultiSelect({
         </button>
 
         {open && (
-          <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover shadow-lg">
+          <div className="absolute z-[110] mt-1 w-full rounded-lg border bg-popover shadow-lg">
             <div className="max-h-48 overflow-y-auto p-1">
               {groups.map((g) => {
                 const checked = selectedIds.includes(g.id);

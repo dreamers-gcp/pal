@@ -1,8 +1,10 @@
 "use client";
 
 import { format } from "date-fns";
-import { CalendarDays, Clock, MapPin, Send, User, Users } from "lucide-react";
+import { BookOpen, CalendarDays, Clock, MapPin, Send, User, Users } from "lucide-react";
 import type { CalendarRequest, RequestStatus } from "@/lib/types";
+import { requestKindLabel } from "@/lib/calendar-request-metadata";
+import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { formatSubmittedAt, toTitleCase } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -53,6 +55,7 @@ export function RequestCard({
     request.student_groups && request.student_groups.length > 0
       ? request.student_groups.map((g) => g.name).join(", ")
       : request.student_group?.name ?? "—";
+  const subjectLabels = decodeCalendarRequestSubjects(request.subject);
 
   return (
     <Card
@@ -71,9 +74,9 @@ export function RequestCard({
           <CardTitle className="line-clamp-2 text-base font-semibold leading-tight">
             <span className="inline-flex flex-wrap items-center gap-2">
               {request.title}
-              {request.request_kind === "exam" && (
+              {request.request_kind && (
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Exam
+                  {requestKindLabel(request.request_kind)}
                 </span>
               )}
             </span>
@@ -120,6 +123,14 @@ export function RequestCard({
             <Users className="h-4 w-4 shrink-0 text-muted-foreground/70" />
             <span className="truncate">{toTitleCase(groupNames)}</span>
           </div>
+          {subjectLabels.length > 0 && (
+            <div className="flex items-start gap-2.5 text-muted-foreground">
+              <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground/70 mt-0.5" />
+              <span className="min-w-0 leading-snug">
+                {subjectLabels.join(", ")}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-2.5 text-muted-foreground">
             <MapPin className="h-4 w-4 shrink-0 text-muted-foreground/70" />
             <span className="truncate">
