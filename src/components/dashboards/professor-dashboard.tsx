@@ -27,6 +27,7 @@ import {
   X,
   Trophy,
   FileCheck2,
+  Package,
 } from "lucide-react";
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import type { CalendarSlotInfo } from "@/components/request-calendar";
@@ -61,6 +62,7 @@ import {
 import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 import { cn } from "@/lib/utils";
 import { AnswerScriptsEvaluation } from "@/components/answer-scripts-evaluation/answer-scripts-evaluation";
+import { UserParcelTab } from "@/components/parcels/user-parcel-tab";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
@@ -511,6 +513,19 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
+                  value="parcels"
+                  title="Parcels"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Parcels</span>
+                </TabsTrigger>
+                <TabsTrigger
                   value="script-evaluation"
                   title="Answer scripts evaluation"
                   className={cn(
@@ -609,6 +624,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       Campus facilities
                     </TabsTrigger>
                     <TabsTrigger
+                      value="parcels"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Package className="h-4 w-4" />
+                      Parcels
+                    </TabsTrigger>
+                    <TabsTrigger
                       value="script-evaluation"
                       className="w-full justify-start gap-1.5"
                       onClick={() => setTabMenuOpen(false)}
@@ -640,6 +663,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
               <TabsTrigger value="campus" className="gap-1.5">
                 <Building2 className="h-4 w-4" />
                 Campus facilities
+              </TabsTrigger>
+              <TabsTrigger value="parcels" className="gap-1.5">
+                <Package className="h-4 w-4" />
+                Parcels
               </TabsTrigger>
               <TabsTrigger value="script-evaluation" className="gap-1.5">
                 <FileCheck2 className="h-4 w-4" />
@@ -918,6 +945,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
 
         <TabsContent value="campus" className="mt-6">
           <ProfessorCampusTab profile={profile} />
+        </TabsContent>
+
+        <TabsContent value="parcels" className="mt-6">
+          <UserParcelTab profile={profile} />
         </TabsContent>
 
         <TabsContent value="script-evaluation" className="mt-6 min-h-0">

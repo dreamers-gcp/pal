@@ -34,6 +34,7 @@ import {
   Building2,
   Trophy,
   Landmark,
+  Package,
 } from "lucide-react";
 import { format } from "date-fns";
 import { TaskTracker } from "@/components/task-tracker";
@@ -60,6 +61,7 @@ import { StudentCampusTab } from "@/components/campus/student-campus-tab";
 import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 import { cn } from "@/lib/utils";
 import { useClientTodayIso } from "@/hooks/use-client-today";
+import { UserParcelTab } from "@/components/parcels/user-parcel-tab";
 
 /** Local calendar day for an event (no UTC shift from date-only strings). */
 function eventBaseLocalDate(e: CalendarRequest): Date | null {
@@ -692,6 +694,19 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                   <Landmark className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className={cn(!sectionNavExpanded && "sr-only")}>Campus services</span>
                 </TabsTrigger>
+                <TabsTrigger
+                  value="parcels"
+                  title="Parcels"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Parcels</span>
+                </TabsTrigger>
               </TabsList>
             </div>
           </div>
@@ -804,6 +819,14 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <Landmark className="h-4 w-4" />
                       Campus services
                     </TabsTrigger>
+                    <TabsTrigger
+                      value="parcels"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Package className="h-4 w-4" />
+                      Parcels
+                    </TabsTrigger>
                   </TabsList>
                 </aside>
               </>
@@ -837,6 +860,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           <TabsTrigger value="campus" className="gap-1.5">
             <Landmark className="h-4 w-4" />
             Campus services
+          </TabsTrigger>
+          <TabsTrigger value="parcels" className="gap-1.5">
+            <Package className="h-4 w-4" />
+            Parcels
           </TabsTrigger>
         </TabsList>
 
@@ -1378,6 +1405,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
 
         <TabsContent value="campus" className="mt-3">
           <StudentCampusTab profile={profile} />
+        </TabsContent>
+
+        <TabsContent value="parcels" className="mt-3">
+          <UserParcelTab profile={profile} />
         </TabsContent>
         </div>
     </Tabs>

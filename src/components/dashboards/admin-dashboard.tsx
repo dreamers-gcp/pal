@@ -45,6 +45,7 @@ import {
   Mail,
   AlertCircle,
   Building2,
+  Package,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -92,6 +93,7 @@ import {
   BookingCardsSkeleton,
   RosterTableSkeleton,
 } from "@/components/ui/loading-skeletons";
+import { AdminParcelManagement } from "@/components/parcels/admin-parcel-management";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const statusColors: Record<string, string> = {
@@ -799,6 +801,21 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
+                  value="parcel-management"
+                  title="Parcel management"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>
+                    Parcel management
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
                   value="timetable"
                   title="Timetable"
                   className={cn(
@@ -924,6 +941,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       Manage Professors
                     </TabsTrigger>
                     <TabsTrigger
+                      value="parcel-management"
+                      className="w-full justify-start gap-1.5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <Package className="h-4 w-4" />
+                      Parcel management
+                    </TabsTrigger>
+                    <TabsTrigger
                       value="timetable"
                       className="w-full justify-start gap-1.5"
                       onClick={() => setTabMenuOpen(false)}
@@ -958,6 +983,10 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               <TabsTrigger value="professors" className="gap-1.5">
                 <Users className="h-4 w-4" />
                 Manage Professors
+              </TabsTrigger>
+              <TabsTrigger value="parcel-management" className="gap-1.5">
+                <Package className="h-4 w-4" />
+                Parcel management
               </TabsTrigger>
               <TabsTrigger value="timetable" className="gap-1.5">
                 <Wand2 className="h-4 w-4" />
@@ -1657,6 +1686,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               </div>
             </>
           )}
+        </TabsContent>
+
+        {/* ========== PARCEL MANAGEMENT ========== */}
+        <TabsContent value="parcel-management" className="mt-6">
+          <AdminParcelManagement adminProfile={profile} />
         </TabsContent>
 
         {/* ========== TIMETABLE TAB ========== */}

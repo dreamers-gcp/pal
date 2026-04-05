@@ -12,9 +12,26 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   student_group: string | null;
+  /** 10-digit mobile (digits only); used for parcel desk matching */
+  mobile_phone?: string | null;
   face_registered: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type ParcelStatus = "awaiting_pickup" | "collected";
+
+export interface Parcel {
+  id: string;
+  recipient_id: string;
+  mobile_snapshot: string;
+  status: ParcelStatus;
+  registered_by: string | null;
+  notes: string | null;
+  collected_at: string | null;
+  created_at: string;
+  updated_at: string;
+  recipient?: Pick<Profile, "id" | "full_name" | "email" | "role" | "mobile_phone">;
 }
 
 export interface FaceEmbedding {

@@ -24,6 +24,10 @@ import {
   authInputClassName,
 } from "@/components/auth/auth-shared";
 import { PlanovaWordmark } from "@/components/planova-wordmark";
+import {
+  normalizeTenDigitMobile,
+  mobileFieldError,
+} from "@/lib/phone-normalize";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "student", label: "Student" },
@@ -35,6 +39,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
   const [role, setRole] = useState<UserRole>("student");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -43,6 +48,7 @@ export default function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<{
     fullName?: string;
     email?: string;
+    mobile?: string;
     password?: string;
   }>({});
   const router = useRouter();
@@ -55,15 +61,24 @@ export default function SignupPage() {
 
     const trimmedName = fullName.trim();
     const trimmedEmail = email.trim();
-    const next: { fullName?: string; email?: string; password?: string } = {};
+    const next: {
+      fullName?: string;
+      email?: string;
+      mobile?: string;
+      password?: string;
+    } = {};
     if (!trimmedName) next.fullName = "Full name is required.";
     if (!trimmedEmail) next.email = "Email is required.";
+    const mobileErr = mobileFieldError(mobile);
+    if (mobileErr) next.mobile = mobileErr;
     if (!password) next.password = "Password is required.";
     else if (password.length < 6)
       next.password = "Password must be at least 6 characters.";
 
     setFieldErrors(next);
     if (Object.keys(next).length > 0) return;
+
+    const normalizedMobile = normalizeTenDigitMobile(mobile)!;
 
     setLoading(true);
 
@@ -74,12 +89,24 @@ export default function SignupPage() {
         data: {
           full_name: trimmedName,
           role,
+          mobile_phone: normalizedMobile,
         },
       },
     });
 
     if (error) {
-      setError(error.message);
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("duplicate") ||
+        msg.includes("unique") ||
+        msg.includes("already registered")
+      ) {
+        setError(
+          "This email or mobile may already be in use. Try signing in, or use a different mobile number."
+        );
+      } else {
+        setError(error.message);
+      }
       setLoading(false);
       return;
     }
@@ -191,6 +218,35 @@ export default function SignupPage() {
                   <p className="text-sm text-destructive">
                     {fieldErrors.email}
                   </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mobile">Mobile number</Label>
+                <Input
+                  id="mobile"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="10-digit number you use on campus"
+                  value={mobile}
+                  maxLength={14}
+                  onChange={(e) => {
+                    setMobile(e.target.value);
+                    if (submitAttempted) {
+                      setFieldErrors((f) => ({
+                        ...f,
+                        mobile: mobileFieldError(e.target.value),
+                      }));
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.mobile)}
+                  className={authInputClassName}
+                />
+                <p className="text-xs text-muted-foreground">
+                  10-digit Indian mobile. Used for campus services such as parcel pickup matching.
+                </p>
+                {fieldErrors.mobile && (
+                  <p className="text-sm text-destructive">{fieldErrors.mobile}</p>
                 )}
               </div>
             </div>
