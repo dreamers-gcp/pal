@@ -70,6 +70,7 @@ import {
 } from "lucide-react";
 import type { ProfessorAssignment } from "@/lib/types";
 import { coerceCredits, formatCreditsDisplay } from "@/lib/credits-parse";
+import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import {
   GUEST_HOUSE_LABELS,
   GUEST_HOUSE_CODES,
@@ -2044,6 +2045,20 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       : selectedRequest.student_group?.name ?? "—"}
                   </span>
                 </div>
+                {(() => {
+                  const subs = decodeCalendarRequestSubjects(
+                    selectedRequest.subject
+                  );
+                  if (subs.length === 0) return null;
+                  return (
+                    <div className="flex items-start gap-3 text-sm text-foreground">
+                      <BookOpen className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <span className="min-w-0 leading-snug">
+                        {subs.join(", ")}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="flex items-center gap-3 text-sm text-foreground">
                   <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span>

@@ -151,7 +151,16 @@ export interface TimetableEntry {
   classroom?: Classroom;
 }
 
-export type CalendarRequestKind = "class" | "exam";
+/** Stored on `calendar_requests.request_kind`. `class` is legacy only (treat as extra class in UI). */
+export type CalendarRequestKind =
+  | "guest_speaker_session"
+  | "extra_class"
+  | "exam"
+  | "conclave"
+  | "conference"
+  | "student_event"
+  | "faculty_meeting"
+  | "class";
 
 export interface CalendarRequest {
   id: string;
@@ -159,6 +168,8 @@ export interface CalendarRequest {
   professor_email: string | null;
   title: string;
   description: string | null;
+  /** Optional subject(s): JSON string array e.g. `["A","B"]`, or legacy plain string. */
+  subject?: string | null;
   student_group_id: string;
   classroom_id: string;
   event_date: string;

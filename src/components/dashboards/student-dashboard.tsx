@@ -96,7 +96,8 @@ function eventEndDateTime(e: CalendarRequest): Date {
 }
 
 /** Class is in session (between start and end, local time). */
-function isEventOngoing(now: Date, e: CalendarRequest): boolean {
+function isEventOngoing(now: Date | null, e: CalendarRequest): boolean {
+  if (!now) return false;
   const s = eventStartDateTime(e);
   const end = eventEndDateTime(e);
   return now >= s && now < end;
@@ -138,8 +139,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [sportEndTime, setSportEndTime] = useState("18:00");
   const [sportPurpose, setSportPurpose] = useState("");
   const [unavailableSportsVenues, setUnavailableSportsVenues] = useState<Set<SportsVenueCode>>(new Set());
-  /** Tick so "Upcoming" → "Ongoing" updates without navigating away. */
-  const [now, setNow] = useState(() => new Date());
+  /** null until mount so SSR matches first client paint; then ticks for ongoing/upcoming. */
+  const [now, setNow] = useState<Date | null>(null);
   const todayIso = useClientTodayIso();
 
   const guestRoomMin = useMemo(
@@ -168,6 +169,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   }, [guestRoomMin, guestCount]);
 
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
@@ -415,8 +417,13 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       ? events
       : events.filter((e) => e.student_group_id === filterSubject);
 
-  const upcoming = filteredEvents.filter((e) => now < eventEndDateTime(e));
-  const past = filteredEvents.filter((e) => now >= eventEndDateTime(e));
+  const clockMs = now?.getTime() ?? 0;
+  const upcoming = filteredEvents.filter(
+    (e) => clockMs < eventEndDateTime(e).getTime()
+  );
+  const past = filteredEvents.filter(
+    (e) => clockMs >= eventEndDateTime(e).getTime()
+  );
 
   const upcomingSorted = useMemo(() => {
     const list = [...upcoming];
@@ -432,12 +439,13 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const filteredGroupIds =
     filterSubject === "all" ? studentGroupIds : [filterSubject];
 
-  const greeting = useMemo(() => {
+  const [greeting, setGreeting] = useState("Hello");
+  useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    if (hour < 21) return "Good evening";
-    return "Good night";
+    if (hour < 12) setGreeting("Good morning");
+    else if (hour < 17) setGreeting("Good afternoon");
+    else if (hour < 21) setGreeting("Good evening");
+    else setGreeting("Good night");
   }, []);
 
   const sportsAvailabilityResource = useMemo(
