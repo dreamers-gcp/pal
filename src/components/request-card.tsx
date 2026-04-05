@@ -1,7 +1,17 @@
 "use client";
 
 import { format } from "date-fns";
-import { BookOpen, CalendarDays, Clock, MapPin, Send, User, Users } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  CalendarDays,
+  Clock,
+  MapPin,
+  Send,
+  User,
+  UserCircle,
+  Users,
+} from "lucide-react";
 import type { CalendarRequest, RequestStatus } from "@/lib/types";
 import { requestKindLabel } from "@/lib/calendar-request-metadata";
 import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
@@ -143,6 +153,33 @@ export function RequestCard({
               Submitted at {formatSubmittedAt(request.created_at)}
             </span>
           </div>
+          {request.status === "approved" &&
+            (request.assigned_hall || request.admin_spoc) && (
+              <>
+                {request.assigned_hall && (
+                  <div className="flex items-start gap-2.5 text-muted-foreground">
+                    <Building2 className="h-4 w-4 shrink-0 text-muted-foreground/70 mt-0.5" />
+                    <span className="min-w-0 leading-snug">
+                      <span className="text-xs text-muted-foreground/80">
+                        Assigned hall:{" "}
+                      </span>
+                      {request.assigned_hall}
+                    </span>
+                  </div>
+                )}
+                {request.admin_spoc && (
+                  <div className="flex items-start gap-2.5 text-muted-foreground">
+                    <UserCircle className="h-4 w-4 shrink-0 text-muted-foreground/70 mt-0.5" />
+                    <span className="min-w-0 leading-snug">
+                      <span className="text-xs text-muted-foreground/80">
+                        Admin SPOC:{" "}
+                      </span>
+                      {request.admin_spoc}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
         </div>
 
         {showAdminNote && request.admin_note && (

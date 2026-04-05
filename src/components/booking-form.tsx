@@ -7,6 +7,7 @@ import {
   CALENDAR_REQUEST_KINDS,
   CALENDAR_REQUEST_KIND_LABELS,
   PROFESSOR_VENUE_NAMES,
+  professorVenueNamesForRequestKind,
   resolveProfessorVenues,
 } from "@/lib/calendar-request-metadata";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,23 @@ export function BookingForm({
     if (prefill?.startTime) setStartTime(prefill.startTime);
     if (prefill?.endTime) setEndTime(prefill.endTime);
   }, [prefill]);
+
+  /** Drop canonical venue selection when it is not allowed for the current request type (ad hoc calendar rooms unchanged). */
+  useEffect(() => {
+    if (!classroomId) return;
+    const row = classrooms.find((c) => c.id === classroomId);
+    if (!row) return;
+    const nameNorm = row.name.trim().toLowerCase();
+    const matchesCanonical = PROFESSOR_VENUE_NAMES.some(
+      (label) => label.trim().toLowerCase() === nameNorm
+    );
+    if (!matchesCanonical) return;
+    const allowed = professorVenueNamesForRequestKind(requestKind);
+    const ok = allowed.some(
+      (label) => label.trim().toLowerCase() === nameNorm
+    );
+    if (!ok) setClassroomId("");
+  }, [requestKind, classroomId, classrooms]);
 
   useEffect(() => {
     let cancelled = false;
@@ -257,6 +275,11 @@ export function BookingForm({
     [classrooms]
   );
 
+  const allowedVenueNames = useMemo(
+    () => professorVenueNamesForRequestKind(requestKind),
+    [requestKind]
+  );
+
   const prefillClassroom = useMemo(
     () =>
       prefill?.classroomId
@@ -276,8 +299,8 @@ export function BookingForm({
   );
 
   const missingVenueSeeds = useMemo(
-    () => PROFESSOR_VENUE_NAMES.filter((name) => !venueByLabel.get(name)),
-    [venueByLabel]
+    () => allowedVenueNames.filter((name) => !venueByLabel.get(name)),
+    [allowedVenueNames, venueByLabel]
   );
 
   const classroomAvailabilityResource = useMemo(() => {
@@ -422,7 +445,7 @@ export function BookingForm({
                 {prefillClassroom.name} (from calendar)
               </option>
             )}
-            {PROFESSOR_VENUE_NAMES.map((name) => {
+            {allowedVenueNames.map((name) => {
               const row = venueByLabel.get(name);
               if (!row) return null;
               return (
@@ -432,6 +455,9 @@ export function BookingForm({
               );
             })}
           </select>
+          <p className="text-xs text-muted-foreground">
+            Available venues depend on request type.
+          </p>
           {missingVenueSeeds.length > 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Missing venue rows in the database: {missingVenueSeeds.join(", ")}. Run{" "}

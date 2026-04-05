@@ -15,6 +15,7 @@ import type {
   SportsBooking,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -146,6 +147,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [selectedRequest, setSelectedRequest] =
     useState<CalendarRequest | null>(null);
   const [adminNote, setAdminNote] = useState("");
+  const [assignedHall, setAssignedHall] = useState("");
+  const [adminSpoc, setAdminSpoc] = useState("");
   const [updating, setUpdating] = useState(false);
 
   const [students, setStudents] = useState<Profile[]>([]);
@@ -322,18 +325,40 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   async function updateRequest(
     id: string,
     status: RequestStatus,
-    adminNoteOverride?: string
+    opts?: {
+      adminNoteOverride?: string;
+      assignedHall?: string;
+      adminSpoc?: string;
+    }
   ) {
+    const note = opts?.adminNoteOverride ?? adminNote;
+    const hall = opts?.assignedHall?.trim() ?? "";
+    const spoc = opts?.adminSpoc?.trim() ?? "";
+
+    if (status === "approved") {
+      if (!hall || !spoc) {
+        toast.error("Assigned hall and Admin SPOC are required to approve.");
+        return;
+      }
+    }
+
     setUpdating(true);
     const supabase = createClient();
+
+    const patch: Record<string, unknown> = {
+      status,
+      admin_note: note || null,
+      reviewed_by: profile.id,
+      updated_at: new Date().toISOString(),
+    };
+    if (status === "approved") {
+      patch.assigned_hall = hall;
+      patch.admin_spoc = spoc;
+    }
+
     const { error } = await supabase
       .from("calendar_requests")
-      .update({
-        status,
-        admin_note: (adminNoteOverride ?? adminNote) || null,
-        reviewed_by: profile.id,
-        updated_at: new Date().toISOString(),
-      })
+      .update(patch)
       .eq("id", id);
 
     if (error) {
@@ -343,14 +368,16 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         status === "approved"
           ? "approved"
           : status === "rejected"
-          ? "rejected"
-          : "sent back for clarification";
+            ? "rejected"
+            : "sent back for clarification";
       toast.success(`Request ${label}`);
     }
 
     setUpdating(false);
     setSelectedRequest(null);
     setAdminNote("");
+    setAssignedHall("");
+    setAdminSpoc("");
     fetchRequests();
   }
 
@@ -1053,6 +1080,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       onClick={() => {
                         setSelectedRequest(req);
                         setAdminNote(req.admin_note ?? "");
+                        setAssignedHall(req.assigned_hall ?? "");
+                        setAdminSpoc(req.admin_spoc ?? "");
                       }}
                     />
                   ))}
@@ -1945,6 +1974,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             onClick={() => {
               setSelectedRequest(null);
               setAdminNote("");
+              setAssignedHall("");
+              setAdminSpoc("");
             }}
           />
           <aside
@@ -1959,6 +1990,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 onClick={() => {
                   setSelectedRequest(null);
                   setAdminNote("");
+                  setAssignedHall("");
+                  setAdminSpoc("");
                 }}
                 aria-label="Close"
               >
@@ -2037,53 +2070,120 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     <span className="text-muted-foreground">{selectedRequest.description}</span>
                   </div>
                 )}
+                {selectedRequest.status === "approved" &&
+                  (selectedRequest.assigned_hall || selectedRequest.admin_spoc) && (
+                    <div className="rounded-lg border border-border/80 bg-muted/25 p-3 space-y-2 text-sm">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Approval details
+                      </p>
+                      {selectedRequest.assigned_hall && (
+                        <div>
+                          <span className="text-muted-foreground">Assigned hall: </span>
+                          <span className="font-medium text-foreground">
+                            {selectedRequest.assigned_hall}
+                          </span>
+                        </div>
+                      )}
+                      {selectedRequest.admin_spoc && (
+                        <div>
+                          <span className="text-muted-foreground">Admin SPOC: </span>
+                          <span className="font-medium text-foreground">
+                            {selectedRequest.admin_spoc}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             </div>
             <div className="shrink-0 border-t p-4 bg-background space-y-4">
-              <div className="space-y-2">
-                <Label>Admin note (optional)</Label>
-                <Textarea
-                  placeholder="Add a note for the professor..."
-                  value={adminNote}
-                  onChange={(e) => setAdminNote(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => updateRequest(selectedRequest.id, "approved")}
-                  disabled={updating}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
-                >
-                  <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                  Approve
-                </Button>
-                <Button
-                  onClick={() => updateRequest(selectedRequest.id, "rejected")}
-                  disabled={updating}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
-                >
-                  <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                  Reject
-                </Button>
-                <Button
-                  onClick={() =>
-                    updateRequest(selectedRequest.id, "clarification_needed")
-                  }
-                  disabled={updating}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
-                >
-                  <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                  Clarify
-                </Button>
-              </div>
+              {selectedRequest.status === "pending" ||
+              selectedRequest.status === "clarification_needed" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="ar-assigned-hall">
+                      Assigned hall<span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="ar-assigned-hall"
+                      value={assignedHall}
+                      onChange={(e) => setAssignedHall(e.target.value)}
+                      placeholder="e.g. Main auditorium, Block B – 201"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ar-admin-spoc">
+                      Admin SPOC<span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="ar-admin-spoc"
+                      value={adminSpoc}
+                      onChange={(e) => setAdminSpoc(e.target.value)}
+                      placeholder="Name, email, or extension"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Admin note (optional)</Label>
+                    <Textarea
+                      placeholder="Add a note for the professor..."
+                      value={adminNote}
+                      onChange={(e) => setAdminNote(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() =>
+                        updateRequest(selectedRequest.id, "approved", {
+                          assignedHall,
+                          adminSpoc,
+                        })
+                      }
+                      disabled={
+                        updating ||
+                        !assignedHall.trim() ||
+                        !adminSpoc.trim()
+                      }
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
+                    >
+                      <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => updateRequest(selectedRequest.id, "rejected")}
+                      disabled={updating}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
+                    >
+                      <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                      Reject
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        updateRequest(selectedRequest.id, "clarification_needed")
+                      }
+                      disabled={updating}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                    >
+                      <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                      Clarify
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  This request is{" "}
+                  {selectedRequest.status.replace(/_/g, " ")}. No further actions.
+                </p>
+              )}
             </div>
           </aside>
         </>
