@@ -34,6 +34,32 @@ export const PROFESSOR_VENUE_NAMES = [
 
 export type ProfessorVenueName = (typeof PROFESSOR_VENUE_NAMES)[number];
 
+/**
+ * Venues allowed for each professor request type (must match `PROFESSOR_VENUE_NAMES` / DB seeds).
+ * Guest speaker: same mix as student-facing events unless policy changes.
+ */
+export function professorVenueNamesForRequestKind(
+  kind: CalendarRequestKind
+): ProfessorVenueName[] {
+  const k = kind === "class" ? "extra_class" : kind;
+  switch (k) {
+    case "extra_class":
+    case "exam":
+      return ["Class room", "Seminar hall", "Exam hall", "Computer hall"];
+    case "conclave":
+    case "conference":
+      return ["Seminar hall", "Auditorium"];
+    case "student_event":
+      return ["Class room", "Seminar hall", "Auditorium"];
+    case "faculty_meeting":
+      return ["Class room", "Board room"];
+    case "guest_speaker_session":
+      return ["Class room", "Seminar hall", "Auditorium"];
+    default:
+      return [...PROFESSOR_VENUE_NAMES];
+  }
+}
+
 function normName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }

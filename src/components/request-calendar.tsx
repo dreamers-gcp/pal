@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { CalendarRequest, Classroom, FacilityBooking, StudentTask } from "@/lib/types";
 import type { RequestStatus } from "@/lib/types";
 import { Calendar as BigCalendar, dateFnsLocalizer, type View, type Event as RBCEvent } from "react-big-calendar";
@@ -81,6 +81,8 @@ export interface RequestCalendarProps {
    * Approved campus facility bookings (auditorium, halls, board rooms, etc.) shown read-only on the same grid.
    */
   facilityBookings?: FacilityBooking[];
+  /** Footer text when a facility overlay is selected (e.g. professors use Create new request). */
+  facilityBookingHelp?: ReactNode;
 }
 
 type CalMeta =
@@ -286,9 +288,11 @@ function EventDetailCard({
 function FacilityDetailCard({
   booking,
   eventColor,
+  bookingHelp,
 }: {
   booking: FacilityBooking;
   eventColor: string;
+  bookingHelp?: ReactNode;
 }) {
   const typeLabel = FACILITY_TYPE_LABELS[booking.facility_type];
   const venue = facilityVenueLabel(booking.facility_type, booking.venue_code);
@@ -337,7 +341,11 @@ function FacilityDetailCard({
           </div>
         )}
         <p className="text-xs text-muted-foreground pt-2">
-          Book a facility from the <strong>Campus facilities</strong> tab.
+          {bookingHelp ?? (
+            <>
+              Book a facility from the <strong>Campus facilities</strong> tab.
+            </>
+          )}
         </p>
       </div>
     </div>
@@ -359,6 +367,7 @@ export function RequestCalendar({
   showStatus = true,
   eventDetailActions,
   facilityBookings = [],
+  facilityBookingHelp,
 }: RequestCalendarProps) {
   const [view, setView] = useState<View>("week");
   const [date, setDate] = useState<Date>(() => new Date());
@@ -627,6 +636,7 @@ export function RequestCalendar({
                 <FacilityDetailCard
                   booking={selectedPanel.booking}
                   eventColor={FACILITY_OVERLAY_COLOR}
+                  bookingHelp={facilityBookingHelp}
                 />
               ) : (
                 <TaskDetailCard

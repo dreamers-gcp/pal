@@ -17,7 +17,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Building2,
   ClipboardList,
   Plus,
   CalendarDays,
@@ -32,7 +31,6 @@ import {
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import type { CalendarSlotInfo } from "@/components/request-calendar";
 import { BookingForm, type BookingFormPrefill } from "@/components/booking-form";
-import { ProfessorCampusTab } from "@/components/campus/professor-campus-tab";
 import { AttendanceView } from "@/components/attendance-view";
 import { RequestCalendar } from "@/components/request-calendar";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
@@ -508,21 +506,6 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   <span className={cn(!sectionNavExpanded && "sr-only")}>Sports Requests</span>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="campus"
-                  title="Campus facilities"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>
-                    Campus facilities
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
                   value="parcels"
                   title="Parcels"
                   className={cn(
@@ -626,14 +609,6 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       Sports Requests
                     </TabsTrigger>
                     <TabsTrigger
-                      value="campus"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <Building2 className="h-4 w-4" />
-                      Campus facilities
-                    </TabsTrigger>
-                    <TabsTrigger
                       value="parcels"
                       className="w-full justify-start gap-1.5"
                       onClick={() => setTabMenuOpen(false)}
@@ -669,10 +644,6 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
               <TabsTrigger value="sports" className="gap-1.5">
                 <Trophy className="h-4 w-4" />
                 Sports Requests
-              </TabsTrigger>
-              <TabsTrigger value="campus" className="gap-1.5">
-                <Building2 className="h-4 w-4" />
-                Campus facilities
               </TabsTrigger>
               <TabsTrigger value="parcels" className="gap-1.5">
                 <Package className="h-4 w-4" />
@@ -793,6 +764,12 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             bookings={calendarBookings}
             classrooms={classrooms}
             facilityBookings={approvedFacilityBookings}
+            facilityBookingHelp={
+              <>
+                Use <strong>Create new request</strong> on the My Requests or Calendar tab to book a
+                classroom or hall.
+              </>
+            }
             loading={
               calendarViewMode === "my-schedule"
                 ? false
@@ -943,10 +920,6 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             </div>
           )}
           </div>
-        </TabsContent>
-
-        <TabsContent value="campus" className="mt-6">
-          <ProfessorCampusTab profile={profile} />
         </TabsContent>
 
         <TabsContent value="parcels" className="mt-6">

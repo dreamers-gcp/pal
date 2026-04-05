@@ -179,6 +179,9 @@ export interface CalendarRequest {
   request_kind?: CalendarRequestKind;
   status: RequestStatus;
   admin_note: string | null;
+  /** Set by admin when approving (required in app on approve). */
+  assigned_hall?: string | null;
+  admin_spoc?: string | null;
   reviewed_by: string | null;
   created_at: string;
   updated_at: string;
