@@ -162,7 +162,7 @@ export default function SignupPage() {
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-0" noValidate>
             <div className="space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold capitalize tracking-wide text-muted-foreground">
                 Personal info
               </p>
               <div className="space-y-2">
@@ -252,7 +252,7 @@ export default function SignupPage() {
             </div>
 
             <div className="mt-10 space-y-4 border-t border-border/60 pt-10">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold capitalize tracking-wide text-muted-foreground">
                 Account setup
               </p>
               <div className="space-y-2">

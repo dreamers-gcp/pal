@@ -263,7 +263,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
         {/* Classroom color legend - only show in professor view, not admin */}
         {!showAllStatuses && selectedClassroom === "all" && bookings.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 text-xs">
-            <span className="text-muted-foreground font-medium">Classrooms:</span>
+            <span className="text-muted-foreground font-medium capitalize">Classrooms:</span>
             {classrooms
               .filter((c) => bookings.some((b) => b.classroom_id === c.id))
               .map((c) => {
@@ -284,7 +284,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
 
         {showAllStatuses && (
           <div className="flex flex-wrap items-center gap-3 text-xs">
-            <span className="text-muted-foreground font-medium">Status:</span>
+            <span className="text-muted-foreground font-medium capitalize">Status:</span>
             {(["pending", "approved", "rejected", "clarification_needed"] as const).map((s) => (
               <span key={s} className="inline-flex items-center gap-1.5">
                 <span className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />

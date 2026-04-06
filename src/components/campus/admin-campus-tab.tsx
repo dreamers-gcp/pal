@@ -30,6 +30,7 @@ import {
 } from "@/lib/campus-use-cases";
 import { BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
 import { formatSubmittedAt, sortByCreatedAtAsc } from "@/lib/utils";
+import { adminRequestActionVisibility } from "@/lib/admin-request-action-visibility";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -78,6 +79,55 @@ function filterByStatus<T extends { status: RequestStatus }>(
 
 function countByStatus(rows: { status: RequestStatus }[], s: StatusFilter): number {
   return rows.filter((r) => r.status === s).length;
+}
+
+function CampusRequestActionButtons({
+  status,
+  updatingId,
+  rowId,
+  patch,
+}: {
+  status: RequestStatus;
+  updatingId: string | null;
+  rowId: string;
+  patch: (id: string, status: RequestStatus) => void;
+}) {
+  const v = adminRequestActionVisibility(status);
+  const disabled = updatingId === rowId;
+  return (
+    <div className="flex flex-wrap gap-2 pt-1">
+      {v.approve && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => patch(rowId, "approved")}
+        >
+          Approve
+        </Button>
+      )}
+      {v.reject && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => patch(rowId, "rejected")}
+        >
+          Reject
+        </Button>
+      )}
+      {v.clarify && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => patch(rowId, "clarification_needed")}
+        >
+          Clarify
+        </Button>
+      )}
+    </div>
+  );
 }
 
 const TABLE: Record<CampusApprovalKind, string> = {
@@ -289,32 +339,12 @@ export function AdminCampusApprovalSection({
                     Submitted at {formatSubmittedAt(r.created_at)}
                   </p>
                   {r.reason && <p>{r.reason}</p>}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "approved")}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "clarification_needed")}
-                    >
-                      Clarify
-                    </Button>
-                  </div>
+                  <CampusRequestActionButtons
+                    status={r.status}
+                    updatingId={updating}
+                    rowId={r.id}
+                    patch={patch}
+                  />
                 </CardContent>
               </Card>
             ))}
@@ -339,32 +369,12 @@ export function AdminCampusApprovalSection({
                     Submitted at {formatSubmittedAt(b.created_at)}
                   </p>
                   {b.purpose && <p>{b.purpose}</p>}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === b.id}
-                      onClick={() => patch(b.id, "approved")}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === b.id}
-                      onClick={() => patch(b.id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === b.id}
-                      onClick={() => patch(b.id, "clarification_needed")}
-                    >
-                      Clarify
-                    </Button>
-                  </div>
+                  <CampusRequestActionButtons
+                    status={b.status}
+                    updatingId={updating}
+                    rowId={b.id}
+                    patch={patch}
+                  />
                 </CardContent>
               </Card>
             ))}
@@ -388,32 +398,12 @@ export function AdminCampusApprovalSection({
                     Submitted at {formatSubmittedAt(r.created_at)}
                   </p>
                   {r.notes && <p>{r.notes}</p>}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "approved")}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "clarification_needed")}
-                    >
-                      Clarify
-                    </Button>
-                  </div>
+                  <CampusRequestActionButtons
+                    status={r.status}
+                    updatingId={updating}
+                    rowId={r.id}
+                    patch={patch}
+                  />
                 </CardContent>
               </Card>
             ))}
@@ -437,32 +427,12 @@ export function AdminCampusApprovalSection({
                     Submitted at {formatSubmittedAt(r.created_at)}
                   </p>
                   {r.notes && <p>{r.notes}</p>}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "approved")}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={updating === r.id}
-                      onClick={() => patch(r.id, "clarification_needed")}
-                    >
-                      Clarify
-                    </Button>
-                  </div>
+                  <CampusRequestActionButtons
+                    status={r.status}
+                    updatingId={updating}
+                    rowId={r.id}
+                    patch={patch}
+                  />
                 </CardContent>
               </Card>
             ))}

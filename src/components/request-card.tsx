@@ -198,7 +198,7 @@ export function RequestCard({
 
         {showAdminNote && request.admin_note && (
           <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-            <p className="text-xs font-medium text-foreground/90">Admin note</p>
+            <p className="text-xs font-medium capitalize text-foreground/90">Admin note</p>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {request.admin_note}
             </p>

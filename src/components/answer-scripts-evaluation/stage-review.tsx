@@ -224,7 +224,7 @@ export function StageReview({
         >
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-3 sm:px-4">
             <div className="sticky top-0 z-10 -mx-3 mb-2 border-b border-[#01696f]/15 bg-[#01696f]/[0.06] px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#01696f]">
+              <p className="text-xs font-semibold capitalize tracking-wide text-[#01696f]">
                 Marks &amp; review
               </p>
               <p className="text-[11px] text-muted-foreground">
