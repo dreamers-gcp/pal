@@ -31,18 +31,34 @@ comment on column public.calendar_requests.request_kind is
   'Professor-facing event category (guest speaker, exam, conclave, etc.).';
 
 -- ---------------------------------------------------------------------------
--- 2) Normalize Exam Hall naming + seed venue rows (unique on classrooms.name)
+-- 2) Normalize classroom title casing + seed venue rows (unique on classrooms.name)
 -- ---------------------------------------------------------------------------
 update public.classrooms
-set name = 'Exam hall'
-where name = 'Exam Hall';
+set name = 'Exam Hall'
+where name = 'Exam hall';
+
+update public.classrooms
+set name = 'Class Room'
+where name = 'Class room';
+
+update public.classrooms
+set name = 'Seminar Hall'
+where name = 'Seminar hall';
+
+update public.classrooms
+set name = 'Board Room'
+where name = 'Board room';
+
+update public.classrooms
+set name = 'Computer Hall'
+where name = 'Computer hall';
 
 insert into public.classrooms (name, capacity)
 values
-  ('Class room', 40),
-  ('Exam hall', 200),
-  ('Seminar hall', 80),
-  ('Board room', 20),
+  ('Class Room', 40),
+  ('Exam Hall', 200),
+  ('Seminar Hall', 80),
+  ('Board Room', 20),
   ('Auditorium', 300),
-  ('Computer hall', 50)
+  ('Computer Hall', 50)
 on conflict (name) do nothing;

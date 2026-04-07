@@ -6,8 +6,8 @@ export const SPORT_LABELS: Record<SportType, string> = {
   badminton: "Badminton",
   basketball: "Basketball",
   football: "Football",
-  table_tennis: "Table tennis",
-  lawn_tennis: "Lawn tennis",
+  table_tennis: "Table Tennis",
+  lawn_tennis: "Lawn Tennis",
   snooker: "Snooker",
 };
 
@@ -23,14 +23,14 @@ export const SPORT_TYPES_ORDER: SportType[] = [
 ];
 
 export const SPORTS_VENUE_LABELS: Record<SportsVenueCode, string> = {
-  cricket_ground: "Cricket ground",
-  badminton_court: "Badminton court",
-  basketball_court: "Basketball court",
+  cricket_ground: "Cricket Ground",
+  badminton_court: "Badminton Court",
+  basketball_court: "Basketball Court",
   football_field: "Football",
-  table_tennis: "Table tennis",
-  lawn_tennis: "Lawn tennis",
-  snooker_board_1: "Snooker board 1",
-  snooker_board_2: "Snooker board 2",
+  table_tennis: "Table Tennis",
+  lawn_tennis: "Lawn Tennis",
+  snooker_board_1: "Snooker Board 1",
+  snooker_board_2: "Snooker Board 2",
 };
 
 /** Bookable venue codes per sport (snooker has two boards). */

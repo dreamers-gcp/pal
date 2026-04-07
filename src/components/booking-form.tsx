@@ -37,6 +37,7 @@ import { encodeCalendarRequestInfra } from "@/lib/calendar-request-infra";
 import { encodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { useClientTodayIso } from "@/hooks/use-client-today";
 import { groupsForProfessorBookingForm } from "@/lib/professor-booking-groups";
+import { toTitleCase } from "@/lib/utils";
 
 function normalizeRequestKind(k: CalendarRequestKind): CalendarRequestKind {
   return k === "class" ? "extra_class" : k;
@@ -354,15 +355,16 @@ export function BookingForm({
   const venueSelectLabel = useMemo(() => {
     if (!classroomId) return "Select venue";
     if (showAdHocVenueOption && prefillClassroom?.id === classroomId) {
-      return `${prefillClassroom.name} (from calendar)`;
+      return `${toTitleCase(prefillClassroom.name)} (from calendar)`;
     }
     for (const name of allowedVenueNames) {
       const row = venueByLabel.get(name);
-      if (row?.id === classroomId) return name;
+      if (row?.id === classroomId) return toTitleCase(name);
     }
-    return (
-      classrooms.find((c) => c.id === classroomId)?.name ?? "Select venue"
-    );
+    const raw =
+      classrooms.find((c) => c.id === classroomId)?.name ?? "Select venue";
+    if (raw === "Select venue") return "Select venue";
+    return toTitleCase(raw);
   }, [
     classroomId,
     showAdHocVenueOption,
@@ -377,14 +379,14 @@ export function BookingForm({
     return {
       kind: "classroom" as const,
       classroomId,
-      label: selectedRoom?.name,
+      label: selectedRoom?.name ? toTitleCase(selectedRoom.name) : undefined,
     };
   }, [classroomId, selectedRoom?.name]);
 
   const descriptionText =
     selectedRoom && eventDate ? (
       <>
-        Booking <strong>{selectedRoom.name}</strong> (venue) on{" "}
+        Booking <strong>{toTitleCase(selectedRoom.name)}</strong> (venue) on{" "}
         <strong>{eventDate}</strong>
         {startTime && (
           <>
@@ -461,7 +463,7 @@ export function BookingForm({
               <SelectItem value={VENUE_SELECT_NONE}>Select venue</SelectItem>
               {showAdHocVenueOption && prefillClassroom && (
                 <SelectItem value={prefillClassroom.id}>
-                  {prefillClassroom.name} (from calendar)
+                  {toTitleCase(prefillClassroom.name)} (from calendar)
                 </SelectItem>
               )}
               {allowedVenueNames.map((name) => {
@@ -469,7 +471,7 @@ export function BookingForm({
                 if (!row) return null;
                 return (
                   <SelectItem key={name} value={row.id}>
-                    {name}
+                    {toTitleCase(name)}
                   </SelectItem>
                 );
               })}
@@ -819,7 +821,7 @@ function GroupMultiSelect({
                       onChange={() => onToggle(g.id)}
                       className="rounded"
                     />
-                    {g.name}
+                    {toTitleCase(g.name)}
                   </label>
                 );
               })}

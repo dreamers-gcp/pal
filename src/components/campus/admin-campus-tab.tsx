@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Inbox } from "lucide-react";
+import { Download, Inbox } from "lucide-react";
 import {
   APPOINTMENT_PROVIDER_LABELS,
   FACILITY_TYPE_LABELS,
@@ -29,6 +29,9 @@ import {
   timeSlice,
 } from "@/lib/campus-use-cases";
 import { BookingCardsSkeleton } from "@/components/ui/loading-skeletons";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Label } from "@/components/ui/label";
+import { downloadApprovedLeaveXlsx, leaveOverlapsDateRange } from "@/lib/export-approved-leave";
 import { formatSubmittedAt, sortByCreatedAtAsc } from "@/lib/utils";
 import { adminRequestActionVisibility } from "@/lib/admin-request-action-visibility";
 
@@ -154,6 +157,9 @@ export function AdminCampusApprovalSection({
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+  /** Approved leave tab: filter list / export by overlap with [from, to] (optional). */
+  const [leaveApprovedFrom, setLeaveApprovedFrom] = useState("");
+  const [leaveApprovedTo, setLeaveApprovedTo] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -221,6 +227,14 @@ export function AdminCampusApprovalSection({
     () => filterByStatus(leaves, statusFilter),
     [leaves, statusFilter]
   );
+
+  const leavesForList = useMemo(() => {
+    if (kind !== "leave") return filteredLeaves;
+    if (statusFilter !== "approved") return filteredLeaves;
+    return filteredLeaves.filter((r) =>
+      leaveOverlapsDateRange(r.start_date, r.end_date, leaveApprovedFrom, leaveApprovedTo)
+    );
+  }, [kind, statusFilter, filteredLeaves, leaveApprovedFrom, leaveApprovedTo]);
   const filteredFacilities = useMemo(
     () => filterByStatus(facilities, statusFilter),
     [facilities, statusFilter]
@@ -235,8 +249,8 @@ export function AdminCampusApprovalSection({
   );
 
   const sortedLeaves = useMemo(
-    () => sortByCreatedAtAsc(filteredLeaves),
-    [filteredLeaves]
+    () => sortByCreatedAtAsc(leavesForList),
+    [leavesForList]
   );
   const sortedFacilities = useMemo(
     () => sortByCreatedAtAsc(filteredFacilities),
@@ -259,6 +273,15 @@ export function AdminCampusApprovalSection({
         : kind === "mess"
           ? "No mess extra-guest requests in this status."
           : "No appointment requests in this status.";
+
+  const leaveEmptyMessage =
+    kind === "leave" &&
+    statusFilter === "approved" &&
+    (leaveApprovedFrom || leaveApprovedTo) &&
+    filteredLeaves.length > 0 &&
+    leavesForList.length === 0
+      ? "No approved leave overlaps the selected date range."
+      : emptyMessage;
 
   return (
     <div className="space-y-6">
@@ -286,6 +309,68 @@ export function AdminCampusApprovalSection({
         </div>
       </div>
 
+      {kind === "leave" && statusFilter === "approved" && (
+        <div className="flex flex-col gap-3 rounded-xl border bg-muted/25 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="grid gap-3 sm:grid-cols-2 sm:max-w-lg">
+              <div className="space-y-1.5">
+                <Label>From</Label>
+                <DatePicker
+                  value={leaveApprovedFrom}
+                  onChange={setLeaveApprovedFrom}
+                  max={leaveApprovedTo || undefined}
+                  placeholder="Start (optional)"
+                  className="w-full sm:max-w-[220px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>To</Label>
+                <DatePicker
+                  value={leaveApprovedTo}
+                  onChange={setLeaveApprovedTo}
+                  min={leaveApprovedFrom || undefined}
+                  placeholder="End (optional)"
+                  className="w-full sm:max-w-[220px]"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLeaveApprovedFrom("");
+                  setLeaveApprovedTo("");
+                }}
+              >
+                Clear dates
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (leavesForList.length === 0) {
+                    toast.error("No approved leave to export for this range.");
+                    return;
+                  }
+                  downloadApprovedLeaveXlsx(leavesForList);
+                  toast.success("Download started.");
+                }}
+                disabled={leavesForList.length === 0}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export to Excel
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Lists approved leave that overlaps the range. Leave both dates empty to show all
+            approved requests.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="py-6">
           <BookingCardsSkeleton count={4} />
@@ -294,7 +379,7 @@ export function AdminCampusApprovalSection({
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Inbox className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-muted-foreground">{emptyMessage}</p>
+            <p className="text-muted-foreground">{leaveEmptyMessage}</p>
           </CardContent>
         </Card>
       ) : kind === "facilities" && sortedFacilities.length === 0 ? (

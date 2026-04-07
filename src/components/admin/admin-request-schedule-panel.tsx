@@ -31,7 +31,12 @@ import {
   ResourceAvailabilityCalendar,
   type ResourceAvailabilitySpec,
 } from "@/components/resource-availability-calendar";
-import { formatUiLabel } from "@/lib/utils";
+import {
+  PROFESSOR_VENUE_NAMES,
+  type ProfessorVenueName,
+  resolveProfessorVenues,
+} from "@/lib/calendar-request-metadata";
+import { formatUiLabel, toTitleCase } from "@/lib/utils";
 import {
   APPOINTMENT_PROVIDER_LABELS,
   FACILITY_TYPE_LABELS,
@@ -323,15 +328,29 @@ export function AdminRequestSchedulePanel({
 }) {
   const [classroomId, setClassroomId] = useState("");
 
+  const eventVenueRows = useMemo(() => {
+    const byLabel = resolveProfessorVenues(classrooms);
+    return PROFESSOR_VENUE_NAMES.map((label) => {
+      const classroom = byLabel.get(label);
+      return classroom ? { label, classroom } : null;
+    }).filter(
+      (row): row is { label: ProfessorVenueName; classroom: Classroom } =>
+        row != null
+    );
+  }, [classrooms]);
+
   useEffect(() => {
-    if (classrooms.length === 0) {
+    if (mode !== "event") return;
+    if (eventVenueRows.length === 0) {
       setClassroomId("");
       return;
     }
     setClassroomId((prev) =>
-      prev && classrooms.some((c) => c.id === prev) ? prev : classrooms[0].id
+      prev && eventVenueRows.some((r) => r.classroom.id === prev)
+        ? prev
+        : eventVenueRows[0].classroom.id
     );
-  }, [classrooms]);
+  }, [mode, eventVenueRows]);
 
   const [sport, setSport] = useState<SportType>("cricket");
   const [sportVenue, setSportVenue] = useState<SportsVenueCode>(() =>
@@ -363,15 +382,19 @@ export function AdminRequestSchedulePanel({
 
   const resource = useMemo((): ResourceAvailabilitySpec | null => {
     switch (mode) {
-      case "event":
+      case "event": {
         if (!classroomId) return null;
+        const row = eventVenueRows.find((r) => r.classroom.id === classroomId);
+        const name =
+          row?.label ??
+          classrooms.find((c) => c.id === classroomId)?.name ??
+          "Venue";
         return {
           kind: "classroom",
           classroomId,
-          label: formatUiLabel(
-            classrooms.find((c) => c.id === classroomId)?.name ?? "Classroom"
-          ),
+          label: toTitleCase(name),
         };
+      }
       case "sports":
         return {
           kind: "sports",
@@ -406,6 +429,7 @@ export function AdminRequestSchedulePanel({
     mode,
     classroomId,
     classrooms,
+    eventVenueRows,
     sport,
     sportVenue,
     facType,
@@ -415,7 +439,7 @@ export function AdminRequestSchedulePanel({
 
   const headline =
     mode === "event"
-      ? "Classroom schedule"
+      ? "Event Schedule"
       : mode === "sports"
         ? "Sports venue schedule"
         : mode === "guest_house"
@@ -449,28 +473,30 @@ export function AdminRequestSchedulePanel({
       <CardContent className="space-y-4">
         {mode === "event" && (
           <div className="space-y-2">
-            <Label>Classroom</Label>
-            {classrooms.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No classrooms configured.</p>
+            <Label>Venue</Label>
+            {eventVenueRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No venues configured.</p>
             ) : (
               <Select
                 value={classroomId}
                 onValueChange={(v) => setClassroomId(v ?? "")}
               >
                 <SelectTrigger className="max-w-md rounded-lg">
-                  <SelectValue placeholder="Choose classroom">
+                  <SelectValue placeholder="Choose venue">
                     {classroomId
-                      ? formatUiLabel(
-                          classrooms.find((c) => c.id === classroomId)?.name ??
+                      ? toTitleCase(
+                          eventVenueRows.find((r) => r.classroom.id === classroomId)
+                            ?.label ??
+                            classrooms.find((c) => c.id === classroomId)?.name ??
                             classroomId
                         )
                       : null}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {classrooms.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {formatUiLabel(c.name)}
+                  {eventVenueRows.map(({ label, classroom }) => (
+                    <SelectItem key={classroom.id} value={classroom.id}>
+                      {toTitleCase(label)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -27,12 +27,12 @@ comment on column public.calendar_requests.request_kind is
 -- ---------------------------------------------------------------------------
 insert into public.classrooms (name, capacity)
 values
-  ('Class room', 40),
-  ('Exam hall', 200),
-  ('Seminar hall', 80),
-  ('Board room', 20),
+  ('Class Room', 40),
+  ('Exam Hall', 200),
+  ('Seminar Hall', 80),
+  ('Board Room', 20),
   ('Auditorium', 300),
-  ('Computer hall', 50)
+  ('Computer Hall', 50)
 on conflict (name) do nothing;
 
 -- ---------------------------------------------------------------------------

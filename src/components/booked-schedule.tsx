@@ -6,6 +6,7 @@ import type { CalendarRequest, Classroom } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CalendarPanelSkeleton } from "@/components/ui/loading-skeletons";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { toTitleCase } from "@/lib/utils";
 import {
   format,
   addDays,
@@ -251,7 +252,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
             <option value="all">All Classrooms</option>
             {classrooms.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} {c.capacity ? `(${c.capacity})` : ""}
+                {toTitleCase(c.name)} {c.capacity ? `(${c.capacity})` : ""}
               </option>
             ))}
           </select>
@@ -275,7 +276,7 @@ export function BookedSchedule({ onSlotClick, showAllStatuses, onEventClick, ref
                     key={c.id}
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${bgColor} ${textColor}`}
                   >
-                    {c.name}
+                    {toTitleCase(c.name)}
                   </span>
                 );
               })}

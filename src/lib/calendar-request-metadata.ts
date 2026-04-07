@@ -12,24 +12,24 @@ export const CALENDAR_REQUEST_KINDS: Exclude<CalendarRequestKind, "class">[] = [
 ];
 
 export const CALENDAR_REQUEST_KIND_LABELS: Record<CalendarRequestKind, string> = {
-  guest_speaker_session: "Guest speaker session",
-  extra_class: "Extra class",
+  guest_speaker_session: "Guest Speaker Session",
+  extra_class: "Extra Class",
   exam: "Exam",
   conclave: "Conclave",
   conference: "Conference",
-  student_event: "Student event",
-  faculty_meeting: "Faculty meeting",
-  class: "Extra class",
+  student_event: "Student Event",
+  faculty_meeting: "Faculty Meeting",
+  class: "Extra Class",
 };
 
 /** Display order for professor “Venue” dropdown; matches seeded `classrooms.name` values. */
 export const PROFESSOR_VENUE_NAMES = [
-  "Class room",
-  "Exam hall",
-  "Seminar hall",
-  "Board room",
+  "Class Room",
+  "Exam Hall",
+  "Seminar Hall",
+  "Board Room",
   "Auditorium",
-  "Computer hall",
+  "Computer Hall",
 ] as const;
 
 export type ProfessorVenueName = (typeof PROFESSOR_VENUE_NAMES)[number];
@@ -45,16 +45,16 @@ export function professorVenueNamesForRequestKind(
   switch (k) {
     case "extra_class":
     case "exam":
-      return ["Class room", "Seminar hall", "Exam hall", "Computer hall"];
+      return ["Class Room", "Seminar Hall", "Exam Hall", "Computer Hall"];
     case "conclave":
     case "conference":
-      return ["Seminar hall", "Auditorium"];
+      return ["Seminar Hall", "Auditorium"];
     case "student_event":
-      return ["Class room", "Seminar hall", "Auditorium"];
+      return ["Class Room", "Seminar Hall", "Auditorium"];
     case "faculty_meeting":
-      return ["Class room", "Board room"];
+      return ["Class Room", "Board Room"];
     case "guest_speaker_session":
-      return ["Class room", "Seminar hall", "Auditorium"];
+      return ["Class Room", "Seminar Hall", "Auditorium"];
     default:
       return [...PROFESSOR_VENUE_NAMES];
   }

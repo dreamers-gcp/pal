@@ -6,13 +6,37 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Capitalize a single token (words, hyphen segments, program codes like gmp / a). */
+function capitalizeDisplayToken(part: string): string {
+  if (!part) return part
+  if (/^\d+(\.\d+)?$/.test(part)) return part
+  // Short lowercase letter codes (e.g. gmp, bm, hrm)
+  if (/^[a-z]{2,3}$/.test(part)) return part.toUpperCase()
+  // Already all-caps short tokens (GMP, HRM)
+  if (/^[A-Z]{2,6}$/.test(part)) return part
+  return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+}
+
+function titleCaseHyphenated(word: string): string {
+  return word.split("-").map((seg) => capitalizeDisplayToken(seg)).join("-")
+}
+
+/**
+ * Title case for UI labels: each word capitalized; supports hyphens and program codes
+ * (e.g. "gmp - a" → "GMP - A", "Cricket ground" → "Cricket Ground").
+ */
 export function toTitleCase(s: string): string {
   if (!s?.trim()) return s ?? ""
-  return s
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ")
+  const parts = s.trim().split(/(\s+|[\-–—])/)
+  return parts
+    .map((part) => {
+      if (!part) return part
+      if (/^\s+$/.test(part)) return part
+      if (part === "-" || part === "–" || part === "—") return part
+      if (part.includes("-") && part.length > 1) return titleCaseHyphenated(part)
+      return capitalizeDisplayToken(part)
+    })
+    .join("")
 }
 
 /** Human-readable labels for DB/snake_case or mixed strings in UI. */

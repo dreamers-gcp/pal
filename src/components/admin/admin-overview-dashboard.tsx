@@ -19,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import {
   BedDouble,
   Trophy,
-  Users,
   GraduationCap,
   Loader2,
   DoorOpen,
@@ -84,8 +83,8 @@ interface ClassroomAvail {
 }
 
 interface PeopleStats {
-  students: number;
-  professors: number;
+  studentsOnCampus: number;
+  studentsTotal: number;
 }
 
 interface HealthOverviewItem {
@@ -136,6 +135,31 @@ function todayISO() {
 function frac(vacant: number, total: number): string {
   if (total <= 0) return "—";
   return `${vacant}/${total}`;
+}
+
+function minStudentsOnCampusInRange(
+  totalStudents: number,
+  leaves: { student_id: string; start_date: string; end_date: string }[],
+  from: string,
+  to: string
+): number {
+  if (totalStudents <= 0) return 0;
+  const days = eachDayOfInterval({
+    start: parseISO(from),
+    end: parseISO(to),
+  });
+  let maxLeaveAnyDay = 0;
+  for (const day of days) {
+    const dayStr = format(day, "yyyy-MM-dd");
+    const onLeave = new Set<string>();
+    for (const l of leaves) {
+      if (l.start_date <= dayStr && l.end_date >= dayStr) {
+        onLeave.add(l.student_id);
+      }
+    }
+    maxLeaveAnyDay = Math.max(maxLeaveAnyDay, onLeave.size);
+  }
+  return Math.max(0, totalStudents - maxLeaveAnyDay);
 }
 
 function profileNameFromJoin(
@@ -259,7 +283,7 @@ export function AdminOverviewDashboard() {
         classroomsListRes,
         classroomEventsRes,
         studentsRes,
-        professorsRes,
+        leaveRes,
         appointmentRes,
         messExtraRes,
       ] = await Promise.all([
@@ -289,9 +313,11 @@ export function AdminOverviewDashboard() {
           .select("id", { count: "exact", head: true })
           .eq("role", "student"),
         supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "professor"),
+          .from("student_leave_requests")
+          .select("student_id, start_date, end_date")
+          .eq("status", "approved")
+          .lte("start_date", to)
+          .gte("end_date", from),
         supabase
           .from("appointment_bookings")
           .select(
@@ -434,13 +460,27 @@ export function AdminOverviewDashboard() {
         items: messItems,
       };
 
+      const studentsTotal = studentsRes.count ?? 0;
+      const leaveRows =
+        (leaveRes.data ?? []) as {
+          student_id: string;
+          start_date: string;
+          end_date: string;
+        }[];
+      const studentsOnCampus = minStudentsOnCampusInRange(
+        studentsTotal,
+        leaveRows,
+        from,
+        to
+      );
+
       setData({
         guestHouse,
         sports,
         classrooms,
         people: {
-          students: studentsRes.count ?? 0,
-          professors: professorsRes.count ?? 0,
+          studentsOnCampus,
+          studentsTotal,
         },
         health,
         mess,
@@ -595,7 +635,7 @@ export function AdminOverviewDashboard() {
       ) : (
         <>
           {/* ===== Top stat cards (vacant/total or share/total) ===== */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <StatCard
               icon={BedDouble}
               iconBg="bg-violet-100"
@@ -641,20 +681,10 @@ export function AdminOverviewDashboard() {
               iconBg="bg-sky-100"
               iconColor="text-sky-700"
               fraction={frac(
-                data.people.students,
-                data.people.students + data.people.professors
+                data.people.studentsOnCampus,
+                data.people.studentsTotal
               )}
-              label="Students"
-            />
-            <StatCard
-              icon={Users}
-              iconBg="bg-violet-100"
-              iconColor="text-violet-700"
-              fraction={frac(
-                data.people.professors,
-                data.people.students + data.people.professors
-              )}
-              label="Faculty"
+              label="Students on campus"
             />
           </div>
 

@@ -7,7 +7,7 @@ import { STRICTNESS_OPTIONS } from "@/components/answer-scripts-evaluation/const
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const MODEL = process.env.OPENAI_EVAL_MODEL?.trim() || "gpt-4o";
+const MODEL = process.env.OPENAI_EVAL_MODEL?.trim() || "gpt-5-nano";
 
 type RawStep = {
   stepId: string;
@@ -251,7 +251,6 @@ Grade the student script (2nd PDF) using the answer key (1st PDF) and the rubric
           ],
         },
       ],
-      temperature: 0.2,
     });
 
     const text = completion.choices[0]?.message?.content;
