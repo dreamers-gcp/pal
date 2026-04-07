@@ -351,10 +351,10 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     const supabase = createClient();
 
     const patch: Record<string, unknown> = {
-      status,
+        status,
       admin_note: note || null,
-      reviewed_by: profile.id,
-      updated_at: new Date().toISOString(),
+        reviewed_by: profile.id,
+        updated_at: new Date().toISOString(),
     };
     if (status === "approved") {
       patch.assigned_hall = hall;
@@ -373,8 +373,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         status === "approved"
           ? "approved"
           : status === "rejected"
-            ? "rejected"
-            : "sent back for clarification";
+          ? "rejected"
+          : "sent back for clarification";
       toast.success(`Request ${label}`);
     }
 
@@ -871,14 +871,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             sectionNavExpanded ? "md:ml-56" : "md:ml-14"
           )}
         >
-            <div>
+      <div>
               <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
                 Admin Dashboard
               </h1>
               <p className="mt-1 text-muted-foreground">
-                Welcome, {profile.full_name}. Review requests and manage students.
-              </p>
-            </div>
+          Welcome, {profile.full_name}. Review requests and manage students.
+        </p>
+      </div>
 
             {tabMenuOpen && (
               <>
@@ -934,7 +934,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             onClick={() => setTabMenuOpen(false)}
                           >
                             {item.label}
-                          </TabsTrigger>
+          </TabsTrigger>
                         ))}
                       </TabsList>
                     )}
@@ -946,7 +946,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     >
                       <FileSpreadsheet className="h-4 w-4" />
                       Enrollments
-                    </TabsTrigger>
+          </TabsTrigger>
                     <TabsTrigger
                       value="students"
                       className="w-full justify-start gap-1.5"
@@ -999,31 +999,31 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   {item.label}
                 </TabsTrigger>
               ))}
-              <TabsTrigger value="enrollments" className="gap-1.5">
-                <FileSpreadsheet className="h-4 w-4" />
-                Enrollments
-              </TabsTrigger>
-              <TabsTrigger value="students" className="gap-1.5">
-                <GraduationCap className="h-4 w-4" />
-                Manage Students
-              </TabsTrigger>
-              <TabsTrigger value="prof-assignments" className="gap-1.5">
-                <BookOpen className="h-4 w-4" />
-                Professor Assignments
-              </TabsTrigger>
-              <TabsTrigger value="professors" className="gap-1.5">
-                <Users className="h-4 w-4" />
-                Manage Professors
-              </TabsTrigger>
+          <TabsTrigger value="enrollments" className="gap-1.5">
+            <FileSpreadsheet className="h-4 w-4" />
+            Enrollments
+          </TabsTrigger>
+          <TabsTrigger value="students" className="gap-1.5">
+            <GraduationCap className="h-4 w-4" />
+            Manage Students
+          </TabsTrigger>
+          <TabsTrigger value="prof-assignments" className="gap-1.5">
+            <BookOpen className="h-4 w-4" />
+            Professor Assignments
+          </TabsTrigger>
+          <TabsTrigger value="professors" className="gap-1.5">
+            <Users className="h-4 w-4" />
+            Manage Professors
+          </TabsTrigger>
               <TabsTrigger value="parcel-management" className="gap-1.5">
                 <Package className="h-4 w-4" />
                 Parcel management
               </TabsTrigger>
-              <TabsTrigger value="timetable" className="gap-1.5">
-                <Wand2 className="h-4 w-4" />
-                Timetable
-              </TabsTrigger>
-            </TabsList>
+          <TabsTrigger value="timetable" className="gap-1.5">
+            <Wand2 className="h-4 w-4" />
+            Timetable
+          </TabsTrigger>
+        </TabsList>
 
         {/* ========== OVERVIEW ========== */}
         <TabsContent value="request-overview" className="mt-6">
@@ -1034,33 +1034,33 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="request-event-requests" className="mt-6 space-y-6">
               <div className="rounded-xl border bg-muted/25 p-2.5">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    {
-                      label: "Pending",
-                      count: filterByStatus("pending").length,
+            {[
+              {
+                label: "Pending",
+                count: filterByStatus("pending").length,
                       color: "text-yellow-700",
                       chip: "bg-yellow-100",
-                    },
-                    {
-                      label: "Approved",
-                      count: filterByStatus("approved").length,
+              },
+              {
+                label: "Approved",
+                count: filterByStatus("approved").length,
                       color: "text-accent-foreground",
                       chip: "bg-accent/20",
-                    },
-                    {
-                      label: "Rejected",
-                      count: filterByStatus("rejected").length,
+              },
+              {
+                label: "Rejected",
+                count: filterByStatus("rejected").length,
                       color: "text-destructive",
                       chip: "bg-destructive/10",
-                    },
-                    {
+              },
+              {
                       label: "Clarification",
-                      count: filterByStatus("clarification_needed").length,
+                count: filterByStatus("clarification_needed").length,
                       color: "text-primary",
                       chip: "bg-primary/10",
                       value: "clarification_needed",
-                    },
-                  ].map((stat) => (
+              },
+            ].map((stat) => (
                     <button
                       key={stat.label}
                       type="button"
@@ -1092,7 +1092,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <span
                         className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}
                       >
-                        {stat.count}
+                    {stat.count}
                       </span>
                     </button>
                   ))}
@@ -1104,9 +1104,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">
                       No requests here.
-                    </p>
-                  </CardContent>
-                </Card>
+                  </p>
+                </CardContent>
+              </Card>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {sortByCreatedAtAsc(filterByStatus(requestStatusFilter)).map((req) => (
@@ -1121,8 +1121,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         setAdminSpoc(req.admin_spoc ?? "");
                       }}
                     />
-                  ))}
-                </div>
+            ))}
+          </div>
               )}
               <AdminRequestSchedulePanel
                 mode="event"
@@ -1228,7 +1228,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         </CardContent>
                       </Card>
                     ))}
-                  </div>
+                          </div>
                 )}
             </TabsContent>
 
@@ -1261,16 +1261,16 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <span className="text-xs text-muted-foreground">{stat.label}</span>
                       <span className={`inline-flex min-w-7 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold ${stat.color} ${stat.chip}`}>
                         {filterSportsByStatus(stat.value).length}
-                      </span>
+                            </span>
                     </button>
                   ))}
-                </div>
-              </div>
+                          </div>
+                          </div>
 
               {sportsLoading ? (
                 <div className="py-6">
                   <BookingCardsSkeleton count={4} />
-                </div>
+                          </div>
               ) : sortByCreatedAtAsc(filterSportsByStatus(sportsStatusFilter)).length === 0 ? (
                 <Card>
                   <CardContent className="py-10 text-center text-muted-foreground">
@@ -1334,13 +1334,13 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             Clarify
                           </Button>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                          </div>
+                        </CardContent>
+                      </Card>
                     );
                   })}
-                </div>
-              )}
+                  </div>
+                )}
           </div>
           <AdminRequestSchedulePanel
             mode="sports"
@@ -1437,46 +1437,46 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   {enrollments.length > 0 ? (
                     <>
                       <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-muted-foreground font-medium">Term:</label>
-                        <select
-                          className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          value={filterTerm}
-                          onChange={(e) => setFilterTerm(e.target.value)}
-                        >
-                          <option value="all">All Terms</option>
-                          {allTerms.map((t) => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-muted-foreground font-medium">Subject:</label>
-                        <select
-                          className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          value={filterSubject}
-                          onChange={(e) => setFilterSubject(e.target.value)}
-                        >
-                          <option value="all">All Subjects</option>
-                          {allSubjects.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {(filterTerm !== "all" || filterSubject !== "all") && (
-                        <button
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Term:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={filterTerm}
+                      onChange={(e) => setFilterTerm(e.target.value)}
+                    >
+                      <option value="all">All Terms</option>
+                      {allTerms.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Subject:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={filterSubject}
+                      onChange={(e) => setFilterSubject(e.target.value)}
+                    >
+                      <option value="all">All Subjects</option>
+                      {allSubjects.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(filterTerm !== "all" || filterSubject !== "all") && (
+                    <button
                           type="button"
-                          onClick={() => { setFilterTerm("all"); setFilterSubject("all"); }}
-                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                        >
-                          Clear filters
-                        </button>
-                      )}
-                      {filteredEmailsSet && (
-                        <span className="text-xs text-muted-foreground">
-                          Showing {filteredRoster.length} of {fullRoster.length} students
-                        </span>
-                      )}
+                      onClick={() => { setFilterTerm("all"); setFilterSubject("all"); }}
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                  {filteredEmailsSet && (
+                    <span className="text-xs text-muted-foreground">
+                      Showing {filteredRoster.length} of {fullRoster.length} students
+                    </span>
+                  )}
                     </>
                   ) : (
                     <p className="text-xs text-muted-foreground">
@@ -1500,64 +1500,64 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               {/* Student roster list — horizontal scroll on narrow screens */}
               <div className="rounded-lg border bg-white overflow-x-auto">
                 <div className="min-w-[720px]">
-                  <div className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
-                    <span>Name</span>
-                    <span>Email</span>
-                    <span>Subjects / Groups</span>
-                    <span className="text-center">Status</span>
+                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                  <span>Name</span>
+                  <span>Email</span>
+                  <span>Subjects / Groups</span>
+                  <span className="text-center">Status</span>
+                </div>
+                {filteredRoster.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No students match the selected filters.
                   </div>
-                  {filteredRoster.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                      No students match the selected filters.
-                    </div>
-                  ) : (
-                    filteredRoster.map((entry) => (
-                      <div
-                        key={entry.email}
-                        className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm font-medium truncate">
-                            {entry.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm text-muted-foreground truncate">
-                            {entry.email}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {entry.subjects.length > 0 ? (
-                            entry.subjects.map((subj) => (
-                              <span
-                                key={subj}
-                                className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium"
-                              >
-                                {subj}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-muted-foreground">No groups</span>
-                          )}
-                        </div>
-                        <div className="flex justify-center">
-                          {entry.signedUp ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent-foreground px-2.5 py-0.5 text-xs font-medium">
-                              <Check className="h-3 w-3" />
-                              Signed up
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2.5 py-0.5 text-xs font-medium">
-                              <Clock className="h-3 w-3" />
-                              Pending
-                            </span>
-                          )}
-                        </div>
+                ) : (
+                  filteredRoster.map((entry) => (
+                    <div
+                      key={entry.email}
+                      className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">
+                          {entry.name}
+                        </span>
                       </div>
-                    ))
-                  )}
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">
+                          {entry.email}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.subjects.length > 0 ? (
+                          entry.subjects.map((subj) => (
+                            <span
+                              key={subj}
+                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium"
+                            >
+                              {subj}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No groups</span>
+                        )}
+                      </div>
+                      <div className="flex justify-center">
+                        {entry.signedUp ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent-foreground px-2.5 py-0.5 text-xs font-medium">
+                            <Check className="h-3 w-3" />
+                            Signed up
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2.5 py-0.5 text-xs font-medium">
+                            <Clock className="h-3 w-3" />
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
                 </div>
               </div>
             </>
@@ -1632,46 +1632,46 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
                   <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-muted-foreground font-medium">Term:</label>
-                    <select
-                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      value={profFilterTerm}
-                      onChange={(e) => setProfFilterTerm(e.target.value)}
-                    >
-                      <option value="all">All Terms</option>
-                      {profTerms.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-muted-foreground font-medium">Subject:</label>
-                    <select
-                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      value={profFilterSubject}
-                      onChange={(e) => setProfFilterSubject(e.target.value)}
-                    >
-                      <option value="all">All Subjects</option>
-                      {profSubjects.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {(profFilterTerm !== "all" || profFilterSubject !== "all") && (
-                    <button
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground font-medium">Term:</label>
+                  <select
+                    className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={profFilterTerm}
+                    onChange={(e) => setProfFilterTerm(e.target.value)}
+                  >
+                    <option value="all">All Terms</option>
+                    {profTerms.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground font-medium">Subject:</label>
+                  <select
+                    className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={profFilterSubject}
+                    onChange={(e) => setProfFilterSubject(e.target.value)}
+                  >
+                    <option value="all">All Subjects</option>
+                    {profSubjects.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                {(profFilterTerm !== "all" || profFilterSubject !== "all") && (
+                  <button
                       type="button"
-                      onClick={() => { setProfFilterTerm("all"); setProfFilterSubject("all"); }}
-                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                    >
-                      Clear filters
-                    </button>
-                  )}
-                  {filteredProfEmailsSet && (
-                    <span className="text-xs text-muted-foreground">
-                      Showing {filteredProfRoster.length} of {fullProfRoster.length} professors
-                    </span>
-                  )}
+                    onClick={() => { setProfFilterTerm("all"); setProfFilterSubject("all"); }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                )}
+                {filteredProfEmailsSet && (
+                  <span className="text-xs text-muted-foreground">
+                    Showing {filteredProfRoster.length} of {fullProfRoster.length} professors
+                  </span>
+                )}
                 </div>
                 <Button
                   type="button"
@@ -1689,46 +1689,46 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               {/* Professor roster list — horizontal scroll on narrow screens */}
               <div className="rounded-lg border bg-white overflow-x-auto">
                 <div className="min-w-[720px]">
-                  <div className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
-                    <span>Name</span>
-                    <span>Email</span>
-                    <span>Subjects</span>
-                    <span className="text-right">Total Credits</span>
+                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                  <span>Name</span>
+                  <span>Email</span>
+                  <span>Subjects</span>
+                  <span className="text-right">Total Credits</span>
+                </div>
+                {filteredProfRoster.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No professors match the selected filters.
                   </div>
-                  {filteredProfRoster.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                      No professors match the selected filters.
-                    </div>
-                  ) : (
-                    filteredProfRoster.map((entry) => (
-                      <div
-                        key={entry.email}
-                        className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm font-medium truncate">{entry.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm text-muted-foreground truncate">{entry.email}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {entry.subjects.map((subj) => (
-                            <span
-                              key={subj}
-                              className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium"
-                            >
-                              {subj}
-                            </span>
-                          ))}
-                        </div>
+                ) : (
+                  filteredProfRoster.map((entry) => (
+                    <div
+                      key={entry.email}
+                      className="grid grid-cols-[1fr_1.2fr_1.5fr_0.5fr] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">{entry.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">{entry.email}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.subjects.map((subj) => (
+                          <span
+                            key={subj}
+                            className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium"
+                          >
+                            {subj}
+                          </span>
+                        ))}
+                      </div>
                         <div className="text-sm font-medium text-right">
                           {formatCreditsDisplay(entry.totalCredits)}
                         </div>
-                      </div>
-                    ))
-                  )}
+                    </div>
+                  ))
+                )}
                 </div>
               </div>
             </>
@@ -1745,7 +1745,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           <TimetableGenerator profile={profile} />
         </TabsContent>
         </div>
-    </Tabs>
+      </Tabs>
 
       {/* Guest house review sidebar */}
       {selectedGuestBooking && (
@@ -1790,8 +1790,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   room(s) requested (min{" "}
                   {roomsNeededForGuestCount(selectedGuestBooking.guest_count ?? 1)}) · max{" "}
                   {MAX_GUESTS_PER_ROOM} guests per room
-                </p>
-              </div>
+                    </p>
+                  </div>
               <div className="space-y-1.5 text-sm">
                 <p>
                   <span className="text-muted-foreground">Requested by:</span>{" "}
@@ -1828,14 +1828,14 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <p className="text-[11px] text-muted-foreground">Available</p>
                       <p className="text-sm font-semibold text-emerald-700">
                         {selectedGuestAvailability.availableRooms}
-                      </p>
-                    </div>
+                    </p>
+                  </div>
                     <div className="rounded-md border bg-amber-500/10 px-2 py-1.5">
                       <p className="text-[11px] text-muted-foreground">Booked</p>
                       <p className="text-sm font-semibold text-amber-700">
                         {selectedGuestAvailability.bookedRooms}
-                      </p>
-                    </div>
+                    </p>
+                  </div>
                     <div className="rounded-md border bg-muted px-2 py-1.5">
                       <p className="text-[11px] text-muted-foreground">Total rooms</p>
                       <p className="text-sm font-semibold">
@@ -1949,7 +1949,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         {selectedGuestRoomBookings.map((b) => (
                           <div key={b.id} className="rounded-md border bg-background px-2 py-1.5 text-xs">
                             <p className="font-medium">{b.guest_name}</p>
-                            <p className="text-muted-foreground">
+                    <p className="text-muted-foreground">
                               {b.check_in_date} to {b.check_out_date}
                               {" • "}
                               {b.requester?.full_name ?? b.requester_email ?? "Unknown requester"}
@@ -2102,9 +2102,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <div className="flex items-center gap-3 text-sm text-foreground">
                   <Users className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span>
-                    {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
-                      ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
-                      : selectedRequest.student_group?.name ?? "—"}
+                      {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
+                        ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
+                        : selectedRequest.student_group?.name ?? "—"}
                   </span>
                 </div>
                 {(() => {
@@ -2145,17 +2145,17 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                           <span className="font-medium text-foreground">
                             {selectedRequest.assigned_hall}
                           </span>
-                        </div>
+                  </div>
                       )}
                       {selectedRequest.admin_spoc && (
-                        <div>
+                  <div>
                           <span className="text-muted-foreground">Admin SPOC: </span>
                           <span className="font-medium text-foreground">
                             {selectedRequest.admin_spoc}
                           </span>
-                        </div>
+                  </div>
                       )}
-                    </div>
+                </div>
                   )}
               </div>
             </div>
@@ -2193,18 +2193,18 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         </div>
                         <div className="space-y-2">
                           <Label>Admin note (optional)</Label>
-                          <Textarea
-                            placeholder="Add a note for the professor..."
-                            value={adminNote}
-                            onChange={(e) => setAdminNote(e.target.value)}
-                            rows={3}
+                  <Textarea
+                    placeholder="Add a note for the professor..."
+                    value={adminNote}
+                    onChange={(e) => setAdminNote(e.target.value)}
+                    rows={3}
                             className="resize-none"
-                          />
-                        </div>
+                  />
+                </div>
                         <div className="flex flex-wrap gap-2">
                           {ev.approve && (
-                            <Button
-                              onClick={() =>
+                <Button
+                  onClick={() =>
                                 updateRequest(selectedRequest.id, "approved", {
                                   assignedHall,
                                   adminSpoc,
@@ -2220,43 +2220,43 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                               className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
                             >
                               <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                              Approve
-                            </Button>
+                  Approve
+                </Button>
                           )}
                           {ev.reject && (
-                            <Button
-                              onClick={() =>
-                                updateRequest(selectedRequest.id, "rejected")
-                              }
-                              disabled={updating}
+                <Button
+                  onClick={() =>
+                    updateRequest(selectedRequest.id, "rejected")
+                  }
+                  disabled={updating}
                               variant="outline"
                               size="sm"
                               className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
-                            >
+                >
                               <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                              Reject
-                            </Button>
+                  Reject
+                </Button>
                           )}
                           {ev.clarify && (
-                            <Button
-                              onClick={() =>
-                                updateRequest(
-                                  selectedRequest.id,
-                                  "clarification_needed"
-                                )
-                              }
-                              disabled={updating}
-                              variant="outline"
+                <Button
+                  onClick={() =>
+                    updateRequest(
+                      selectedRequest.id,
+                      "clarification_needed"
+                    )
+                  }
+                  disabled={updating}
+                  variant="outline"
                               size="sm"
                               className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
-                            >
+                >
                               <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                              Clarify
-                            </Button>
+                  Clarify
+                </Button>
                           )}
-                        </div>
-                      </>
-                    )}
+              </div>
+            </>
+          )}
                     {st === "approved" && (
                       <>
                         <div className="space-y-2">
@@ -2268,7 +2268,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             rows={3}
                             className="resize-none"
                           />
-                        </div>
+    </div>
                         <div className="flex flex-wrap gap-2">
                           {ev.reject && (
                             <Button

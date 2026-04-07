@@ -211,79 +211,79 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
 
     async function fetchEvents() {
       try {
-        let groupIds: string[] = [];
-        let groupNames: string[] = [];
-        const idNameMap: Record<string, string> = {};
+      let groupIds: string[] = [];
+      let groupNames: string[] = [];
+      const idNameMap: Record<string, string> = {};
 
-        // Strategy 1: Look up enrollments by email (most reliable — directly from CSV)
-        const { data: enrollmentSubjects } = await supabase
-          .from("student_enrollments")
-          .select("subject")
-          .eq("email", profile.email);
+      // Strategy 1: Look up enrollments by email (most reliable — directly from CSV)
+      const { data: enrollmentSubjects } = await supabase
+        .from("student_enrollments")
+        .select("subject")
+        .eq("email", profile.email);
 
-        if (enrollmentSubjects && enrollmentSubjects.length > 0) {
-          const subjectNames = [...new Set(enrollmentSubjects.map((e) => e.subject))];
-          const { data: groups } = await supabase
-            .from("student_groups")
-            .select("id, name")
-            .in("name", subjectNames);
+      if (enrollmentSubjects && enrollmentSubjects.length > 0) {
+        const subjectNames = [...new Set(enrollmentSubjects.map((e) => e.subject))];
+        const { data: groups } = await supabase
+          .from("student_groups")
+          .select("id, name")
+          .in("name", subjectNames);
 
-          if (groups && groups.length > 0) {
-            groupIds = groups.map((g) => g.id);
-            groupNames = groups.map((g) => g.name);
-            for (const g of groups) idNameMap[g.id] = g.name;
-          }
+        if (groups && groups.length > 0) {
+          groupIds = groups.map((g) => g.id);
+          groupNames = groups.map((g) => g.name);
+          for (const g of groups) idNameMap[g.id] = g.name;
         }
+      }
 
-        // Strategy 2: Check student_group_members join table
-        if (groupIds.length === 0) {
-          const { data: memberships } = await supabase
-            .from("student_group_members")
-            .select("group_id, student_group:student_groups(id, name)")
-            .eq("student_id", profile.id);
+      // Strategy 2: Check student_group_members join table
+      if (groupIds.length === 0) {
+        const { data: memberships } = await supabase
+          .from("student_group_members")
+          .select("group_id, student_group:student_groups(id, name)")
+          .eq("student_id", profile.id);
 
-          if (memberships && memberships.length > 0) {
-            groupIds = memberships.map((m) => m.group_id);
-            for (const m of memberships) {
-              const sg = m.student_group as unknown as { id: string; name: string } | null;
-              if (sg) {
-                idNameMap[m.group_id] = sg.name;
-                groupNames.push(sg.name);
-              }
+        if (memberships && memberships.length > 0) {
+          groupIds = memberships.map((m) => m.group_id);
+          for (const m of memberships) {
+            const sg = m.student_group as unknown as { id: string; name: string } | null;
+            if (sg) {
+              idNameMap[m.group_id] = sg.name;
+              groupNames.push(sg.name);
             }
           }
         }
+      }
 
-        // Strategy 3: Legacy fallback — profiles.student_group
-        if (groupIds.length === 0 && profile.student_group) {
-          const { data: groupData } = await supabase
-            .from("student_groups")
-            .select("id, name")
-            .eq("name", profile.student_group)
-            .single();
-          if (groupData) {
-            groupIds = [groupData.id];
-            groupNames = [groupData.name];
-            idNameMap[groupData.id] = groupData.name;
-          }
+      // Strategy 3: Legacy fallback — profiles.student_group
+      if (groupIds.length === 0 && profile.student_group) {
+        const { data: groupData } = await supabase
+          .from("student_groups")
+          .select("id, name")
+          .eq("name", profile.student_group)
+          .single();
+        if (groupData) {
+          groupIds = [groupData.id];
+          groupNames = [groupData.name];
+          idNameMap[groupData.id] = groupData.name;
         }
+      }
 
-        setGroupIdToName(idNameMap);
-        setStudentGroupIds(groupIds);
-        setStudentGroupNames(groupNames);
+      setGroupIdToName(idNameMap);
+      setStudentGroupIds(groupIds);
+      setStudentGroupNames(groupNames);
 
-        if (groupIds.length === 0) {
-          setEvents([]);
+      if (groupIds.length === 0) {
+        setEvents([]);
         } else {
           // Fetch approved events via direct student_group_id
           const { data: directEvents } = await supabase
-            .from("calendar_requests")
-            .select(
-              "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
-            )
-            .eq("status", "approved")
-            .in("student_group_id", groupIds)
-            .order("event_date", { ascending: true });
+        .from("calendar_requests")
+        .select(
+          "*, professor:profiles!calendar_requests_professor_id_fkey(*), student_group:student_groups(*), classroom:classrooms(*)"
+        )
+        .eq("status", "approved")
+        .in("student_group_id", groupIds)
+        .order("event_date", { ascending: true });
 
           // Also fetch events linked via the junction table (multi-group support)
           const { data: junctionLinks } = await supabase
@@ -319,7 +319,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       } catch (error) {
         console.error("Failed to load student dashboard data", error);
       } finally {
-        setLoading(false);
+      setLoading(false);
       }
     }
 
@@ -726,24 +726,24 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
             sectionNavExpanded ? "md:ml-56" : "md:ml-14"
           )}
         >
-            <div>
+      <div>
               <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
                 {greeting}, {profile.full_name}!
               </h1>
-            </div>
+      </div>
 
-            {!loading && studentGroupIds.length === 0 && (
-              <Card className="border-yellow-200 bg-yellow-50">
-                <CardContent className="py-4">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> You haven&apos;t been assigned to any
-                    student groups yet. Once your admin uploads the enrollment roster,
-                    your upcoming events will appear here. Contact your admin with
-                    your email: <strong>{profile.email}</strong>
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+      {!loading && studentGroupIds.length === 0 && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="py-4">
+            <p className="text-sm text-yellow-800">
+              <strong>Note:</strong> You haven&apos;t been assigned to any
+              student groups yet. Once your admin uploads the enrollment roster,
+              your upcoming events will appear here. Contact your admin with
+              your email: <strong>{profile.email}</strong>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
             {tabMenuOpen && (
               <>
@@ -784,7 +784,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       className="w-full justify-start gap-1.5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <CalendarDays className="h-4 w-4" />
+            <CalendarDays className="h-4 w-4" />
                       Calendar
                     </TabsTrigger>
                     <TabsTrigger
@@ -944,8 +944,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                           </Badge>
                         ) : (
                           <Badge className="bg-accent/15 text-accent-foreground" variant="outline">
-                            Upcoming
-                          </Badge>
+                          Upcoming
+                        </Badge>
                         )}
                       </div>
                       {event.description && (
@@ -1253,7 +1253,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         </TabsContent>
 
         <TabsContent value="sports" className="mt-3 space-y-4">
-          <Card>
+            <Card>
             <CardHeader>
               <CardTitle>Request Sports Booking</CardTitle>
             </CardHeader>
@@ -1355,8 +1355,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                   {sportsSubmitting ? "Submitting..." : "Submit"}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
           <div className="mt-6 space-y-3">
             <p className="text-sm font-semibold">Your Past Requests</p>
@@ -1418,7 +1418,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="parcels" className="mt-3">
           <UserParcelTab profile={profile} />
         </TabsContent>
-        </div>
+    </div>
     </Tabs>
   );
 }

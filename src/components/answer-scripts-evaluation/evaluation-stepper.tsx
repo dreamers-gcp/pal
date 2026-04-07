@@ -5,16 +5,21 @@ import { AE_TEAL } from "./constants";
 import { Check } from "lucide-react";
 
 export function EvaluationStepper({ current }: { current: number }) {
-  /** Four phases only: queue + per-student review share the last step (no separate “step 5”). */
   const steps: { n: number; label: string; title?: string }[] = [
-    { n: 1, label: "Setup", title: "Exam name, rubric, and strictness" },
-    { n: 2, label: "Answer key", title: "Upload the official answer key PDF" },
-    { n: 3, label: "Scripts", title: "Upload student scripts" },
     {
-      n: 4,
+      n: 1,
+      label: "Answer Key",
+      title: "Exam details + upload answer key & marking scheme PDF",
+    },
+    {
+      n: 2,
+      label: "Student Scripts",
+      title: "Upload student answer scripts",
+    },
+    {
+      n: 3,
       label: "Evaluate",
-      title:
-        "AI queue (Waiting → Scored), then open each Scored script to review marks against the PDF and answer key.",
+      title: "AI grades each script, then review marks",
     },
   ];
 
@@ -23,7 +28,7 @@ export function EvaluationStepper({ current }: { current: number }) {
       className="w-full min-w-0 overflow-x-auto rounded-xl border border-[#01696f]/20 bg-[#01696f]/[0.04] px-2 py-3 sm:px-4"
       aria-label="Evaluation progress"
     >
-      <ol className="grid w-full min-w-0 grid-cols-4 gap-x-1 gap-y-2 sm:gap-x-2">
+      <ol className="grid w-full min-w-0 grid-cols-3 gap-x-1 gap-y-2 sm:gap-x-2">
         {steps.map((s) => {
           const done = s.n < current;
           const active = current === s.n;

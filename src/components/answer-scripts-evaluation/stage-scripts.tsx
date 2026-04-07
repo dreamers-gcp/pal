@@ -8,22 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ScriptRow } from "./types";
+import { fallbackMetaFromFileName } from "@/lib/extract-exam-script-meta";
 
 function newScriptId() {
   return `script-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function mockMeta(fileName: string): { name: string; roll: string; pages: number } {
-  const base = fileName.replace(/\.pdf$/i, "");
-  const parts = base.split(/[_\s-]+/).filter(Boolean);
-  let name = "Unknown student";
-  let roll = "—";
-  if (parts.length >= 2) {
-    roll = parts[parts.length - 1] ?? roll;
-    name = parts.slice(0, -1).join(" ").replace(/\b\w/g, (c) => c.toUpperCase()) || name;
-  }
-  const pages = 2 + (base.length % 6);
-  return { name, roll, pages };
 }
 
 export function StageScripts({
@@ -41,38 +29,90 @@ export function StageScripts({
 }) {
   const [dragOver, setDragOver] = useState(false);
 
+  function updateRow(id: string, patch: Partial<Pick<ScriptRow, "studentName" | "rollNo">>) {
+    setScripts((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
   function addFiles(fileList: FileList | null) {
     if (!fileList?.length) return;
-    const added: ScriptRow[] = [];
+    const jobs: { id: string; file: File }[] = [];
+
     for (let i = 0; i < fileList.length; i++) {
       const f = fileList[i];
       if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) continue;
-      const meta = mockMeta(f.name);
       const id = newScriptId();
       const objectUrl = URL.createObjectURL(f);
-      added.push({
-        id,
-        fileName: f.name,
-        studentName: meta.name,
-        rollNo: meta.roll,
-        pages: meta.pages,
-        status: "parsing",
-        objectUrl,
-      });
+      jobs.push({ id, file: f });
+      setScripts((prev) => [
+        ...prev,
+        {
+          id,
+          fileName: f.name,
+          studentName: "Reading PDF…",
+          rollNo: "…",
+          pages: 0,
+          status: "parsing",
+          objectUrl,
+        },
+      ]);
     }
-    if (added.length === 0) return;
-    setScripts((prev) => [...prev, ...added]);
-    for (const row of added) {
-      window.setTimeout(() => {
-        setScripts((prev) =>
-          prev.map((r) => (r.id === row.id ? { ...r, status: "ready" as const } : r))
-        );
-      }, 450 + Math.floor(Math.random() * 400));
-    }
-  }
 
-  function updateRow(id: string, patch: Partial<Pick<ScriptRow, "studentName" | "rollNo">>) {
-    setScripts((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    for (const { id, file } of jobs) {
+      void (async () => {
+        const fb = fallbackMetaFromFileName(file.name);
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/answer-scripts/extract-script-meta", {
+            method: "POST",
+            body: fd,
+          });
+          const data = (await res.json()) as {
+            name?: string;
+            rollNo?: string;
+            pages?: number;
+            textExtracted?: boolean;
+          };
+
+          const pages =
+            typeof data.pages === "number" && data.pages > 0 ? data.pages : 1;
+          const nameFromPdf = data.name?.trim() ?? "";
+          const rollFromPdf = data.rollNo?.trim() ?? "";
+
+          const studentName = nameFromPdf || fb.name;
+          const rollNo =
+            rollFromPdf && rollFromPdf !== "—" ? rollFromPdf : fb.roll;
+
+          setScripts((prev) =>
+            prev.map((r) =>
+              r.id === id
+                ? {
+                    ...r,
+                    studentName,
+                    rollNo,
+                    pages,
+                    status: "ready" as const,
+                  }
+                : r
+            )
+          );
+        } catch {
+          setScripts((prev) =>
+            prev.map((r) =>
+              r.id === id
+                ? {
+                    ...r,
+                    studentName: fb.name,
+                    rollNo: fb.roll,
+                    pages: 1,
+                    status: "ready" as const,
+                  }
+                : r
+            )
+          );
+        }
+      })();
+    }
   }
 
   const readyCount = scripts.filter((s) => s.status === "ready").length;
@@ -84,7 +124,9 @@ export function StageScripts({
         <CardHeader>
           <CardTitle className="text-lg">Student answer scripts</CardTitle>
           <CardDescription>
-            Step 3 — upload scanned PDFs. Detection columns are simulated from filenames.
+            Step 2 — upload scanned student answer PDFs. Name and roll number are read from the text
+            on the first pages when possible; scanned image-only scripts may need manual correction
+            (filename is used as a fallback).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -127,7 +169,7 @@ export function StageScripts({
             <span className="font-semibold text-[#01696f]">{readyCount}</span>
             <span className="text-muted-foreground">
               {" "}
-              of {totalExpected} scripts uploaded (expected count from exam total is illustrative)
+              of {totalExpected} scripts uploaded (expected count is illustrative)
             </span>
           </div>
 
@@ -169,11 +211,11 @@ export function StageScripts({
                           onChange={(e) => updateRow(r.id, { rollNo: e.target.value })}
                         />
                       </td>
-                      <td className="px-3 py-2 tabular-nums">{r.pages}</td>
+                      <td className="px-3 py-2 tabular-nums">{r.pages > 0 ? r.pages : "—"}</td>
                       <td className="px-3 py-2">
                         {r.status === "parsing" && (
                           <Badge variant="secondary" className="bg-slate-200 text-slate-800">
-                            Parsing…
+                            Reading PDF…
                           </Badge>
                         )}
                         {r.status === "ready" && (

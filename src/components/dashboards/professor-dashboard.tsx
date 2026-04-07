@@ -544,11 +544,11 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             sectionNavExpanded ? "md:ml-56" : "md:ml-14"
           )}
         >
-            <div>
+      <div>
               <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
                 {greeting}, {profile.full_name}!
               </h1>
-            </div>
+      </div>
 
             {tabMenuOpen && (
               <>
@@ -629,10 +629,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
               </>
             )}
             <TabsList className="hidden">
-              <TabsTrigger value="my-requests" className="gap-1.5">
+          <TabsTrigger value="my-requests" className="gap-1.5">
                 <ClipboardList className="h-4 w-4" />
-                My Requests
-              </TabsTrigger>
+            My Requests
+          </TabsTrigger>
               <TabsTrigger value="calendar" className="gap-1.5">
                 <CalendarDays className="h-4 w-4" />
                 Calendar
@@ -652,8 +652,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
               <TabsTrigger value="script-evaluation" className="gap-1.5">
                 <FileCheck2 className="h-4 w-4" />
                 Script evaluation
-              </TabsTrigger>
-            </TabsList>
+          </TabsTrigger>
+        </TabsList>
 
         {/* ========== MY REQUESTS TAB ========== */}
         <TabsContent value="my-requests" className="mt-6 space-y-6">
@@ -886,7 +886,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
             {sportsLoading ? (
             <div className="py-4">
               <BookingCardsSkeleton count={3} />
-            </div>
+                    </div>
           ) : mySportsBookings.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
@@ -912,10 +912,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       {b.admin_note && (
                         <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
                           Admin note: {b.admin_note}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
@@ -934,7 +934,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           </div>
         </TabsContent>
         </div>
-    </Tabs>
+      </Tabs>
 
       {/* Full-screen new request (popover/select layers use z-[110]) */}
       {bookingSidebarOpen && (
@@ -959,20 +959,20 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             <div className="mx-auto w-full max-w-2xl px-4 py-6 pb-12 sm:px-6">
-              <BookingForm
-                key={formKey}
+        <BookingForm
+          key={formKey}
                 variant="panel"
-                profileId={profile.id}
-                classrooms={classrooms}
-                studentGroups={studentGroups}
-                prefill={prefill}
+          profileId={profile.id}
+          classrooms={classrooms}
+          studentGroups={studentGroups}
+          prefill={prefill}
                 defaultRequestKind={bookingRequestKind}
-                onSuccess={fetchData}
+          onSuccess={fetchData}
                 onClose={() => setBookingSidebarOpen(false)}
-              />
+        />
             </div>
           </div>
-        </div>
+    </div>
       )}
     </>
   );
