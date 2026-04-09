@@ -1,8 +1,8 @@
-name,email,term,subject,credits
-John Doe,john@university.edu,Fall 2025,Data Structures,4
-John Doe,john@university.edu,Fall 2025,Operating Systems,3
-Jane Smith,jane@university.edu,Fall 2025,Data Structures,4
-Jane Smith,jane@university.edu,Fall 2025,Machine Learning,3
-Bob Wilson,bob@university.edu,Fall 2025,Operating Systems,3
-Bob Wilson,bob@university.edu,Fall 2025,Machine Learning,3
-Bob Wilson,bob@university.edu,Fall 2025,Data Structures,4
+name,email,program,term,subject,credits
+John Doe,john@university.edu,GMP-A,Fall 2025,Data Structures,4
+John Doe,john@university.edu,GMP-A,Fall 2025,Operating Systems,3
+Jane Smith,jane@university.edu,BM-B,Fall 2025,Data Structures,4
+Jane Smith,jane@university.edu,BM-B,Fall 2025,Machine Learning,3
+Bob Wilson,bob@university.edu,HRM-A,Fall 2025,Operating Systems,3
+Bob Wilson,bob@university.edu,HRM-A,Fall 2025,Machine Learning,3
+Bob Wilson,bob@university.edu,HRM-A,Fall 2025,Data Structures,4

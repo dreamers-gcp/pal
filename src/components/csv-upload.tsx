@@ -28,12 +28,13 @@ import { EnrollmentTableSkeleton } from "@/components/ui/loading-skeletons";
 interface ParsedRow {
   student_name: string;
   email: string;
+  program: string;
   term: string;
   subject: string;
   credits: number;
 }
 
-const REQUIRED_HEADERS = ["name", "email", "term", "subject", "credits"];
+const REQUIRED_HEADERS = ["name", "email", "program", "term", "subject", "credits"];
 
 function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
@@ -49,6 +50,7 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
 
   const nameIdx = headers.indexOf("name");
   const emailIdx = headers.indexOf("email");
+  const programIdx = headers.indexOf("program");
   const termIdx = headers.indexOf("term");
   const subjectIdx = headers.indexOf("subject");
   const creditsIdx = headers.indexOf("credits");
@@ -61,11 +63,12 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
 
     const name = cols[nameIdx]?.trim();
     const email = cols[emailIdx]?.trim().toLowerCase();
+    const program = cols[programIdx]?.trim();
     const term = cols[termIdx]?.trim();
     const subject = cols[subjectIdx]?.trim();
     const credits = parseCreditsField(cols[creditsIdx]);
 
-    if (!name || !email || !term || !subject) {
+    if (!name || !email || !program || !term || !subject) {
       errors.push(`Row ${i + 1}: missing required field(s).`);
       continue;
     }
@@ -75,7 +78,7 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
       continue;
     }
 
-    rows.push({ student_name: name, email, term, subject, credits });
+    rows.push({ student_name: name, email, program, term, subject, credits });
   }
 
   return { rows, errors };
@@ -132,19 +135,19 @@ export function CsvUpload() {
 
     const supabase = createClient();
 
-    const subjectNames = [...new Set(preview.map((r) => r.subject))];
+    const programNames = [...new Set(preview.map((r) => r.program))];
     const { data: existingGroups } = await supabase
       .from("student_groups")
       .select("name");
-    const existingNames = new Set((existingGroups ?? []).map((g) => g.name));
+    const existingNames = new Set((existingGroups ?? []).map((g: { name: string }) => g.name));
 
-    const newGroups = subjectNames.filter((s) => !existingNames.has(s));
-    if (newGroups.length > 0) {
+    const newPrograms = programNames.filter((p) => !existingNames.has(p));
+    if (newPrograms.length > 0) {
       const { error: groupErr } = await supabase
         .from("student_groups")
-        .insert(newGroups.map((name) => ({ name })));
+        .insert(newPrograms.map((name) => ({ name })));
       if (groupErr) {
-        toast.error("Failed to create student groups: " + groupErr.message);
+        toast.error("Failed to create programs: " + groupErr.message);
         setUploading(false);
         return;
       }
@@ -184,7 +187,7 @@ export function CsvUpload() {
     }
 
     if (assigned > 0) {
-      toast.success(`Auto-assigned groups for ${assigned} student(s) who already signed up.`);
+      toast.success(`Auto-assigned programs for ${assigned} student(s) who already signed up.`);
     }
     setAssigning(false);
   }
@@ -202,12 +205,12 @@ export function CsvUpload() {
       if (!error) assigned++;
     }
 
-    toast.success(`Processed ${assigned} email(s). Students who have signed up are now assigned to their groups.`);
+    toast.success(`Processed ${assigned} email(s). Students who have signed up are now assigned to their programs.`);
     setAssigning(false);
   }
 
   async function handleClearAll() {
-    if (!window.confirm("Delete ALL enrollment records? This won't remove students from groups they're already in.")) return;
+    if (!window.confirm("Delete ALL enrollment records? This won't remove students from programs they're already in.")) return;
     const supabase = createClient();
     const { error } = await supabase.from("student_enrollments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (error) {
@@ -219,6 +222,7 @@ export function CsvUpload() {
   }
 
   const uniqueStudents = new Set(enrollments.map((e) => e.email)).size;
+  const uniquePrograms = new Set(enrollments.map((e) => e.program).filter(Boolean)).size;
   const uniqueSubjects = new Set(enrollments.map((e) => e.subject)).size;
   const uniqueTerms = new Set(enrollments.map((e) => e.term)).size;
 
@@ -232,9 +236,9 @@ export function CsvUpload() {
             Upload Student Roster
           </CardTitle>
           <CardDescription>
-            Upload a CSV file with columns: <strong>name, email, term, subject, credits</strong> (credits may be
+            Upload a CSV file with columns: <strong>name, email, program, term, subject, credits</strong> (credits may be
             decimals, e.g. 1.5).
-            Students will be auto-assigned to groups (by subject) when they sign up.
+            Students will be auto-assigned to their program when they sign up.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -293,6 +297,7 @@ export function CsvUpload() {
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">Name</th>
                       <th className="px-3 py-2 text-left font-medium">Email</th>
+                      <th className="px-3 py-2 text-left font-medium">Program</th>
                       <th className="px-3 py-2 text-left font-medium">Term</th>
                       <th className="px-3 py-2 text-left font-medium">Subject</th>
                       <th className="px-3 py-2 text-right font-medium">Credits</th>
@@ -303,13 +308,14 @@ export function CsvUpload() {
                       <tr key={i} className="border-t hover:bg-muted/30">
                         <td className="px-3 py-1.5">{row.student_name}</td>
                         <td className="px-3 py-1.5 text-muted-foreground">{row.email}</td>
+                        <td className="px-3 py-1.5">{row.program}</td>
                         <td className="px-3 py-1.5">{row.term}</td>
                         <td className="px-3 py-1.5">{row.subject}</td>
                         <td className="px-3 py-1.5 text-right">{formatCreditsDisplay(row.credits)}</td>
                       </tr>
                     ))}
                     {preview.length > 50 && (
-                      <tr><td colSpan={5} className="px-3 py-2 text-center text-muted-foreground">...and {preview.length - 50} more rows</td></tr>
+                      <tr><td colSpan={6} className="px-3 py-2 text-center text-muted-foreground">...and {preview.length - 50} more rows</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -329,7 +335,7 @@ export function CsvUpload() {
                 Current Enrollments
               </CardTitle>
               <CardDescription className="mt-1">
-                {loading ? "Loading..." : `${enrollments.length} records — ${uniqueStudents} students, ${uniqueSubjects} subjects, ${uniqueTerms} term(s)`}
+                {loading ? "Loading..." : `${enrollments.length} records — ${uniqueStudents} students, ${uniquePrograms} programs, ${uniqueSubjects} subjects, ${uniqueTerms} term(s)`}
               </CardDescription>
             </div>
             {enrollments.length > 0 && (
@@ -377,8 +383,9 @@ export function CsvUpload() {
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">Name</th>
                     <th className="px-3 py-2 text-left font-medium">Email</th>
+                    <th className="px-3 py-2 text-left font-medium">Program</th>
                     <th className="px-3 py-2 text-left font-medium">Term</th>
-                    <th className="px-3 py-2 text-left font-medium">Subject (Group)</th>
+                    <th className="px-3 py-2 text-left font-medium">Subject</th>
                     <th className="px-3 py-2 text-right font-medium">Credits</th>
                   </tr>
                 </thead>
@@ -387,6 +394,11 @@ export function CsvUpload() {
                     <tr key={e.id} className="border-t hover:bg-muted/30">
                       <td className="px-3 py-1.5">{e.student_name}</td>
                       <td className="px-3 py-1.5 text-muted-foreground">{e.email}</td>
+                      <td className="px-3 py-1.5">
+                        <span className="inline-flex items-center rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                          {e.program}
+                        </span>
+                      </td>
                       <td className="px-3 py-1.5">{e.term}</td>
                       <td className="px-3 py-1.5">
                         <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">

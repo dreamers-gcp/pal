@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     if (!g) {
       return NextResponse.json(
         {
-          error: `Student group (course) not found for "${a.subject}". Create the group or fix CSV.`,
+          error: `Program (course) not found for "${a.subject}". Create the program or fix CSV.`,
         },
         { status: 400 }
       );
@@ -368,7 +368,7 @@ export async function POST(req: NextRequest) {
       ) ?? groupByName.get(e.course_name);
     if (!g) {
       return NextResponse.json(
-        { error: `Could not resolve student group for course "${e.course_name}"` },
+        { error: `Could not resolve program for course "${e.course_name}"` },
         { status: 500 }
       );
     }

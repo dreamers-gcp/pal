@@ -94,14 +94,13 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
     professor: col(h, "professor", "professor_name"),
     email: col(h, "email"),
     crpoints: col(h, "crpoints", "credits", "cr_points", "credit_points", "credit"),
-    ps1: col(h, "preferred_slot_1", "preferred_slots_1"),
-    ps2: col(h, "preferred_slot_2", "preferred_slots_2"),
-    ps3: col(h, "preferred_slot_3", "preferred_slots_3"),
-    maxh: col(h, "max_hours_per_day", "max_hours"),
+    ps1: col(h, "preferred_slot_1", "preferred_slots_1", "preferred_slot_1"),
+    ps2: col(h, "preferred_slot_2", "preferred_slots_2", "preferred_slot_2"),
+    ps3: col(h, "preferred_slot_3", "preferred_slots_3", "preferred_slot_3"),
+    maxh: col(h, "max_hours_per_day", "max_hours", "max_hours/day"),
   };
 
   const missing: string[] = [];
-  if (ci.course_id < 0) missing.push("Course ID");
   if (ci.term < 0) missing.push("Term");
   if (ci.subject < 0) missing.push("Subject");
   if (ci.professor < 0) missing.push("Professor");
@@ -110,14 +109,14 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
   if (ci.ps1 < 0) missing.push("Preferred Slot 1");
   if (ci.ps2 < 0) missing.push("Preferred Slot 2");
   if (ci.ps3 < 0) missing.push("Preferred Slot 3");
-  if (ci.maxh < 0) missing.push("Max Hours per Day");
+  if (ci.maxh < 0) missing.push("Max Hours/Day");
 
   if (missing.length > 0) {
     return {
       rows: [],
       errors: [
         `Missing column(s): ${missing.join(", ")}.`,
-        "Required headers: Course ID, Term, Subject, Professor, Email, CrPoints, Preferred Slot 1, Preferred Slot 2, Preferred Slot 3, Max Hours per Day.",
+        "Required headers: Subject, Term, Professor, Email, CrPoints, Preferred Slot 1, Preferred Slot 2, Preferred Slot 3, Max Hours/Day. (Course ID is optional.)",
       ],
     };
   }
@@ -231,7 +230,7 @@ export function ProfessorCsvUpload() {
         .from("student_groups")
         .insert(newGroups.map((name) => ({ name })));
       if (groupErr) {
-        toast.error("Failed to create student groups: " + groupErr.message);
+        toast.error("Failed to create programs: " + groupErr.message);
         setUploading(false);
         return;
       }
@@ -280,12 +279,12 @@ export function ProfessorCsvUpload() {
             Upload Professor Assignments
           </CardTitle>
           <CardDescription>
-            Use exactly this header row (order can vary):{" "}
+            Use this header row (order can vary):{" "}
             <strong>
-              Course ID, Term, Subject, Professor, Email, CrPoints, Preferred Slot 1, Preferred Slot 2,
-              Preferred Slot 3, Max Hours per Day
+              Subject, Term, Professor, Email, CrPoints, Preferred Slot 1, Preferred Slot 2,
+              Preferred Slot 3, Max Hours/Day
             </strong>
-            . CrPoints may be decimals (e.g. 1.5). Course ID may be left empty in cells. Empty preferred
+            . CrPoints may be decimals (e.g. 1.5). Course ID column is optional. Empty preferred
             slots are ok.
           </CardDescription>
         </CardHeader>
@@ -343,9 +342,8 @@ export function ProfessorCsvUpload() {
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Course ID</th>
-                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Term</th>
                       <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Subject</th>
+                      <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Term</th>
                       <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Professor</th>
                       <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Email</th>
                       <th className="px-2 py-2 text-right font-medium whitespace-nowrap">CrPoints</th>
@@ -364,9 +362,8 @@ export function ProfessorCsvUpload() {
                   <tbody>
                     {preview.slice(0, 50).map((row, i) => (
                       <tr key={i} className="border-t hover:bg-muted/30">
-                        <td className="px-2 py-1.5 text-muted-foreground">{row.course_id || "—"}</td>
-                        <td className="px-2 py-1.5">{row.term}</td>
                         <td className="px-2 py-1.5">{row.subject}</td>
+                        <td className="px-2 py-1.5">{row.term}</td>
                         <td className="px-2 py-1.5">{row.professor}</td>
                         <td className="px-2 py-1.5 text-muted-foreground">{row.email}</td>
                         <td className="px-2 py-1.5 text-right">{formatCreditsDisplay(row.credits)}</td>
@@ -383,7 +380,7 @@ export function ProfessorCsvUpload() {
                       </tr>
                     ))}
                     {preview.length > 50 && (
-                      <tr><td colSpan={10} className="px-3 py-2 text-center text-muted-foreground">...and {preview.length - 50} more rows</td></tr>
+                      <tr><td colSpan={9} className="px-3 py-2 text-center text-muted-foreground">...and {preview.length - 50} more rows</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -433,9 +430,8 @@ export function ProfessorCsvUpload() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>
-                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Course ID</th>
-                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Term</th>
                     <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Subject</th>
+                    <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Term</th>
                     <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Professor</th>
                     <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Email</th>
                     <th className="px-2 py-2 text-right font-medium whitespace-nowrap">CrPoints</th>
@@ -448,15 +444,12 @@ export function ProfessorCsvUpload() {
                 <tbody>
                   {assignments.map((a) => (
                     <tr key={a.id} className="border-t hover:bg-muted/30">
-                      <td className="px-2 py-1.5 text-muted-foreground text-xs">
-                        {a.course_id || "—"}
-                      </td>
-                      <td className="px-2 py-1.5">{a.term}</td>
                       <td className="px-2 py-1.5">
                         <span className="inline-flex items-center rounded-md bg-purple-100 text-purple-700 px-2 py-0.5 text-xs font-medium">
                           {a.subject}
                         </span>
                       </td>
+                      <td className="px-2 py-1.5">{a.term}</td>
                       <td className="px-2 py-1.5">{a.professor}</td>
                       <td className="px-2 py-1.5 text-muted-foreground text-xs">{a.email}</td>
                       <td className="px-2 py-1.5 text-right">{formatCreditsDisplay(a.credits)}</td>

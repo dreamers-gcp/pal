@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -10,21 +10,19 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  CalendarDays,
-  Camera,
   ChevronDown,
   CheckCircle2,
   Clock,
   Filter,
   Loader2,
   MapPin,
-  Upload,
+  BookOpen,
   Users,
-  X,
   XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarRequest, Profile, AttendanceRecord } from "@/lib/types";
+import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { AttendanceViewSkeleton } from "@/components/ui/loading-skeletons";
 
 interface Props {
@@ -51,28 +49,6 @@ function groupIdsForCalendarEvent(e: CalendarRequestWithGroups): string[] {
   return Array.from(ids);
 }
 
-interface ClassPhotoPreview {
-  face_count: number;
-  threshold: number;
-  matches: {
-    student_id: string;
-    face_index: number;
-    similarity: number;
-    student_name: string;
-  }[];
-  unmatched_face_indices: number[];
-  enrolled_count: number;
-  students_with_face: number;
-  students_missing_face: { student_id: string; student_name: string }[];
-}
-
-const SCAN_PROGRESS_STEPS = [
-  "Uploading class photo...",
-  "Detecting faces...",
-  "Matching students...",
-  "Finalizing preview...",
-] as const;
-
 export function AttendanceView({ profile }: Props) {
   const supabase = createClient();
   const [data, setData] = useState<EventAttendanceInfo[]>([]);
@@ -83,23 +59,6 @@ export function AttendanceView({ profile }: Props) {
     "all" | "today" | "upcoming" | "past" | "low-attendance"
   >("all");
   const [subjectFilter, setSubjectFilter] = useState("all");
-
-  const [classPhotoEventId, setClassPhotoEventId] = useState<string | null>(
-    null
-  );
-  const [classPhotoFile, setClassPhotoFile] = useState<File | null>(null);
-  const [classPhotoPreview, setClassPhotoPreview] =
-    useState<ClassPhotoPreview | null>(null);
-  const [classPhotoLoading, setClassPhotoLoading] = useState(false);
-  const [classPhotoApplying, setClassPhotoApplying] = useState(false);
-  const [classPhotoError, setClassPhotoError] = useState<string | null>(null);
-  const [scanProgressStep, setScanProgressStep] = useState(0);
-  const [scanElapsedSec, setScanElapsedSec] = useState(0);
-  /** Live camera for class photo (getUserMedia — works on desktop; file+capture often opens picker). */
-  const [cameraEvent, setCameraEvent] = useState<CalendarRequest | null>(null);
-  const [cameraStreamReady, setCameraStreamReady] = useState(false);
-  const cameraVideoRef = useRef<HTMLVideoElement>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
 
   const fetchData = useCallback(async () => {
     const { data: events } = await supabase
@@ -176,103 +135,6 @@ export function AttendanceView({ profile }: Props) {
     fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
-    setClassPhotoFile(null);
-    setClassPhotoPreview(null);
-    setClassPhotoError(null);
-    setClassPhotoEventId(null);
-    setCameraEvent(null);
-  }, [expanded]);
-
-  useEffect(() => {
-    if (!cameraEvent) {
-      setCameraStreamReady(false);
-      cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
-      cameraStreamRef.current = null;
-      return;
-    }
-
-    setCameraStreamReady(false);
-    let cancelled = false;
-
-    async function start() {
-      if (
-        typeof navigator === "undefined" ||
-        !navigator.mediaDevices?.getUserMedia
-      ) {
-        setClassPhotoError(
-          "Camera is not available in this browser. Use Upload photo instead."
-        );
-        setCameraEvent(null);
-        return;
-      }
-
-      try {
-        let stream: MediaStream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } },
-            audio: false,
-          });
-        } catch {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
-        }
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        cameraStreamRef.current = stream;
-        const el = cameraVideoRef.current;
-        if (el) {
-          el.srcObject = stream;
-          await el.play().catch(() => {});
-        }
-      } catch {
-        setClassPhotoError(
-          "Could not open camera. Allow permission or use Upload photo."
-        );
-        setCameraEvent(null);
-      }
-    }
-
-    void start();
-
-    return () => {
-      cancelled = true;
-      cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
-      cameraStreamRef.current = null;
-    };
-  }, [cameraEvent]);
-
-  function captureClassPhotoFromCamera() {
-    const event = cameraEvent;
-    const video = cameraVideoRef.current;
-    if (!event || !video || video.videoWidth < 2) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return;
-        const file = new File([blob], `class-photo-${Date.now()}.jpg`, {
-          type: "image/jpeg",
-        });
-        setCameraEvent(null);
-        void onClassPhotoSelected(event, file);
-      },
-      "image/jpeg",
-      0.92
-    );
-  }
-
   async function setStudentAttendance(
     event: CalendarRequest,
     student: Profile,
@@ -302,9 +164,17 @@ export function AttendanceView({ profile }: Props) {
       } else {
         const { error } = await supabase
           .from("attendance_records")
-          .delete()
-          .eq("event_id", event.id)
-          .eq("student_id", student.id);
+          .upsert(
+            {
+              student_id: student.id,
+              event_id: event.id,
+              photo_path: `manual-override-absent/${event.id}/${student.id}`,
+              similarity_score: 0,
+              verified: false,
+              marked_at: new Date().toISOString(),
+            },
+            { onConflict: "student_id,event_id" }
+          );
         if (error) {
           throw new Error(error.message);
         }
@@ -316,129 +186,6 @@ export function AttendanceView({ profile }: Props) {
       console.error(msg);
     } finally {
       setOverridingKey(null);
-    }
-  }
-
-  async function runClassPhotoScan(
-    event: CalendarRequest,
-    file: File,
-    apply: boolean
-  ) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("eventId", event.id);
-    if (apply) fd.append("apply", "true");
-
-    const res = await fetch("/api/face/class-photo", {
-      method: "POST",
-      body: fd,
-      credentials: "same-origin",
-    });
-
-    const raw = await res.text();
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      const snippet = raw.replace(/\s+/g, " ").slice(0, 160);
-      if (res.status === 401 || res.status === 302 || res.status === 307) {
-        throw new Error("Session expired or not signed in. Refresh the page and try again.");
-      }
-      throw new Error(
-        snippet
-          ? `Server returned non-JSON (${res.status}): ${snippet}`
-          : `Request failed (${res.status}). Check the face service and try again.`
-      );
-    }
-
-    if (!res.ok) {
-      const err =
-        typeof json.error === "string"
-          ? json.error
-          : "Could not process class photo";
-      throw new Error(err);
-    }
-
-    return json;
-  }
-
-  async function onClassPhotoSelected(
-    event: CalendarRequest,
-    file: File | undefined
-  ) {
-    if (!file) return;
-    setClassPhotoEventId(event.id);
-    setClassPhotoFile(file);
-    setClassPhotoPreview(null);
-    setClassPhotoError(null);
-    setClassPhotoLoading(true);
-    setScanProgressStep(0);
-    setScanElapsedSec(0);
-
-    const startedAt = Date.now();
-    const stepTimer = setInterval(() => {
-      setScanProgressStep((prev) =>
-        prev < SCAN_PROGRESS_STEPS.length - 1 ? prev + 1 : prev
-      );
-    }, 1400);
-    const elapsedTimer = setInterval(() => {
-      setScanElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-
-    try {
-      const json = await runClassPhotoScan(event, file, false);
-      if (json.preview) {
-        setClassPhotoPreview({
-          face_count: Number(json.face_count),
-          threshold: Number(json.threshold),
-          matches: (json.matches ?? []) as ClassPhotoPreview["matches"],
-          unmatched_face_indices: (json.unmatched_face_indices ?? []) as number[],
-          enrolled_count: Number(json.enrolled_count),
-          students_with_face: Number(json.students_with_face),
-          students_missing_face: (json.students_missing_face ??
-            []) as ClassPhotoPreview["students_missing_face"],
-        });
-      }
-    } catch (e: unknown) {
-      setClassPhotoError(
-        e instanceof Error ? e.message : "Failed to scan class photo"
-      );
-    } finally {
-      clearInterval(stepTimer);
-      clearInterval(elapsedTimer);
-      setClassPhotoLoading(false);
-      setScanProgressStep(0);
-    }
-  }
-
-  async function applyClassPhotoAttendance(event: CalendarRequest) {
-    if (!classPhotoFile || classPhotoEventId !== event.id || !classPhotoPreview) {
-      return;
-    }
-    setClassPhotoApplying(true);
-    setClassPhotoError(null);
-    try {
-      const json = await runClassPhotoScan(event, classPhotoFile, true);
-      if (json.applied === true) {
-        setClassPhotoPreview(null);
-        setClassPhotoFile(null);
-        setClassPhotoEventId(null);
-        if (
-          Array.isArray(json.attendance_errors) &&
-          json.attendance_errors.length > 0
-        ) {
-          setClassPhotoError(
-            `Some rows failed: ${(json.attendance_errors as string[]).join("; ")}`
-          );
-        }
-        await fetchData();
-      }
-    } catch (e: unknown) {
-      setClassPhotoError(
-        e instanceof Error ? e.message : "Failed to apply attendance"
-      );
-    } finally {
-      setClassPhotoApplying(false);
     }
   }
 
@@ -457,7 +204,7 @@ export function AttendanceView({ profile }: Props) {
       const subject = event.student_group?.name ?? "Unknown subject";
       const total = enrolledStudents.length;
       const attended = enrolledStudents.filter((s) =>
-        records.some((r) => r.student_id === s.id)
+        records.some((r) => r.student_id === s.id && r.verified)
       ).length;
       const pct = total > 0 ? Math.round((attended / total) * 100) : 0;
 
@@ -538,7 +285,9 @@ export function AttendanceView({ profile }: Props) {
       {filteredData.map(({ event, records, enrolledStudents }) => {
         const isExpanded = expanded === event.id;
         const recordByStudent = new Map(records.map((r) => [r.student_id, r]));
-        const attendedCount = enrolledStudents.filter((s) => recordByStudent.has(s.id)).length;
+        const attendedCount = enrolledStudents.filter(
+          (s) => recordByStudent.get(s.id)?.verified === true
+        ).length;
         const totalStudents = enrolledStudents.length;
         const pct = totalStudents > 0 ? Math.round((attendedCount / totalStudents) * 100) : 0;
 
@@ -565,8 +314,8 @@ export function AttendanceView({ profile }: Props) {
                       pct >= 75
                         ? "bg-accent/15 text-accent-foreground border-accent/30"
                         : pct >= 50
-                        ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : "bg-destructive/10 text-destructive border-destructive/30"
+                          ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                          : "bg-destructive/10 text-destructive border-destructive/30"
                     }
                   >
                     {attendedCount}/{totalStudents} ({pct}%)
@@ -588,8 +337,8 @@ export function AttendanceView({ profile }: Props) {
                   {event.classroom?.name ?? "—"}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" />
-                  {event.student_group?.name ?? "—"}
+                  <BookOpen className="h-3.5 w-3.5" />
+                  {decodeCalendarRequestSubjects(event.subject).join(", ") || "—"}
                 </span>
               </div>
             </CardHeader>
@@ -598,19 +347,21 @@ export function AttendanceView({ profile }: Props) {
               <CardContent className="pt-0 pb-3 px-4">
                 <div className="border-t pt-3 space-y-1">
                   {enrolledStudents.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No enrolled students found for this class.</p>
+                    <p className="text-sm text-muted-foreground">
+                      No enrolled students found for this class.
+                    </p>
                   ) : (
                     [...enrolledStudents]
                       .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""))
                       .map((student) => {
                         const record = recordByStudent.get(student.id);
-                        const present = Boolean(record);
+                        const present = record?.verified === true;
                         const key = `${event.id}:${student.id}`;
                         const busy = overridingKey === key;
                         return (
                           <div
                             key={student.id}
-                          className="flex items-center justify-between gap-3 text-base py-1.5"
+                            className="flex items-center justify-between gap-3 text-base py-1.5"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="min-w-0 flex items-center gap-2">
@@ -634,6 +385,7 @@ export function AttendanceView({ profile }: Props) {
                               </Badge>
                               {present ? (
                                 <button
+                                  type="button"
                                   className="text-sm underline text-muted-foreground hover:text-foreground disabled:opacity-50"
                                   disabled={busy}
                                   onClick={() => setStudentAttendance(event, student, false)}
@@ -642,6 +394,7 @@ export function AttendanceView({ profile }: Props) {
                                 </button>
                               ) : (
                                 <button
+                                  type="button"
                                   className="text-sm underline text-primary hover:text-primary/80 disabled:opacity-50"
                                   disabled={busy}
                                   onClick={() => setStudentAttendance(event, student, true)}
@@ -651,143 +404,9 @@ export function AttendanceView({ profile }: Props) {
                               )}
                             </div>
                           </div>
-                        )
+                        );
                       })
                   )}
-                </div>
-
-                <div
-                  className="border-t mt-3 pt-3 space-y-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <Camera className="h-4 w-4" />
-                    Class photo attendance
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id={`class-photo-upload-${event.id}`}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      void onClassPhotoSelected(event, f);
-                      e.target.value = "";
-                    }}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted/60 disabled:opacity-50 inline-flex items-center gap-1.5"
-                      disabled={classPhotoLoading && classPhotoEventId === event.id}
-                      onClick={() =>
-                        document
-                          .getElementById(`class-photo-upload-${event.id}`)
-                          ?.click()
-                      }
-                    >
-                      {classPhotoLoading && classPhotoEventId === event.id ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          {SCAN_PROGRESS_STEPS[scanProgressStep]}
-                        </span>
-                      ) : (
-                        <>
-                          <Upload className="h-3.5 w-3.5" />
-                          Upload photo
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted/60 disabled:opacity-50 inline-flex items-center gap-1.5"
-                      disabled={classPhotoLoading && classPhotoEventId === event.id}
-                      onClick={() => {
-                        setClassPhotoError(null);
-                        setCameraEvent(event);
-                      }}
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      Capture photo
-                    </button>
-                  </div>
-                  {classPhotoLoading && classPhotoEventId === event.id && (
-                    <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="inline-flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                          {SCAN_PROGRESS_STEPS[scanProgressStep]}
-                        </span>
-                        <span>{scanElapsedSec}s</span>
-                      </div>
-                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary/70 transition-all duration-500"
-                          style={{
-                            width: `${Math.min(
-                              90,
-                              ((scanProgressStep + 1) / SCAN_PROGRESS_STEPS.length) * 100
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {classPhotoError && classPhotoEventId === event.id && (
-                    <p className="text-sm text-destructive">{classPhotoError}</p>
-                  )}
-                  {classPhotoPreview &&
-                    classPhotoEventId === event.id &&
-                    expanded === event.id && (
-                      <div className="rounded-md border bg-muted/20 p-3 space-y-2 text-sm">
-                        <p>
-                          Detected <strong>{classPhotoPreview.face_count}</strong>{" "}
-                          face(s). Matched{" "}
-                          <strong>{classPhotoPreview.matches.length}</strong>{" "}
-                          enrolled student(s) (
-                          {classPhotoPreview.students_with_face} with face data
-                          / {classPhotoPreview.enrolled_count} enrolled).
-                        </p>
-                        {classPhotoPreview.students_missing_face.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            No face registration:{" "}
-                            {classPhotoPreview.students_missing_face
-                              .map((s) => s.student_name)
-                              .join(", ")}
-                          </p>
-                        )}
-                        {classPhotoPreview.matches.length > 0 && (
-                          <ul className="list-disc pl-5 space-y-0.5 max-h-40 overflow-y-auto">
-                            {classPhotoPreview.matches.map((m) => (
-                              <li key={`${m.student_id}-${m.face_index}`}>
-                                {m.student_name}{" "}
-                                <span className="text-muted-foreground">
-                                  (Similarity: {(m.similarity * 100).toFixed(1)}%)
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        <button
-                          type="button"
-                          className="text-sm rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 disabled:opacity-50"
-                          disabled={
-                            classPhotoApplying ||
-                            classPhotoPreview.matches.length === 0
-                          }
-                          onClick={() => void applyClassPhotoAttendance(event)}
-                        >
-                          {classPhotoApplying ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              Applying…
-                            </span>
-                          ) : (
-                            "Apply attendance"
-                          )}
-                        </button>
-                      </div>
-                    )}
                 </div>
               </CardContent>
             )}
@@ -800,57 +419,6 @@ export function AttendanceView({ profile }: Props) {
             No classes match the selected filters.
           </CardContent>
         </Card>
-      )}
-
-      {cameraEvent && (
-        <div
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/85 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Capture class photo"
-        >
-          <div className="relative w-full max-w-lg overflow-hidden rounded-lg border bg-background shadow-xl">
-            <div className="flex items-center justify-between border-b px-3 py-2">
-              <span className="text-sm font-medium">Camera</span>
-              <button
-                type="button"
-                className="rounded-md p-1.5 hover:bg-muted"
-                aria-label="Close"
-                onClick={() => setCameraEvent(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="relative aspect-video w-full bg-black">
-              <video
-                ref={cameraVideoRef}
-                className="h-full w-full object-cover"
-                playsInline
-                muted
-                autoPlay
-                onLoadedData={() => setCameraStreamReady(true)}
-              />
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2 border-t p-3">
-              <button
-                type="button"
-                className="text-sm rounded-md border border-input bg-background px-3 py-1.5 hover:bg-muted"
-                onClick={() => setCameraEvent(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="text-sm rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 inline-flex items-center gap-1.5 disabled:opacity-50"
-                disabled={!cameraStreamReady}
-                onClick={() => captureClassPhotoFromCamera()}
-              >
-                <Camera className="h-3.5 w-3.5" />
-                Use photo
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

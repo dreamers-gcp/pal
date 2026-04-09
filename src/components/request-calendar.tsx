@@ -8,7 +8,9 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./student-calendar.css";
 import { toTitleCase } from "@/lib/utils";
+import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import {
+  BookOpen,
   Building2,
   CalendarDays,
   Clock,
@@ -230,6 +232,7 @@ function EventDetailCard({
     request.student_groups && request.student_groups.length > 0
       ? request.student_groups.map((g) => g.name).join(", ")
       : request.student_group?.name ?? "—";
+  const subjectLabels = decodeCalendarRequestSubjects(request.subject);
 
   return (
     <div className="rounded-2xl overflow-hidden h-full flex flex-col">
@@ -262,6 +265,12 @@ function EventDetailCard({
           <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 break-words">{toTitleCase(groupNames)}</span>
         </div>
+        {subjectLabels.length > 0 && (
+          <div className="flex min-w-0 items-center gap-3 text-sm text-foreground">
+            <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 break-words">{subjectLabels.join(", ")}</span>
+          </div>
+        )}
         <div className="flex items-center gap-3 text-sm text-foreground">
           <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
           <span>

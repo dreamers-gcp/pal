@@ -213,7 +213,7 @@ export function BookingForm({
     e.preventDefault();
 
     if (selectedGroupIds.length === 0) {
-      toast.error("Please select at least one student group");
+      toast.error("Please select at least one program");
       return;
     }
 
@@ -305,7 +305,7 @@ export function BookingForm({
     toast.success(
       selectedGroupIds.length === 1
         ? "Request submitted successfully!"
-        : `Request submitted for ${selectedGroupIds.length} student groups!`
+        : `Request submitted for ${selectedGroupIds.length} programs!`
     );
     setSubmitting(false);
     onSuccess();
@@ -397,7 +397,7 @@ export function BookingForm({
         . Fill in the remaining details.
       </>
     ) : (
-      "Request to block a time slot for student groups and a venue. An admin will review your request."
+      "Request to block a time slot for programs and a venue. An admin will review your request."
     );
 
   const header =
@@ -520,14 +520,11 @@ export function BookingForm({
           />
         </div>
 
-        {/* Multi-select student groups (fixed program list) */}
+        {/* Multi-select programs (loaded from student_groups table, populated by admin CSV) */}
         {groupsForBooking.length === 0 ? (
           <div className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5 px-3 py-3 text-sm text-amber-800 dark:text-amber-200">
-            No program groups found (GMP-A … BM-D). Run{" "}
-            <code className="rounded bg-muted px-1 text-foreground">
-              add-calendar-request-subject-and-program-groups.sql
-            </code>{" "}
-            in Supabase SQL Editor.
+            No programs found. Ask your admin to upload the student roster CSV
+            (the <strong>program</strong> column creates the program list).
           </div>
         ) : (
           <GroupMultiSelect
@@ -786,7 +783,7 @@ function GroupMultiSelect({
   return (
     <div className="space-y-2" ref={ref}>
       <Label>
-        Student Groups
+        Programs
         <span className="text-destructive">*</span>
       </Label>
       <div className="relative">
@@ -797,8 +794,8 @@ function GroupMultiSelect({
         >
           <span className={selectedNames.length === 0 ? "text-muted-foreground" : ""}>
             {selectedNames.length === 0
-              ? "Select groups..."
-              : `${selectedNames.length} group${selectedNames.length > 1 ? "s" : ""} selected`}
+              ? "Select programs..."
+              : `${selectedNames.length} program${selectedNames.length > 1 ? "s" : ""} selected`}
           </span>
           <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
         </button>

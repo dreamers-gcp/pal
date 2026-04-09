@@ -27,6 +27,7 @@ import {
   Clock,
   Filter,
   GraduationCap,
+  BookOpen,
   ListTodo,
   MapPin,
   ScanFace,
@@ -47,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TimeRangeSelect } from "@/components/ui/time-range-select";
 import { toast } from "sonner";
+import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
 import { roomsNeededForGuestCount } from "@/lib/guest-house";
 import { GuestHouseAllocationReadout } from "@/components/guest-house-allocation-readout";
@@ -215,23 +217,27 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       let groupNames: string[] = [];
       const idNameMap: Record<string, string> = {};
 
-      // Strategy 1: Look up enrollments by email (most reliable — directly from CSV)
-      const { data: enrollmentSubjects } = await supabase
+      // Strategy 1: Look up enrollments by email — use the `program` column to find groups
+      const { data: enrollmentRows } = await supabase
         .from("student_enrollments")
-        .select("subject")
+        .select("program")
         .eq("email", profile.email);
 
-      if (enrollmentSubjects && enrollmentSubjects.length > 0) {
-        const subjectNames = [...new Set(enrollmentSubjects.map((e) => e.subject))];
-        const { data: groups } = await supabase
-          .from("student_groups")
-          .select("id, name")
-          .in("name", subjectNames);
+      if (enrollmentRows && enrollmentRows.length > 0) {
+        const programNames = [...new Set(
+          enrollmentRows.map((e: any) => e.program).filter((p: any): p is string => Boolean(p))
+        )];
+        if (programNames.length > 0) {
+          const { data: groups } = await supabase
+            .from("student_groups")
+            .select("id, name")
+            .in("name", programNames);
 
-        if (groups && groups.length > 0) {
-          groupIds = groups.map((g) => g.id);
-          groupNames = groups.map((g) => g.name);
-          for (const g of groups) idNameMap[g.id] = g.name;
+          if (groups && groups.length > 0) {
+            groupIds = groups.map((g) => g.id);
+            groupNames = groups.map((g) => g.name);
+            for (const g of groups) idNameMap[g.id] = g.name;
+          }
         }
       }
 
@@ -737,7 +743,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           <CardContent className="py-4">
             <p className="text-sm text-yellow-800">
               <strong>Note:</strong> You haven&apos;t been assigned to any
-              student groups yet. Once your admin uploads the enrollment roster,
+              programs yet. Once your admin uploads the enrollment roster,
               your upcoming events will appear here. Contact your admin with
               your email: <strong>{profile.email}</strong>
             </p>
@@ -974,11 +980,11 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                         <User className="h-4 w-4" />
                         <span>Prof. {event.professor?.full_name ?? "—"}</span>
                       </div>
-                      {event.student_group?.name && (
+                      {event.subject && (
                         <div className="flex items-center gap-2">
-                          <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                          <BookOpen className="h-4 w-4 text-muted-foreground" />
                           <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
-                            {event.student_group.name}
+                            {decodeCalendarRequestSubjects(event.subject).join(", ") || event.subject}
                           </span>
                         </div>
                       )}
@@ -1074,8 +1080,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
               <CardContent className="py-4">
                 <p className="text-sm text-muted-foreground">
                   <GraduationCap className="inline h-4 w-4 mr-1 align-text-bottom" />
-                  No class groups assigned yet — the calendar still shows approved campus bookings for
-                  everyone; subject filters and group-linked features unlock once your roster is set.
+                  No program assigned yet — the calendar still shows approved campus bookings for
+                  everyone; subject filters and program-linked features unlock once your roster is set.
                   Your Task Tracker tasks appear on the same calendar.
                 </p>
               </CardContent>

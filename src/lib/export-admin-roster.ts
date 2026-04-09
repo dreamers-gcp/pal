@@ -5,6 +5,8 @@ import { formatCreditsDisplay } from "@/lib/credits-parse";
 export type StudentRosterExportRow = {
   name: string;
   email: string;
+  /** Profile program name when known. */
+  studentGroup?: string | null;
   subjects: string[];
   signedUp: boolean;
 };
@@ -25,10 +27,11 @@ export function downloadStudentRosterXlsx(
 ): void {
   const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
   const aoa: (string | number)[][] = [
-    ["Name", "Email", "Subjects / Groups", "Status"],
+    ["Name", "Email", "Program", "Subjects", "Status"],
     ...rows.map((r) => [
       r.name,
       r.email,
+      r.studentGroup?.trim() ? r.studentGroup : "—",
       r.subjects.length ? r.subjects.join("; ") : "—",
       r.signedUp ? "Signed up" : "Pending",
     ]),

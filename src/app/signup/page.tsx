@@ -28,12 +28,16 @@ import {
   normalizeTenDigitMobile,
   mobileFieldError,
 } from "@/lib/phone-normalize";
+import { SignupFaceCapture, type CapturedFace } from "@/components/signup-face-capture";
+import { toast } from "sonner";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "student", label: "Student" },
   { value: "professor", label: "Professor" },
   { value: "admin", label: "Admin" },
 ];
+
+const MIN_FACE_PHOTOS = 3;
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -45,6 +49,7 @@ export default function SignupPage() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [faceCaptures, setFaceCaptures] = useState<CapturedFace[]>([]);
   const [fieldErrors, setFieldErrors] = useState<{
     fullName?: string;
     email?: string;
@@ -52,7 +57,9 @@ export default function SignupPage() {
     password?: string;
   }>({});
   const router = useRouter();
-  const supabase = createClient();
+
+  const isStudent = role === "student";
+  const faceReady = faceCaptures.length >= MIN_FACE_PHOTOS;
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -78,11 +85,16 @@ export default function SignupPage() {
     setFieldErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    const normalizedMobile = normalizeTenDigitMobile(mobile)!;
+    if (isStudent && !faceReady) {
+      setError(`Please capture at least ${MIN_FACE_PHOTOS} face photos before signing up.`);
+      return;
+    }
 
+    const normalizedMobile = normalizeTenDigitMobile(mobile)!;
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const supabase = createClient();
+    const { data, error: signupError } = await supabase.auth.signUp({
       email: trimmedEmail,
       password,
       options: {
@@ -94,8 +106,8 @@ export default function SignupPage() {
       },
     });
 
-    if (error) {
-      const msg = error.message.toLowerCase();
+    if (signupError) {
+      const msg = signupError.message.toLowerCase();
       if (
         msg.includes("duplicate") ||
         msg.includes("unique") ||
@@ -105,14 +117,72 @@ export default function SignupPage() {
           "This email or mobile may already be in use. Try signing in, or use a different mobile number."
         );
       } else {
-        setError(error.message);
+        setError(signupError.message);
       }
       setLoading(false);
       return;
     }
 
-    setSuccess(true);
+    // For students: save face photos + embeddings to Supabase
+    if (isStudent && data.user && faceCaptures.length > 0) {
+      const userId = data.user.id;
+      let savedCount = 0;
+
+      for (const capture of faceCaptures) {
+        try {
+          const filename = `${userId}/${Date.now()}-${savedCount}.jpg`;
+          const { error: uploadErr } = await supabase.storage
+            .from("face-photos")
+            .upload(filename, capture.blob, {
+              contentType: "image/jpeg",
+              upsert: false,
+            });
+
+          if (uploadErr) {
+            console.error("Face upload error:", uploadErr.message);
+            continue;
+          }
+
+          const { error: dbErr } = await supabase.from("face_embeddings").insert({
+            student_id: userId,
+            photo_path: filename,
+            embedding: capture.embedding,
+          });
+
+          if (dbErr) {
+            console.error("Face embedding save error:", dbErr.message);
+            continue;
+          }
+
+          savedCount++;
+        } catch (err) {
+          console.error("Face save error:", err);
+        }
+      }
+
+      if (savedCount >= MIN_FACE_PHOTOS) {
+        await supabase
+          .from("profiles")
+          .update({ face_registered: true })
+          .eq("id", userId);
+      } else if (savedCount > 0) {
+        toast.error(
+          `Only ${savedCount} of ${faceCaptures.length} photos saved. You can complete registration after confirming your email.`
+        );
+      } else {
+        toast.error(
+          "Face photos could not be saved. You can register your face after confirming your email and logging in."
+        );
+      }
+
+      // Clean up blob URLs
+      for (const c of faceCaptures) {
+        URL.revokeObjectURL(c.previewUrl);
+      }
+    }
+
     setLoading(false);
+    setSuccess(true);
   }
 
   if (success) {
@@ -313,6 +383,16 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* Face registration section — students only */}
+            {isStudent && (
+              <div className="mt-10 border-t border-border/60 pt-10">
+                <SignupFaceCapture
+                  captures={faceCaptures}
+                  onCapturesChange={setFaceCaptures}
+                />
+              </div>
+            )}
+
             {error && (
               <p className="mt-6 text-sm text-destructive" role="alert">
                 {error}
@@ -320,7 +400,7 @@ export default function SignupPage() {
             )}
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isStudent && !faceReady)}
               className="mt-6 w-full rounded-[8px] bg-primary py-3 text-base font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 active:bg-primary/85 disabled:opacity-70"
             >
               {loading ? (
@@ -331,6 +411,8 @@ export default function SignupPage() {
                   />
                   Creating account…
                 </>
+              ) : isStudent && !faceReady ? (
+                `Capture ${MIN_FACE_PHOTOS - faceCaptures.length} more photo${MIN_FACE_PHOTOS - faceCaptures.length === 1 ? "" : "s"} to sign up`
               ) : (
                 "Sign Up"
               )}

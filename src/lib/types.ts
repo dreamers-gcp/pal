@@ -88,6 +88,8 @@ export interface StudentEnrollment {
   id: string;
   student_name: string;
   email: string;
+  /** Program the student belongs to (e.g. GMP-A, BM-C). */
+  program: string;
   term: string;
   subject: string;
   /** Course credits (may be decimal, e.g. 1.5). */
@@ -107,7 +109,7 @@ export interface ProfessorAssignment {
   id: string;
   course_id: string;
   term: string;
-  /** Matches student group name. */
+  /** Matches program name (student_groups.name). */
   subject: string;
   professor: string;
   email: string;

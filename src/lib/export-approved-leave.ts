@@ -30,7 +30,7 @@ export function downloadApprovedLeaveXlsx(rows: StudentLeaveRequest[]): void {
     [
       "Student name",
       "Email",
-      "Student group",
+      "Program",
       "Leave start",
       "Leave end",
       "Reason",

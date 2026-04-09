@@ -152,7 +152,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [selectedRequest, setSelectedRequest] =
     useState<CalendarRequest | null>(null);
   const [adminNote, setAdminNote] = useState("");
-  const [assignedHall, setAssignedHall] = useState("");
   const [adminSpoc, setAdminSpoc] = useState("");
   const [updating, setUpdating] = useState(false);
 
@@ -166,6 +165,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
   const [filterTerm, setFilterTerm] = useState("all");
   const [filterSubject, setFilterSubject] = useState("all");
+  const [filterStudentGroup, setFilterStudentGroup] = useState("all");
   const [profFilterTerm, setProfFilterTerm] = useState("all");
   const [profFilterSubject, setProfFilterSubject] = useState("all");
   const [requestStatusFilter, setRequestStatusFilter] = useState<
@@ -332,17 +332,15 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     status: RequestStatus,
     opts?: {
       adminNoteOverride?: string;
-      assignedHall?: string;
       adminSpoc?: string;
     }
   ) {
     const note = opts?.adminNoteOverride ?? adminNote;
-    const hall = opts?.assignedHall?.trim() ?? "";
     const spoc = opts?.adminSpoc?.trim() ?? "";
 
     if (status === "approved") {
-      if (!hall || !spoc) {
-        toast.error("Assigned hall and Admin SPOC are required to approve.");
+      if (!spoc) {
+        toast.error("Admin SPOC is required to approve.");
         return;
       }
     }
@@ -357,7 +355,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         updated_at: new Date().toISOString(),
     };
     if (status === "approved") {
-      patch.assigned_hall = hall;
       patch.admin_spoc = spoc;
     }
 
@@ -381,7 +378,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     setUpdating(false);
     setSelectedRequest(null);
     setAdminNote("");
-    setAssignedHall("");
     setAdminSpoc("");
     fetchRequests();
   }
@@ -572,19 +568,34 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     );
   })();
 
+  const studentByEmail = new Map(students.map((s) => [s.email, s]));
   const signedUpEmails = new Set(students.map((s) => s.email));
 
   // Build a unified roster: all unique emails from enrollments + any signed-up students not in enrollments
-  const rosterMap = new Map<string, { name: string; email: string; subjects: string[]; signedUp: boolean }>();
+  const rosterMap = new Map<
+    string,
+    {
+      name: string;
+      email: string;
+      subjects: string[];
+      studentGroup: string | null;
+      signedUp: boolean;
+    }
+  >();
   for (const e of enrollments) {
     const existing = rosterMap.get(e.email);
+    const signedProfile = studentByEmail.get(e.email);
     if (existing) {
       if (!existing.subjects.includes(e.subject)) existing.subjects.push(e.subject);
+      if (!existing.studentGroup && e.program) {
+        existing.studentGroup = e.program;
+      }
     } else {
       rosterMap.set(e.email, {
         name: e.student_name,
         email: e.email,
         subjects: [e.subject],
+        studentGroup: e.program || signedProfile?.student_group || null,
         signedUp: signedUpEmails.has(e.email),
       });
     }
@@ -596,15 +607,23 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         name: s.full_name || s.email,
         email: s.email,
         subjects: s.student_group ? [s.student_group] : [],
+        studentGroup: s.student_group ?? null,
         signedUp: true,
       });
     }
   }
 
   const fullRoster = [...rosterMap.values()].sort((a, b) => a.name.localeCompare(b.name));
-  const filteredRoster = filteredEmailsSet
+  const allRosterStudentGroups = [
+    ...new Set(fullRoster.map((r) => r.studentGroup).filter((g): g is string => Boolean(g))),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const filteredRoster = (filteredEmailsSet
     ? fullRoster.filter((r) => filteredEmailsSet.has(r.email))
-    : fullRoster;
+    : fullRoster
+  ).filter((r) =>
+    filterStudentGroup === "all" ? true : (r.studentGroup ?? "") === filterStudentGroup
+  );
 
   const signedUpCount = fullRoster.filter((r) => r.signedUp).length;
   const notSignedUpCount = fullRoster.filter((r) => !r.signedUp).length;
@@ -1117,7 +1136,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       onClick={() => {
                         setSelectedRequest(req);
                         setAdminNote(req.admin_note ?? "");
-                        setAssignedHall(req.assigned_hall ?? "");
                         setAdminSpoc(req.admin_spoc ?? "");
                       }}
                     />
@@ -1463,10 +1481,23 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       ))}
                     </select>
                   </div>
-                  {(filterTerm !== "all" || filterSubject !== "all") && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground font-medium">Program:</label>
+                    <select
+                      className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={filterStudentGroup}
+                      onChange={(e) => setFilterStudentGroup(e.target.value)}
+                    >
+                      <option value="all">All Programs</option>
+                      {allRosterStudentGroups.map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(filterTerm !== "all" || filterSubject !== "all" || filterStudentGroup !== "all") && (
                     <button
                           type="button"
-                      onClick={() => { setFilterTerm("all"); setFilterSubject("all"); }}
+                      onClick={() => { setFilterTerm("all"); setFilterSubject("all"); setFilterStudentGroup("all"); }}
                       className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                     >
                       Clear filters
@@ -1499,11 +1530,12 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
               {/* Student roster list — horizontal scroll on narrow screens */}
               <div className="rounded-lg border bg-white overflow-x-auto">
-                <div className="min-w-[720px]">
-                <div className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+                <div className="min-w-[900px]">
+                <div className="grid grid-cols-[1fr_1.2fr_1fr_1.5fr_100px] gap-4 px-4 py-3 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
                   <span>Name</span>
                   <span>Email</span>
-                  <span>Subjects / Groups</span>
+                  <span>Program</span>
+                  <span>Subjects</span>
                   <span className="text-center">Status</span>
                 </div>
                 {filteredRoster.length === 0 ? (
@@ -1514,7 +1546,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   filteredRoster.map((entry) => (
                     <div
                       key={entry.email}
-                      className="grid grid-cols-[1fr_1.2fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                      className="grid grid-cols-[1fr_1.2fr_1fr_1.5fr_100px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1528,6 +1560,15 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                           {entry.email}
                         </span>
                       </div>
+                      <div>
+                        {entry.studentGroup ? (
+                          <span className="inline-flex items-center rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                            {entry.studentGroup}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Not assigned</span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-1">
                         {entry.subjects.length > 0 ? (
                           entry.subjects.map((subj) => (
@@ -1539,7 +1580,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             </span>
                           ))
                         ) : (
-                          <span className="text-xs text-muted-foreground">No groups</span>
+                          <span className="text-xs text-muted-foreground">No subjects</span>
                         )}
                       </div>
                       <div className="flex justify-center">
@@ -2037,8 +2078,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
             onClick={() => {
               setSelectedRequest(null);
               setAdminNote("");
-              setAssignedHall("");
-              setAdminSpoc("");
+                        setAdminSpoc("");
             }}
           />
           <aside
@@ -2053,8 +2093,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 onClick={() => {
                   setSelectedRequest(null);
                   setAdminNote("");
-                  setAssignedHall("");
-                  setAdminSpoc("");
+                                setAdminSpoc("");
                 }}
                 aria-label="Close"
               >
@@ -2102,9 +2141,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <div className="flex items-center gap-3 text-sm text-foreground">
                   <Users className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span>
-                      {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
-                        ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
-                        : selectedRequest.student_group?.name ?? "—"}
+                    {selectedRequest.student_groups && selectedRequest.student_groups.length > 0
+                      ? selectedRequest.student_groups.map((sg) => sg.name).join(", ")
+                      : selectedRequest.student_group?.name ?? "—"}
                   </span>
                 </div>
                 {(() => {
@@ -2134,19 +2173,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   </div>
                 )}
                 {selectedRequest.status === "approved" &&
-                  (selectedRequest.assigned_hall || selectedRequest.admin_spoc) && (
+                  selectedRequest.admin_spoc && (
                     <div className="rounded-lg border border-border/80 bg-muted/25 p-3 space-y-2 text-sm">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                         Approval details
                       </p>
-                      {selectedRequest.assigned_hall && (
-                        <div>
-                          <span className="text-muted-foreground">Assigned hall: </span>
-                          <span className="font-medium text-foreground">
-                            {selectedRequest.assigned_hall}
-                          </span>
-                  </div>
-                      )}
                       {selectedRequest.admin_spoc && (
                   <div>
                           <span className="text-muted-foreground">Admin SPOC: </span>
@@ -2167,18 +2198,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   <>
                     {(st === "pending" || st === "clarification_needed") && (
                       <>
-                        <div className="space-y-2">
-                          <Label htmlFor="ar-assigned-hall">
-                            Assigned hall<span className="text-destructive">*</span>
-                          </Label>
-                          <Input
-                            id="ar-assigned-hall"
-                            value={assignedHall}
-                            onChange={(e) => setAssignedHall(e.target.value)}
-                            placeholder="e.g. Main auditorium, Block B – 201"
-                            autoComplete="off"
-                          />
-                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="ar-admin-spoc">
                             Admin SPOC<span className="text-destructive">*</span>
@@ -2206,13 +2225,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 <Button
                   onClick={() =>
                                 updateRequest(selectedRequest.id, "approved", {
-                                  assignedHall,
                                   adminSpoc,
                                 })
                               }
                               disabled={
                                 updating ||
-                                !assignedHall.trim() ||
                                 !adminSpoc.trim()
                               }
                               variant="outline"
@@ -2307,18 +2324,6 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     {st === "rejected" && (
                       <>
                         <div className="space-y-2">
-                          <Label htmlFor="ar-assigned-hall-reject">
-                            Assigned hall<span className="text-destructive">*</span>
-                          </Label>
-                          <Input
-                            id="ar-assigned-hall-reject"
-                            value={assignedHall}
-                            onChange={(e) => setAssignedHall(e.target.value)}
-                            placeholder="e.g. Main auditorium, Block B – 201"
-                            autoComplete="off"
-                          />
-                        </div>
-                        <div className="space-y-2">
                           <Label htmlFor="ar-admin-spoc-reject">
                             Admin SPOC<span className="text-destructive">*</span>
                           </Label>
@@ -2345,13 +2350,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             <Button
                               onClick={() =>
                                 updateRequest(selectedRequest.id, "approved", {
-                                  assignedHall,
                                   adminSpoc,
                                 })
                               }
                               disabled={
                                 updating ||
-                                !assignedHall.trim() ||
                                 !adminSpoc.trim()
                               }
                               variant="outline"

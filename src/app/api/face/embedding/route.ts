@@ -11,7 +11,12 @@ export async function POST(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
+
+  // Allow unauthenticated access during signup (the endpoint only computes
+  // a face embedding vector — no DB writes or sensitive data).
+  // Authenticated users are still validated for non-signup flows.
+  const isSignupFlow = req.headers.get("x-signup-flow") === "1";
+  if (!user && !isSignupFlow) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

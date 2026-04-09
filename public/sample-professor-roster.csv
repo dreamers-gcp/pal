@@ -1,7 +1,7 @@
-Course ID,Term,Subject,Professor,Email,CrPoints,Preferred Slot 1,Preferred Slot 2,Preferred Slot 3,Max Hours per Day
-CS201,Fall 2025,Data Structures,Dr. Alice Johnson,alice@university.edu,4,Mon 9-11,Tue 14-16,,4
-CS301,Fall 2025,Operating Systems,Dr. Alice Johnson,alice@university.edu,2.5,Wed 10-12,,,4
-CS401,Fall 2025,Machine Learning,Dr. Bob Brown,bob.prof@university.edu,3,Thu 13-15,Fri 9-11,,5
-CS201,Fall 2025,Data Structures,Dr. Bob Brown,bob.prof@university.edu,4,,Mon 15-17,,4
-CS301,Fall 2025,Operating Systems,Dr. Carol White,carol@university.edu,3,Tue 9-11,,,4
-CS401,Fall 2025,Machine Learning,Dr. Carol White,carol@university.edu,3,,Wed 14-16,Thu 10-12,4
+Subject,Term,Professor,Email,CrPoints,Preferred Slot 1,Preferred Slot 2,Preferred Slot 3,Max Hours/Day
+Data Structures,Fall 2025,Dr. Alice Johnson,alice@university.edu,4,Mon 9-11,Tue 14-16,,4
+Operating Systems,Fall 2025,Dr. Alice Johnson,alice@university.edu,2.5,Wed 10-12,,,4
+Machine Learning,Fall 2025,Dr. Bob Brown,bob.prof@university.edu,3,Thu 13-15,Fri 9-11,,5
+Data Structures,Fall 2025,Dr. Bob Brown,bob.prof@university.edu,4,,Mon 15-17,,4
+Operating Systems,Fall 2025,Dr. Carol White,carol@university.edu,3,Tue 9-11,,,4
+Machine Learning,Fall 2025,Dr. Carol White,carol@university.edu,3,,Wed 14-16,Thu 10-12,4

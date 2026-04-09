@@ -175,7 +175,7 @@ export default function Home() {
                 Professors
               </h3>
               <p className="text-base leading-relaxed text-muted-foreground">
-                Request calendar blocks for student groups and classrooms. Track
+                Request calendar blocks for programs and classrooms. Track
                 approval status in real time.
               </p>
             </div>

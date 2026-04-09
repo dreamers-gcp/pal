@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarPanelSkeleton } from "@/components/ui/loading-skeletons";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { toTitleCase } from "@/lib/utils";
+import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import {
   format,
   addDays,
@@ -619,7 +620,7 @@ function DayColumn({
               event.student_groups && event.student_groups.length > 0
                 ? event.student_groups.map((sg) => sg.name).join(", ")
                 : event.student_group?.name ?? ""
-            }\nProf. ${event.professor?.full_name ?? ""}\nStatus: ${event.status}`}
+            }\n${decodeCalendarRequestSubjects(event.subject).join(", ") || ""}\nProf. ${event.professor?.full_name ?? ""}\nStatus: ${event.status}`}
           >
             <div className="flex items-center gap-0.5">
               {showAllStatuses && (
@@ -644,11 +645,9 @@ function DayColumn({
                 {event.classroom?.name}
               </div>
             )}
-            {height >= 70 && (
+            {height >= 70 && event.subject && (
               <div className="text-[9px] leading-tight truncate opacity-70">
-                {event.student_groups && event.student_groups.length > 0
-                  ? event.student_groups.map((sg) => sg.name).join(", ")
-                  : event.student_group?.name}
+                {decodeCalendarRequestSubjects(event.subject).join(", ")}
               </div>
             )}
           </div>

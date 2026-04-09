@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { WebcamCapture } from "@/components/webcam-capture";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,27 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
   const [embeddings, setEmbeddings] = useState<FaceEmbedding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [showCapture, setShowCapture] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  function killStream() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setStream(null);
+  }
+
+  async function openCamera() {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      streamRef.current = s;
+      setStream(s);
+    } catch {
+      toast.error("Camera permission denied or unavailable.");
+    }
+  }
 
   const fetchEmbeddings = useCallback(async () => {
     const { data } = await supabase
@@ -58,8 +78,8 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
   }, [fetchEmbeddings]);
 
   async function handleCapture(blob: Blob) {
+    killStream();
     setUploading(true);
-    setShowCapture(false);
 
     try {
       const filename = `${studentId}/${Date.now()}.jpg`;
@@ -120,8 +140,13 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
       toast.success("Face photo registered!");
       await fetchEmbeddings();
 
-      const nextCount = embeddings.length + 1;
-      if (nextCount >= MIN_PHOTOS) {
+      // Count directly from DB to avoid stale closure
+      const { count } = await supabase
+        .from("face_embeddings")
+        .select("id", { count: "exact", head: true })
+        .eq("student_id", studentId);
+
+      if ((count ?? 0) >= MIN_PHOTOS) {
         await supabase
           .from("profiles")
           .update({ face_registered: true })
@@ -218,10 +243,11 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
               </div>
             )}
 
-            {showCapture ? (
+            {stream ? (
               <WebcamCapture
+                stream={stream}
                 onCapture={handleCapture}
-                onCancel={() => setShowCapture(false)}
+                onClose={killStream}
                 buttonLabel="Capture face photo"
               />
             ) : (
@@ -229,7 +255,7 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowCapture(true)}
+                  onClick={openCamera}
                   className="gap-1.5"
                 >
                   <ScanFace className="h-4 w-4" />
