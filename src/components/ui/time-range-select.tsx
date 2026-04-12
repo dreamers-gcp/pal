@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { format } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,8 @@ export interface TimeRangeSelectProps {
   endTriggerId?: string;
   className?: string;
   stepMinutes?: number;
+  /** When this yyyy-MM-dd is local today, start times before the current clock time are hidden. */
+  eventDate?: string;
 }
 
 /**
@@ -62,16 +65,38 @@ export function TimeRangeSelect({
   onEndChange,
   startDisabled,
   endDisabled,
-  startPlaceholder = "Start time",
-  endPlaceholder = "End time",
+  startPlaceholder = "",
+  endPlaceholder = "",
   startLabel,
   endLabel,
   startTriggerId,
   endTriggerId,
   className,
   stepMinutes = 15,
+  eventDate,
 }: TimeRangeSelectProps) {
   const allOptions = React.useMemo(() => getTimeOptions(stepMinutes), [stepMinutes]);
+
+  const todayYmd = format(new Date(), "yyyy-MM-dd");
+
+  const startOptions = React.useMemo(() => {
+    if (!eventDate || eventDate !== todayYmd) return allOptions;
+    const n = new Date();
+    const nowMins = n.getHours() * 60 + n.getMinutes();
+    return allOptions.filter((o) => timeToMinutes(o.value) >= nowMins);
+  }, [allOptions, eventDate, todayYmd]);
+
+  const startSelectOptions =
+    eventDate && eventDate === todayYmd ? startOptions : allOptions;
+
+  React.useEffect(() => {
+    if (!eventDate || eventDate !== todayYmd || !startValue) return;
+    const n = new Date();
+    const nowMins = n.getHours() * 60 + n.getMinutes();
+    if (timeToMinutes(startValue) >= nowMins) return;
+    const next = startOptions[0]?.value;
+    if (next && next !== startValue) onStartChange(next);
+  }, [eventDate, todayYmd, startValue, startOptions, onStartChange]);
 
   const endOptions = React.useMemo(() => {
     if (!startValue) return allOptions;
@@ -112,12 +137,14 @@ export function TimeRangeSelect({
             <SelectTrigger id={startTriggerId} className="w-full">
               <span className="flex flex-1 items-center truncate text-left">
                 {startValue
-                  ? (allOptions.find((opt) => opt.value === startValue)?.label ?? startValue)
+                  ? (startSelectOptions.find((opt) => opt.value === startValue)?.label ??
+                      allOptions.find((opt) => opt.value === startValue)?.label ??
+                      startValue)
                   : startPlaceholder}
               </span>
             </SelectTrigger>
             <SelectContent>
-              {allOptions.map((opt) => (
+              {startSelectOptions.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>

@@ -36,6 +36,10 @@ import { SubjectMultiSelect } from "@/components/ui/subject-combobox";
 import { encodeCalendarRequestInfra } from "@/lib/calendar-request-infra";
 import { encodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
 import { useClientTodayIso } from "@/hooks/use-client-today";
+import {
+  BOOKING_NOT_IN_PAST_MSG,
+  isBookingStartBeforeNow,
+} from "@/lib/booking-start-not-in-past";
 import { groupsForProfessorBookingForm } from "@/lib/professor-booking-groups";
 import { toTitleCase } from "@/lib/utils";
 
@@ -172,7 +176,13 @@ export function BookingForm({
   }
 
   useEffect(() => {
-    setPastWarning("");
+    if (!eventDate || !startTime) {
+      setPastWarning("");
+      return;
+    }
+    setPastWarning(
+      isBookingStartBeforeNow(eventDate, startTime) ? BOOKING_NOT_IN_PAST_MSG : ""
+    );
   }, [eventDate, startTime]);
 
   useEffect(() => {
@@ -224,6 +234,11 @@ export function BookingForm({
 
     if (conflictWarning) {
       toast.error("Cannot book — this slot is already taken");
+      return;
+    }
+
+    if (isBookingStartBeforeNow(eventDate, startTime)) {
+      toast.error(BOOKING_NOT_IN_PAST_MSG);
       return;
     }
 
@@ -663,6 +678,7 @@ export function BookingForm({
             endValue={endTime}
             onStartChange={setStartTime}
             onEndChange={setEndTime}
+            eventDate={eventDate}
             startLabel={
               <Label htmlFor="bf-start-time" className="text-muted-foreground font-normal text-sm">
                 Start
@@ -673,8 +689,6 @@ export function BookingForm({
                 End
               </Label>
             }
-            startPlaceholder="Start time"
-            endPlaceholder="End time"
             startTriggerId="bf-start-time"
             endTriggerId="bf-end-time"
           />

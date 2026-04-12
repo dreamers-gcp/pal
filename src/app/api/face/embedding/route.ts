@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createSupabaseRouteClient } from "@/lib/supabase/route-client";
 
 export const runtime = "nodejs";
 
@@ -7,7 +7,7 @@ const FACE_SERVICE_URL =
   process.env.FACE_SERVICE_URL?.trim() || "http://localhost:8100";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
+  const supabase = await createSupabaseRouteClient(req);
   const {
     data: { user },
   } = await supabase.auth.getUser();

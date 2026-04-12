@@ -105,6 +105,7 @@ function CampusRequestActionButtons({
           variant="outline"
           disabled={disabled}
           onClick={() => patch(rowId, "approved")}
+          className="gap-1.5 border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
         >
           Approve
         </Button>
@@ -115,6 +116,7 @@ function CampusRequestActionButtons({
           variant="outline"
           disabled={disabled}
           onClick={() => patch(rowId, "rejected")}
+          className="gap-1.5 border-red-600/40 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
         >
           Reject
         </Button>
@@ -125,6 +127,7 @@ function CampusRequestActionButtons({
           variant="outline"
           disabled={disabled}
           onClick={() => patch(rowId, "clarification_needed")}
+          className="gap-1.5 border-amber-600/40 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
         >
           Clarify
         </Button>

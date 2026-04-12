@@ -44,6 +44,12 @@ import {
 import { isTimeOverlap } from "@/lib/sports-booking";
 import { ResourceAvailabilityCalendar } from "@/components/resource-availability-calendar";
 import { useClientTodayIso } from "@/hooks/use-client-today";
+import {
+  BOOKING_DATE_NOT_IN_PAST_MSG,
+  BOOKING_NOT_IN_PAST_MSG,
+  isBookingStartBeforeNow,
+  isDateOnlyBeforeToday,
+} from "@/lib/booking-start-not-in-past";
 
 function badge(status: string) {
   if (status === "approved") return "bg-accent/15 text-accent-foreground";
@@ -99,10 +105,19 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
   }, [svc]);
 
   const apptDurationMins = appointmentDurationMinutes(svc);
-  const pStartOptions = useMemo(
+  const pStartOptionsBase = useMemo(
     () => appointmentStartTimeOptions(apptDurationMins),
     [apptDurationMins]
   );
+  const pStartOptions = useMemo(() => {
+    if (pDate !== todayIso) return pStartOptionsBase;
+    const now = new Date();
+    const cutoff = now.getHours() * 60 + now.getMinutes();
+    return pStartOptionsBase.filter((o) => {
+      const [hh, mm] = o.value.split(":").map((x) => parseInt(x, 10));
+      return hh * 60 + mm >= cutoff;
+    });
+  }, [pStartOptionsBase, pDate, todayIso]);
   const pEndComputed = useMemo(
     () => addMinutesToHHmm(pStart, apptDurationMins),
     [pStart, apptDurationMins]
@@ -177,6 +192,10 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
   async function submitLeave() {
     if (!lStart || !lEnd) {
       toast.error("Select leave dates.");
+      return;
+    }
+    if (isDateOnlyBeforeToday(lStart)) {
+      toast.error(BOOKING_DATE_NOT_IN_PAST_MSG);
       return;
     }
     if (lEnd < lStart) {
@@ -262,6 +281,10 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
       toast.error("Pick a date.");
       return;
     }
+    if (isBookingStartBeforeNow(pDate, pStart)) {
+      toast.error(BOOKING_NOT_IN_PAST_MSG);
+      return;
+    }
     if (pBlocked) {
       toast.error("Slot is already booked");
       return;
@@ -336,7 +359,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>From</Label>
-                  <DatePicker value={lStart} onChange={setLStart} />
+                  <DatePicker value={lStart} onChange={setLStart} min={todayIso} />
                 </div>
                 <div className="space-y-2">
                   <Label>To</Label>
@@ -499,7 +522,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
                     onValueChange={(v) => v && setPStart(v)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Start time">
+                      <SelectValue>
                         {pStartOptions.find((o) => o.value === pStart)?.label ?? pStart}
                       </SelectValue>
                     </SelectTrigger>

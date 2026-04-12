@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { UserRole } from "@/lib/types";
+import {
+  normalizeAdminEmail,
+  SUPER_ADMIN_EMAIL,
+} from "@/lib/admin-request-routing";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+
+/** Pending professor calendar / event requests — matches admin “Event requests” tab. */
+const ADMIN_CALENDAR_NOTIFICATION_SECTION = "request-event-requests";
 
 export interface NotificationItem {
   id: string;
@@ -16,9 +23,17 @@ export interface NotificationItem {
 export function useNotifications(userId: string, role: UserRole) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  /** Admins without “Event requests” access get no navbar notification UI. Professors always true. */
+  const [showNotificationPanel, setShowNotificationPanel] = useState(role === "professor");
 
   useEffect(() => {
     if (role !== "professor" && role !== "admin") {
+      setLoaded(true);
+      return;
+    }
+    if (!userId) {
+      setItems([]);
+      setShowNotificationPanel(role === "professor");
       setLoaded(true);
       return;
     }
@@ -27,6 +42,7 @@ export function useNotifications(userId: string, role: UserRole) {
 
     async function fetchNotifications() {
       if (role === "professor") {
+        setShowNotificationPanel(true);
         const { data } = await supabase
           .from("calendar_requests")
           .select("id, title, status, updated_at")
@@ -50,6 +66,42 @@ export function useNotifications(userId: string, role: UserRole) {
           );
         }
       } else if (role === "admin") {
+        setShowNotificationPanel(false);
+        const { data: prof, error: profErr } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (profErr || !prof?.email) {
+          setItems([]);
+          setLoaded(true);
+          return;
+        }
+
+        const emailNorm = normalizeAdminEmail(prof.email);
+        const isSuper =
+          emailNorm === normalizeAdminEmail(SUPER_ADMIN_EMAIL);
+
+        let maySeeEventRequestAlerts = isSuper;
+        if (!isSuper) {
+          const { data: routing } = await supabase
+            .from("admin_request_routing")
+            .select("request_type_key")
+            .eq("admin_email", emailNorm);
+          const keys = (routing ?? []).map((r) => r.request_type_key as string);
+          maySeeEventRequestAlerts = keys.includes(ADMIN_CALENDAR_NOTIFICATION_SECTION);
+        }
+
+        if (!maySeeEventRequestAlerts) {
+          setItems([]);
+          setShowNotificationPanel(false);
+          setLoaded(true);
+          return;
+        }
+
+        setShowNotificationPanel(true);
+
         const { data } = await supabase
           .from("calendar_requests")
           .select(
@@ -62,9 +114,17 @@ export function useNotifications(userId: string, role: UserRole) {
         if (data) {
           setItems(
             data.map((r: unknown) => {
-              const row = r as { id: string; title: string; updated_at: string; professor?: { full_name?: string } | null };
-              const prof = row.professor;
-              const name = prof && typeof prof === "object" && "full_name" in prof ? prof.full_name : null;
+              const row = r as {
+                id: string;
+                title: string;
+                updated_at: string;
+                professor?: { full_name?: string } | null;
+              };
+              const profRow = row.professor;
+              const name =
+                profRow && typeof profRow === "object" && "full_name" in profRow
+                  ? profRow.full_name
+                  : null;
               return {
                 id: row.id,
                 message: `New request "${row.title}" from ${name ?? "a professor"}`,
@@ -73,6 +133,8 @@ export function useNotifications(userId: string, role: UserRole) {
               };
             })
           );
+        } else {
+          setItems([]);
         }
       }
       setLoaded(true);
@@ -96,7 +158,12 @@ export function useNotifications(userId: string, role: UserRole) {
     };
   }, [userId, role]);
 
-  return { items, count: items.length, loaded };
+  return {
+    items,
+    count: items.length,
+    loaded,
+    showNotificationPanel,
+  };
 }
 
 export function NotificationList({

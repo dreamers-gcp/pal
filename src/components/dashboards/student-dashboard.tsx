@@ -64,6 +64,12 @@ import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/lo
 import { cn } from "@/lib/utils";
 import { useClientTodayIso } from "@/hooks/use-client-today";
 import { UserParcelTab } from "@/components/parcels/user-parcel-tab";
+import {
+  BOOKING_DATE_NOT_IN_PAST_MSG,
+  BOOKING_NOT_IN_PAST_MSG,
+  isBookingStartBeforeNow,
+  isDateOnlyBeforeToday,
+} from "@/lib/booking-start-not-in-past";
 
 /** Local calendar day for an event (no UTC shift from date-only strings). */
 function eventBaseLocalDate(e: CalendarRequest): Date | null {
@@ -137,8 +143,8 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [sportType, setSportType] = useState<SportType>("cricket");
   const [sportVenue, setSportVenue] = useState<SportsVenueCode>("cricket_ground");
   const [sportDate, setSportDate] = useState("");
-  const [sportStartTime, setSportStartTime] = useState("17:00");
-  const [sportEndTime, setSportEndTime] = useState("18:00");
+  const [sportStartTime, setSportStartTime] = useState("");
+  const [sportEndTime, setSportEndTime] = useState("");
   const [sportPurpose, setSportPurpose] = useState("");
   const [unavailableSportsVenues, setUnavailableSportsVenues] = useState<Set<SportsVenueCode>>(new Set());
   /** null until mount so SSR matches first client paint; then ticks for ongoing/upcoming. */
@@ -510,6 +516,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
       toast.error("Check-out cannot be earlier than check-in.");
       return;
     }
+    if (isDateOnlyBeforeToday(guestCheckIn)) {
+      toast.error(BOOKING_DATE_NOT_IN_PAST_MSG);
+      return;
+    }
 
     setGuestSubmitting(true);
     const supabase = createClient();
@@ -562,6 +572,10 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     }
     if (unavailableSportsVenues.has(sportVenue)) {
       toast.error("Slot is already booked");
+      return;
+    }
+    if (isBookingStartBeforeNow(sportDate, `${sportStartTime}:00`)) {
+      toast.error(BOOKING_NOT_IN_PAST_MSG);
       return;
     }
 
@@ -1298,6 +1312,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                         endValue={sportEndTime}
                         onStartChange={setSportStartTime}
                         onEndChange={setSportEndTime}
+                        eventDate={sportDate}
                         startLabel={<label className="text-sm font-medium">Start Time</label>}
                         endLabel={<label className="text-sm font-medium">End Time</label>}
                         stepMinutes={60}

@@ -43,8 +43,17 @@ export function Navbar() {
   /** Wide labels vs narrow icon rail; synced from dashboard via `pal:section-nav-expanded`. */
   const [dashRailWide, setDashRailWide] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { items: notificationItems, count: notificationCount, loaded: notificationsLoaded } =
-    useNotifications(profile?.id ?? "", profile?.role ?? "student");
+  const {
+    items: notificationItems,
+    count: notificationCount,
+    loaded: notificationsLoaded,
+    showNotificationPanel,
+  } = useNotifications(profile?.id ?? "", profile?.role ?? "student");
+
+  const showNavbarNotifications =
+    (profile?.role === "professor" || profile?.role === "admin") &&
+    notificationsLoaded &&
+    showNotificationPanel;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -138,9 +147,7 @@ export function Navbar() {
                 {initials}
               </AvatarFallback>
             </Avatar>
-            {(profile.role === "professor" || profile.role === "admin") &&
-              notificationsLoaded &&
-              notificationCount > 0 && (
+            {showNavbarNotifications && notificationCount > 0 && (
                 <span
                   className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-white"
                   aria-label={`${notificationCount} notifications`}
@@ -150,7 +157,7 @@ export function Navbar() {
 
           {menuOpen && (
             <div className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.08)] bg-white text-popover-foreground shadow-lg">
-              {(profile.role === "professor" || profile.role === "admin") && (
+              {showNavbarNotifications && (
                 <>
                   <NotificationList
                     items={notificationItems}

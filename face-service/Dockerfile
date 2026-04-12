@@ -26,5 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
+# Cloud Run sets PORT (often 8080). Local default stays 8100.
+ENV PORT=8100
 EXPOSE 8100
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8100"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8100}"]

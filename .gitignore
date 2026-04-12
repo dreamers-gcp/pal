@@ -27,7 +27,9 @@ face-service/.venv/
 face-service/models/*.onnx
 
 # misc
+.claude/
 .DS_Store
+.expo/
 *.pem
 
 # debug

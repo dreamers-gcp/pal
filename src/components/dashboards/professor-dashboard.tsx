@@ -61,8 +61,14 @@ import { DashboardShellSkeleton, BookingCardsSkeleton } from "@/components/ui/lo
 import { cn } from "@/lib/utils";
 import { AnswerScriptsEvaluation } from "@/components/answer-scripts-evaluation/answer-scripts-evaluation";
 import { UserParcelTab } from "@/components/parcels/user-parcel-tab";
+import { useClientTodayIso } from "@/hooks/use-client-today";
+import {
+  BOOKING_NOT_IN_PAST_MSG,
+  isBookingStartBeforeNow,
+} from "@/lib/booking-start-not-in-past";
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
+  const todayIso = useClientTodayIso();
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
@@ -125,8 +131,8 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const [sportType, setSportType] = useState<SportType>("cricket");
   const [sportVenue, setSportVenue] = useState<SportsVenueCode>("cricket_ground");
   const [sportDate, setSportDate] = useState("");
-  const [sportStartTime, setSportStartTime] = useState("17:00");
-  const [sportEndTime, setSportEndTime] = useState("18:00");
+  const [sportStartTime, setSportStartTime] = useState("");
+  const [sportEndTime, setSportEndTime] = useState("");
   const [sportPurpose, setSportPurpose] = useState("");
   const [unavailableSportsVenues, setUnavailableSportsVenues] = useState<Set<SportsVenueCode>>(new Set());
 
@@ -383,6 +389,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     }
     if (unavailableSportsVenues.has(sportVenue)) {
       toast.error("Slot is already booked");
+      return;
+    }
+    if (isBookingStartBeforeNow(sportDate, `${sportStartTime}:00`)) {
+      toast.error(BOOKING_NOT_IN_PAST_MSG);
       return;
     }
     setSportsSubmitting(true);
@@ -817,7 +827,12 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                     </div>
                     <div className="space-y-2">
                       <Label>Date</Label>
-                      <DatePicker value={sportDate} onChange={setSportDate} placeholder="Pick date" />
+                      <DatePicker
+                        value={sportDate}
+                        onChange={setSportDate}
+                        min={todayIso}
+                        placeholder="Pick date"
+                      />
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <TimeRangeSelect
@@ -825,6 +840,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                         endValue={sportEndTime}
                         onStartChange={setSportStartTime}
                         onEndChange={setSportEndTime}
+                        eventDate={sportDate}
                         startLabel={<Label>Start Time</Label>}
                         endLabel={<Label>End Time</Label>}
                         stepMinutes={60}

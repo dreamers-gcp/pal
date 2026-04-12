@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Profile,
@@ -47,6 +53,7 @@ import {
   AlertCircle,
   Building2,
   Package,
+  Settings2,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -98,7 +105,14 @@ import {
 } from "@/components/ui/loading-skeletons";
 import { AdminParcelManagement } from "@/components/parcels/admin-parcel-management";
 import { AdminOverviewDashboard } from "@/components/admin/admin-overview-dashboard";
+import { AdminRequestRoutingPanel } from "@/components/admin/admin-request-routing-panel";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ADMIN_DASHBOARD_SECTIONS,
+  isSuperAdminProfile,
+  normalizeAdminEmail,
+  SUPER_ADMIN_EMAIL,
+} from "@/lib/admin-request-routing";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -131,22 +145,42 @@ function formatSportsStatusLabel(status: SportsBooking["status"]): string {
   return "Pending";
 }
 
-const ADMIN_REQUEST_SUBTABS: { value: string; label: string }[] = [
-  { value: "request-overview", label: "Overview" },
-  { value: "request-event-requests", label: "Event requests" },
-  { value: "request-guest-house-requests", label: "Guest house" },
-  { value: "request-sports-requests", label: "Sports" },
-  { value: "request-campus-leave", label: "Student leave" },
-  { value: "request-campus-facilities", label: "Campus facilities" },
-  { value: "request-campus-mess", label: "Mess requests" },
-  { value: "request-campus-health", label: "Health appointments" },
-];
-
 function isAdminRequestTab(tab: string) {
   return tab.startsWith("request-");
 }
 
+const MAIN_SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  enrollments: FileSpreadsheet,
+  students: GraduationCap,
+  "prof-assignments": BookOpen,
+  professors: Users,
+  "parcel-management": Package,
+  timetable: Wand2,
+};
+
 export function AdminDashboard({ profile }: { profile: Profile }) {
+  const isSuperAdmin = isSuperAdminProfile(profile);
+  const [allowedSectionKeys, setAllowedSectionKeys] = useState<string[] | null>(null);
+  const [routingLoaded, setRoutingLoaded] = useState(false);
+
+  const visibleSections = useMemo(() => {
+    if (isSuperAdmin) return ADMIN_DASHBOARD_SECTIONS;
+    if (allowedSectionKeys === null) return [];
+    return ADMIN_DASHBOARD_SECTIONS.filter((s) => allowedSectionKeys.includes(s.value));
+  }, [isSuperAdmin, allowedSectionKeys]);
+
+  const visibleRequestSubtabs = useMemo(
+    () => visibleSections.filter((s) => s.navGroup === "requests"),
+    [visibleSections]
+  );
+
+  const visibleMainSections = useMemo(
+    () => visibleSections.filter((s) => s.navGroup === "main"),
+    [visibleSections]
+  );
+
+  const firstVisibleSectionValue = visibleSections[0]?.value ?? null;
+
   const [requests, setRequests] = useState<CalendarRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] =
@@ -325,6 +359,55 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     fetchClassrooms,
     fetchGuestHouseBookings,
     fetchSportsBookings,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRouting() {
+      if (isSuperAdmin) {
+        if (!cancelled) {
+          setAllowedSectionKeys(null);
+          setRoutingLoaded(true);
+        }
+        return;
+      }
+      const supabase = createClient();
+      const norm = normalizeAdminEmail(profile.email);
+      const { data, error } = await supabase
+        .from("admin_request_routing")
+        .select("request_type_key")
+        .eq("admin_email", norm);
+      if (cancelled) return;
+      if (error) {
+        setAllowedSectionKeys([]);
+      } else {
+        setAllowedSectionKeys(
+          (data ?? []).map((r) => r.request_type_key as string)
+        );
+      }
+      setRoutingLoaded(true);
+    }
+    void loadRouting();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.email, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!routingLoaded) return;
+    if (isSuperAdmin) return;
+    if (adminMainTab === "admin-request-routing") {
+      if (firstVisibleSectionValue) setAdminMainTab(firstVisibleSectionValue);
+      return;
+    }
+    if (visibleSections.some((s) => s.value === adminMainTab)) return;
+    if (firstVisibleSectionValue) setAdminMainTab(firstVisibleSectionValue);
+  }, [
+    routingLoaded,
+    isSuperAdmin,
+    adminMainTab,
+    visibleSections,
+    firstVisibleSectionValue,
   ]);
 
   async function updateRequest(
@@ -695,8 +778,24 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     );
   }
 
-  if (loading) {
+  if (loading || (!isSuperAdmin && !routingLoaded)) {
     return <DashboardShellSkeleton variant="admin" />;
+  }
+
+  if (routingLoaded && !isSuperAdmin && visibleSections.length === 0) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20">
+        <Card>
+          <CardHeader>
+            <CardTitle>No Admin Access</CardTitle>
+            <CardDescription>
+              Your admin account does not have any sections assigned yet. Ask your super admin (
+              {SUPER_ADMIN_EMAIL}) to grant access in <strong>Admin Access</strong>.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -729,155 +828,115 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           >
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-2">
               <div className="flex flex-col gap-0.5 rounded-lg">
-                <div className="flex flex-col gap-0.5">
-                  {sectionNavExpanded ? (
-                    <>
+                {visibleRequestSubtabs.length > 0 ? (
+                  <div className="flex flex-col gap-0.5">
+                    {sectionNavExpanded ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setAdminRequestsNavOpen((o) => !o)}
+                          className={cn(
+                            "inline-flex h-auto min-h-10 w-full items-center gap-2 rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                            "justify-start px-2 text-left"
+                          )}
+                          aria-expanded={adminRequestsNavOpen}
+                        >
+                          <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1">Requests</span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                              adminRequestsNavOpen && "rotate-180"
+                            )}
+                            aria-hidden
+                          />
+                        </button>
+                        {adminRequestsNavOpen && (
+                          <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-1">
+                            {visibleRequestSubtabs.map((item) => (
+                              <TabsTrigger
+                                key={item.value}
+                                value={item.value}
+                                title={item.label}
+                                className={cn(
+                                  "h-auto min-h-9 w-full rounded-md border-l-2 border-transparent py-2 text-[13px] font-medium data-[active]:shadow-none",
+                                  "justify-start whitespace-normal pl-4 pr-2 text-left data-[active]:border-primary/40"
+                                )}
+                              >
+                                {item.label}
+                              </TabsTrigger>
+                            ))}
+                          </TabsList>
+                        )}
+                      </>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => setAdminRequestsNavOpen((o) => !o)}
+                        title="Requests"
+                        onClick={() => {
+                          setSectionNavExpanded(true);
+                          setAdminRequestsNavOpen(true);
+                          if (
+                            visibleRequestSubtabs.length > 0 &&
+                            !isAdminRequestTab(adminMainTab)
+                          ) {
+                            setAdminMainTab(visibleRequestSubtabs[0]!.value);
+                          }
+                        }}
                         className={cn(
-                          "inline-flex h-auto min-h-10 w-full items-center gap-2 rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                          "justify-start px-2 text-left"
+                          "inline-flex h-auto min-h-10 w-full items-center justify-center rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          isAdminRequestTab(adminMainTab) &&
+                            "bg-primary/15 text-primary dark:bg-primary/20"
                         )}
-                        aria-expanded={adminRequestsNavOpen}
                       >
                         <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1">Requests</span>
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                            adminRequestsNavOpen && "rotate-180"
-                          )}
-                          aria-hidden
-                        />
+                        <span className="sr-only">Requests</span>
                       </button>
-                      {adminRequestsNavOpen && (
-                        <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-1">
-                          {ADMIN_REQUEST_SUBTABS.map((item) => (
-                            <TabsTrigger
-                              key={item.value}
-                              value={item.value}
-                              title={item.label}
-                              className={cn(
-                                "h-auto min-h-9 w-full rounded-md border-l-2 border-transparent py-2 text-[13px] font-medium data-[active]:shadow-none",
-                                "justify-start whitespace-normal pl-4 pr-2 text-left data-[active]:border-primary/40"
-                              )}
-                            >
-                              {item.label}
-                            </TabsTrigger>
-                          ))}
-                        </TabsList>
-                      )}
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      title="Requests"
-                      onClick={() => {
-                        setSectionNavExpanded(true);
-                        setAdminRequestsNavOpen(true);
-                        if (!isAdminRequestTab(adminMainTab)) {
-                          setAdminMainTab("request-overview");
-                        }
-                      }}
+                    )}
+                  </div>
+                ) : null}
+                <TabsList
+                  className={cn(
+                    "flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0",
+                    visibleRequestSubtabs.length > 0 && "mt-0.5"
+                  )}
+                >
+                  {visibleMainSections.map((section) => {
+                    const Icon = MAIN_SECTION_ICONS[section.value] ?? FileSpreadsheet;
+                    return (
+                      <TabsTrigger
+                        key={section.value}
+                        value={section.value}
+                        title={section.label}
+                        className={cn(
+                          "h-auto min-h-10 w-full rounded-md py-2.5",
+                          sectionNavExpanded
+                            ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                            : "justify-center px-0"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className={cn(!sectionNavExpanded && "sr-only")}>
+                          {section.label}
+                        </span>
+                      </TabsTrigger>
+                    );
+                  })}
+                  {isSuperAdmin ? (
+                    <TabsTrigger
+                      value="admin-request-routing"
+                      title="Admin Access"
                       className={cn(
-                        "inline-flex h-auto min-h-10 w-full items-center justify-center rounded-md py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                        isAdminRequestTab(adminMainTab) &&
-                          "bg-primary/15 text-primary dark:bg-primary/20"
+                        "h-auto min-h-10 w-full rounded-md py-2.5",
+                        sectionNavExpanded
+                          ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                          : "justify-center px-0"
                       )}
                     >
-                      <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="sr-only">Requests</span>
-                    </button>
-                  )}
-                </div>
-                <TabsList className="mt-0.5 flex h-auto w-full flex-col items-stretch gap-0.5 rounded-lg border-0 bg-transparent p-0">
-                <TabsTrigger
-                  value="enrollments"
-                  title="Enrollments"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <FileSpreadsheet className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>Enrollments</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="students"
-                  title="Manage Students"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <GraduationCap className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>
-                    Manage Students
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="prof-assignments"
-                  title="Professor Assignments"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>
-                    Professor Assignments
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="professors"
-                  title="Manage Professors"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>
-                    Manage Professors
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="parcel-management"
-                  title="Parcel management"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>
-                    Parcel management
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="timetable"
-                  title="Timetable"
-                  className={cn(
-                    "h-auto min-h-10 w-full rounded-md py-2.5",
-                    sectionNavExpanded
-                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
-                      : "justify-center px-0"
-                  )}
-                >
-                  <Wand2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className={cn(!sectionNavExpanded && "sr-only")}>Timetable</span>
-                </TabsTrigger>
+                      <Settings2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className={cn(!sectionNavExpanded && "sr-only")}>Admin Access</span>
+                    </TabsTrigger>
+                  ) : null}
                 </TabsList>
               </div>
             </div>
@@ -925,123 +984,94 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     </Button>
                   </div>
                   <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      onClick={() => setAdminRequestsNavOpen((o) => !o)}
-                      aria-expanded={adminRequestsNavOpen}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <ClipboardList className="h-4 w-4 shrink-0" />
-                        Requests
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 shrink-0 transition-transform",
-                          adminRequestsNavOpen && "rotate-180"
+                    {visibleRequestSubtabs.length > 0 ? (
+                      <>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          onClick={() => setAdminRequestsNavOpen((o) => !o)}
+                          aria-expanded={adminRequestsNavOpen}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <ClipboardList className="h-4 w-4 shrink-0" />
+                            Requests
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-transform",
+                              adminRequestsNavOpen && "rotate-180"
+                            )}
+                            aria-hidden
+                          />
+                        </button>
+                        {adminRequestsNavOpen && (
+                          <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-2">
+                            {visibleRequestSubtabs.map((item) => (
+                              <TabsTrigger
+                                key={item.value}
+                                value={item.value}
+                                className="w-full justify-start gap-1.5 py-2 pl-4 text-[13px]"
+                                onClick={() => setTabMenuOpen(false)}
+                              >
+                                {item.label}
+                              </TabsTrigger>
+                            ))}
+                          </TabsList>
                         )}
-                        aria-hidden
-                      />
-                    </button>
-                    {adminRequestsNavOpen && (
-                      <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-2">
-                        {ADMIN_REQUEST_SUBTABS.map((item) => (
+                      </>
+                    ) : null}
+                    <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 border-0 bg-transparent p-0">
+                      {visibleMainSections.map((section) => {
+                        const Icon = MAIN_SECTION_ICONS[section.value] ?? FileSpreadsheet;
+                        return (
                           <TabsTrigger
-                            key={item.value}
-                            value={item.value}
-                            className="w-full justify-start gap-1.5 py-2 pl-4 text-[13px]"
+                            key={section.value}
+                            value={section.value}
+                            className="w-full justify-start gap-1.5"
                             onClick={() => setTabMenuOpen(false)}
                           >
-                            {item.label}
-          </TabsTrigger>
-                        ))}
-                      </TabsList>
-                    )}
-                    <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 border-0 bg-transparent p-0">
-                    <TabsTrigger
-                      value="enrollments"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <FileSpreadsheet className="h-4 w-4" />
-                      Enrollments
-          </TabsTrigger>
-                    <TabsTrigger
-                      value="students"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <GraduationCap className="h-4 w-4" />
-                      Manage Students
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="prof-assignments"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      Professor Assignments
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="professors"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <Users className="h-4 w-4" />
-                      Manage Professors
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="parcel-management"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <Package className="h-4 w-4" />
-                      Parcel management
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="timetable"
-                      className="w-full justify-start gap-1.5"
-                      onClick={() => setTabMenuOpen(false)}
-                    >
-                      <Wand2 className="h-4 w-4" />
-                      Timetable
-                    </TabsTrigger>
+                            <Icon className="h-4 w-4" />
+                            {section.label}
+                          </TabsTrigger>
+                        );
+                      })}
+                      {isSuperAdmin ? (
+                        <TabsTrigger
+                          value="admin-request-routing"
+                          className="w-full justify-start gap-1.5"
+                          onClick={() => setTabMenuOpen(false)}
+                        >
+                          <Settings2 className="h-4 w-4" />
+                          Admin Access
+                        </TabsTrigger>
+                      ) : null}
                     </TabsList>
                   </div>
                 </aside>
               </>
             )}
             <TabsList className="hidden">
-              {ADMIN_REQUEST_SUBTABS.map((item) => (
+              {visibleRequestSubtabs.map((item) => (
                 <TabsTrigger key={item.value} value={item.value} className="gap-1.5">
                   <ClipboardList className="h-4 w-4" />
                   {item.label}
                 </TabsTrigger>
               ))}
-          <TabsTrigger value="enrollments" className="gap-1.5">
-            <FileSpreadsheet className="h-4 w-4" />
-            Enrollments
-          </TabsTrigger>
-          <TabsTrigger value="students" className="gap-1.5">
-            <GraduationCap className="h-4 w-4" />
-            Manage Students
-          </TabsTrigger>
-          <TabsTrigger value="prof-assignments" className="gap-1.5">
-            <BookOpen className="h-4 w-4" />
-            Professor Assignments
-          </TabsTrigger>
-          <TabsTrigger value="professors" className="gap-1.5">
-            <Users className="h-4 w-4" />
-            Manage Professors
-          </TabsTrigger>
-              <TabsTrigger value="parcel-management" className="gap-1.5">
-                <Package className="h-4 w-4" />
-                Parcel management
-              </TabsTrigger>
-          <TabsTrigger value="timetable" className="gap-1.5">
-            <Wand2 className="h-4 w-4" />
-            Timetable
-          </TabsTrigger>
+              {visibleMainSections.map((section) => {
+                const Icon = MAIN_SECTION_ICONS[section.value] ?? FileSpreadsheet;
+                return (
+                  <TabsTrigger key={section.value} value={section.value} className="gap-1.5">
+                    <Icon className="h-4 w-4" />
+                    {section.label}
+                  </TabsTrigger>
+                );
+              })}
+              {isSuperAdmin ? (
+                <TabsTrigger value="admin-request-routing" className="gap-1.5">
+                  <Settings2 className="h-4 w-4" />
+                  Admin Access
+                </TabsTrigger>
+              ) : null}
         </TabsList>
 
         {/* ========== OVERVIEW ========== */}
@@ -1328,7 +1358,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             variant="outline"
                             disabled={sportsUpdatingId === b.id}
                             onClick={() => updateSportsBooking(b, "approved")}
+                            className="gap-1.5 border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
                           >
+                            <Check className="h-4 w-4" />
                             Approve
                           </Button>
                           )}
@@ -1338,7 +1370,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             variant="outline"
                             disabled={sportsUpdatingId === b.id}
                             onClick={() => updateSportsBooking(b, "rejected")}
+                            className="gap-1.5 border-red-600/40 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
                           >
+                            <X className="h-4 w-4" />
                             Reject
                           </Button>
                           )}
@@ -1348,7 +1382,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                             variant="outline"
                             disabled={sportsUpdatingId === b.id}
                             onClick={() => updateSportsBooking(b, "clarification_needed")}
+                            className="gap-1.5 border-amber-600/40 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                           >
+                            <HelpCircle className="h-4 w-4" />
                             Clarify
                           </Button>
                           )}
@@ -1785,6 +1821,17 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="timetable" className="mt-6">
           <TimetableGenerator profile={profile} />
         </TabsContent>
+
+        {isSuperAdmin ? (
+          <TabsContent value="admin-request-routing" className="mt-6">
+            <div className="mb-4">
+              <h2 className="font-display text-xl font-normal tracking-tight text-foreground">
+                Admin Access
+              </h2>
+            </div>
+            <AdminRequestRoutingPanel />
+          </TabsContent>
+        ) : null}
         </div>
       </Tabs>
 
@@ -2017,16 +2064,16 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
               <div className="flex flex-wrap gap-2">
                 {adminRequestActionVisibility(selectedGuestBooking.status)
                   .approve && (
-                  <Button
+                    <Button
                     onClick={() =>
                       updateGuestBooking(selectedGuestBooking, "approved")
                     }
                     disabled={guestUpdating}
                     variant="outline"
                     size="sm"
-                    className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
+                    className="flex-1 min-w-[100px] rounded-md gap-1.5 border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
                   >
-                    <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <Check className="h-4 w-4 shrink-0" />
                     Approve
                   </Button>
                 )}
@@ -2039,9 +2086,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     disabled={guestUpdating}
                     variant="outline"
                     size="sm"
-                    className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                    className="flex-1 min-w-[100px] rounded-md gap-1.5 border-red-600/40 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
                   >
-                    <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <X className="h-4 w-4 shrink-0" />
                     Reject
                   </Button>
                 )}
@@ -2057,9 +2104,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                     disabled={guestUpdating}
                     variant="outline"
                     size="sm"
-                    className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                    className="flex-1 min-w-[100px] rounded-md gap-1.5 border-amber-600/40 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                   >
-                    <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <HelpCircle className="h-4 w-4 shrink-0" />
                     Clarify
                   </Button>
                 )}
@@ -2234,9 +2281,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                               }
                               variant="outline"
                               size="sm"
-                              className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
+                              className="flex-1 min-w-[100px] rounded-md gap-1.5 border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
                             >
-                              <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                              <Check className="h-4 w-4 shrink-0" />
                   Approve
                 </Button>
                           )}
@@ -2248,9 +2295,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   disabled={updating}
                               variant="outline"
                               size="sm"
-                              className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
+                              className="flex-1 min-w-[100px] rounded-md gap-1.5 border-red-600/40 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
                 >
-                              <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                              <X className="h-4 w-4 shrink-0" />
                   Reject
                 </Button>
                           )}
@@ -2265,9 +2312,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   disabled={updating}
                   variant="outline"
                               size="sm"
-                              className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                              className="flex-1 min-w-[100px] rounded-md gap-1.5 border-amber-600/40 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                 >
-                              <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                              <HelpCircle className="h-4 w-4 shrink-0" />
                   Clarify
                 </Button>
                           )}
@@ -2295,9 +2342,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                               disabled={updating}
                               variant="outline"
                               size="sm"
-                              className="flex-1 min-w-[100px] rounded-full border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive"
+                              className="flex-1 min-w-[100px] rounded-md gap-1.5 border-red-600/40 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
                             >
-                              <X className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                              <X className="h-4 w-4 shrink-0" />
                               Reject
                             </Button>
                           )}
@@ -2312,9 +2359,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                               disabled={updating}
                               variant="outline"
                               size="sm"
-                              className="flex-1 min-w-[100px] rounded-full border-muted-foreground/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                              className="flex-1 min-w-[100px] rounded-md gap-1.5 border-amber-600/40 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                             >
-                              <HelpCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                              <HelpCircle className="h-4 w-4 shrink-0" />
                               Clarify
                             </Button>
                           )}
@@ -2359,9 +2406,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                               }
                               variant="outline"
                               size="sm"
-                              className="flex-1 min-w-[100px] rounded-full border-emerald-500/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25"
+                              className="flex-1 min-w-[100px] rounded-md gap-1.5 border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
                             >
-                              <Check className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                              <Check className="h-4 w-4 shrink-0" />
                               Approve
                             </Button>
                           )}

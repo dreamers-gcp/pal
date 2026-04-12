@@ -52,6 +52,8 @@ export interface AttendanceRecord {
   similarity_score: number;
   verified: boolean;
   marked_at: string;
+  wifi_ssid?: string | null;
+  wifi_bssid?: string | null;
   student?: Profile;
   event?: CalendarRequest;
 }
@@ -346,4 +348,12 @@ export interface AppointmentBooking {
   created_at: string;
   updated_at: string;
   student?: Profile;
+}
+
+/** Super-admin routing: which dashboard request tabs an admin email may see. */
+export interface AdminRequestRouting {
+  id: string;
+  admin_email: string;
+  request_type_key: string;
+  created_at: string;
 }
