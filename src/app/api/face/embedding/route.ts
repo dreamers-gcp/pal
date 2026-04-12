@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseRouteClient } from "@/lib/supabase/route-client";
+import {
+  createSupabaseForRoute,
+  getRouteAuthUser,
+  resolveRouteAccessToken,
+} from "@/lib/supabase/route-client";
 
 export const runtime = "nodejs";
 
@@ -7,20 +11,23 @@ const FACE_SERVICE_URL =
   process.env.FACE_SERVICE_URL?.trim() || "http://localhost:8100";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createSupabaseRouteClient(req);
+  const isSignupFlow = req.headers.get("x-signup-flow") === "1";
+
+  const formData = await req.formData();
+  const accessToken = resolveRouteAccessToken(req, formData);
+
+  const supabase = await createSupabaseForRoute(accessToken);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getRouteAuthUser(supabase, accessToken);
 
   // Allow unauthenticated access during signup (the endpoint only computes
   // a face embedding vector — no DB writes or sensitive data).
   // Authenticated users are still validated for non-signup flows.
-  const isSignupFlow = req.headers.get("x-signup-flow") === "1";
   if (!user && !isSignupFlow) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const formData = await req.formData();
   const file = formData.get("file") as File | null;
   if (!file) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });

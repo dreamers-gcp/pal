@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseRouteClient } from "@/lib/supabase/route-client";
+import {
+  createSupabaseForRoute,
+  getRouteAuthUser,
+  resolveRouteAccessToken,
+} from "@/lib/supabase/route-client";
 
 export const runtime = "nodejs";
 
@@ -7,15 +11,26 @@ const FACE_SERVICE_URL =
   process.env.FACE_SERVICE_URL?.trim() || "http://localhost:8100";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createSupabaseRouteClient(req);
+  const formData = await req.formData();
+  const accessToken = resolveRouteAccessToken(req, formData);
+
+  const supabase = await createSupabaseForRoute(accessToken);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+    error: authError,
+  } = await getRouteAuthUser(supabase, accessToken);
+
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          authError?.message?.trim() ||
+          "Unauthorized — sign in again or open the app while online.",
+      },
+      { status: 401 }
+    );
   }
 
-  const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const studentId = formData.get("studentId") as string | null;
   if (!file || !studentId) {
@@ -23,6 +38,10 @@ export async function POST(req: NextRequest) {
       { error: "file and studentId required" },
       { status: 400 }
     );
+  }
+
+  if (studentId !== user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data: embeddings, error } = await supabase

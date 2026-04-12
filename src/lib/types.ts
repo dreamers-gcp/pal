@@ -63,6 +63,9 @@ export interface Classroom {
   name: string;
   capacity: number | null;
   created_at: string;
+  /** When set (with optional BSSID), student attendance must match this SSID (mobile). */
+  attendance_wifi_ssid?: string | null;
+  attendance_wifi_bssid?: string | null;
 }
 
 export interface StudentGroup {

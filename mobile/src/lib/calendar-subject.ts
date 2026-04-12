@@ -25,3 +25,32 @@ export function decodeCalendarRequestSubjects(raw: string | null | undefined): s
   }
   return [t];
 }
+
+/** When `calendar_requests.subject` is empty, attendance filters use this bucket label. */
+export const ATTENDANCE_SUBJECT_UNLISTED = "Unlisted";
+
+type SubjectCarrier = { subject?: string | null };
+
+export function attendanceSubjectLabelsForEvent(event: SubjectCarrier): string[] {
+  const decoded = decodeCalendarRequestSubjects(event.subject);
+  if (decoded.length > 0) return decoded;
+  return [ATTENDANCE_SUBJECT_UNLISTED];
+}
+
+export function uniqueAttendanceSubjectLabels(events: SubjectCarrier[]): string[] {
+  const set = new Set<string>();
+  for (const e of events) {
+    for (const s of attendanceSubjectLabelsForEvent(e)) set.add(s);
+  }
+  return Array.from(set).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+}
+
+export function eventMatchesAttendanceSubjectFilter(
+  event: SubjectCarrier,
+  subjectFilter: string
+): boolean {
+  if (subjectFilter === "all") return true;
+  return attendanceSubjectLabelsForEvent(event).includes(subjectFilter);
+}

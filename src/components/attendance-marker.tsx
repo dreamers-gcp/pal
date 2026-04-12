@@ -28,9 +28,19 @@ import { toast } from "sonner";
 import { format, parse, addMinutes, isWithinInterval } from "date-fns";
 import type { CalendarRequest, AttendanceRecord, Profile } from "@/lib/types";
 import {
+  decodeCalendarRequestSubjects,
+  attendanceSubjectLabelsForEvent,
+  eventMatchesAttendanceSubjectFilter,
+  uniqueAttendanceSubjectLabels,
+} from "@/lib/calendar-request-subject";
+import {
   isProfessorMarkedAbsent,
   isStudentPresent,
 } from "@/lib/attendance-record";
+import {
+  classroomExpectsWifi,
+  WEB_ATTENDANCE_WIFI_BLOCKED,
+} from "@/lib/attendance-wifi-match";
 import { DatePicker } from "@/components/ui/date-picker";
 import { AttendanceMarkerListSkeleton } from "@/components/ui/loading-skeletons";
 
@@ -156,7 +166,9 @@ export function AttendanceMarker({ profile, events }: Props) {
         .upload(filename, blob, { contentType: "image/jpeg" });
 
       if (upErr) {
-        toast.error("Upload failed: " + upErr.message);
+        toast.error(
+          `Face verification — Could not upload your photo: ${upErr.message}`
+        );
         setVerifying(null);
         return;
       }
@@ -170,14 +182,18 @@ export function AttendanceMarker({ profile, events }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Verification failed");
+        toast.error(
+          `Face verification failed — ${data.error ?? "Could not verify your face."}`
+        );
         await supabase.storage.from("face-photos").remove([filename]);
         setVerifying(null);
         return;
       }
 
       if (!data.match) {
-        toast.error("Face not recognized. Please try again with better lighting.");
+        toast.error(
+          "Face verification failed — Your face was not recognized. Try again with better lighting, facing the camera."
+        );
         await supabase.storage.from("face-photos").remove([filename]);
         setVerifying(null);
         return;
@@ -186,6 +202,13 @@ export function AttendanceMarker({ profile, events }: Props) {
       const similarity = Number(data.similarity ?? 0);
       // Keep at least threshold when API said match (avoids float/rounding edge cases vs RLS >= 0.35)
       const similarityScore = data.match ? Math.max(similarity, 0.35) : similarity;
+
+      if (classroomExpectsWifi(event.classroom)) {
+        toast.error(`Wi‑Fi verification — ${WEB_ATTENDANCE_WIFI_BLOCKED}`);
+        await supabase.storage.from("face-photos").remove([filename]);
+        setVerifying(null);
+        return;
+      }
 
       const { error: dbErr } = await supabase.from("attendance_records").insert({
         student_id: profile.id,
@@ -201,7 +224,13 @@ export function AttendanceMarker({ profile, events }: Props) {
             "Attendance is already recorded for this class (present or marked absent by your instructor)."
           );
         } else {
-          toast.error("Could not save attendance: " + dbErr.message);
+          const msg = dbErr.message ?? "";
+          const looksLikeWifi = /wi-?fi|ssid|bssid/i.test(msg);
+          toast.error(
+            looksLikeWifi
+              ? `Wi‑Fi verification failed — ${msg}`
+              : `Could not save attendance — ${msg}`
+          );
         }
         setVerifying(null);
         return;
@@ -344,13 +373,20 @@ export function AttendanceMarker({ profile, events }: Props) {
                       />
                     </div>
                   ) : inWindow ? (
-                    <Button
-                      size="sm"
-                      className="mt-2 gap-1.5"
-                      onClick={() => openCameraFor(event.id)}
-                    >
-                      <Camera className="h-4 w-4" /> Mark Attendance
-                    </Button>
+                    classroomExpectsWifi(event.classroom) ? (
+                      <p className="pt-2 text-xs text-amber-800 dark:text-amber-200">
+                        This room requires Wi‑Fi verification with your face. Use the Planova mobile app
+                        on the class network — web cannot read your Wi‑Fi network.
+                      </p>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="mt-2 gap-1.5"
+                        onClick={() => openCameraFor(event.id)}
+                      >
+                        <Camera className="h-4 w-4" /> Mark Attendance
+                      </Button>
+                    )
                   ) : (
                     <p className="text-xs text-muted-foreground pt-2">
                       Attendance window not active
@@ -392,34 +428,34 @@ function AttendanceHistory({
     (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   );
 
-  const subjectOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        sortedPast.map((e) => e.student_group?.name ?? "Unknown subject")
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sortedPast]);
+  const subjectOptions = useMemo(
+    () => uniqueAttendanceSubjectLabels(sortedPast),
+    [sortedPast]
+  );
 
   const filteredPast = sortedPast.filter((event) => {
-    const subject = event.student_group?.name ?? "Unknown subject";
     const day = format(new Date(event.event_date), "yyyy-MM-dd");
 
-    if (subjectFilter !== "all" && subject !== subjectFilter) return false;
+    if (!eventMatchesAttendanceSubjectFilter(event, subjectFilter)) return false;
     if (dayFilter && day !== dayFilter) return false;
     return true;
   });
 
-  const totalPast = filteredPast.length;
-  const attended = filteredPast.filter((e) => isStudentPresent(attendanceMap[e.id])).length;
+  /** Overall rate uses every past class day, not the active subject/date filters. */
+  const overallPastTotal = sortedPast.length;
+  const overallPastAttended = sortedPast.filter((e) =>
+    isStudentPresent(attendanceMap[e.id])
+  ).length;
   const subjectSummary = useMemo(() => {
     const bucket = new Map<string, { total: number; attended: number }>();
 
     for (const event of sortedPast) {
-      const subject = event.student_group?.name ?? "Unknown subject";
-      const row = bucket.get(subject) ?? { total: 0, attended: 0 };
-      row.total += 1;
-      if (isStudentPresent(attendanceMap[event.id])) row.attended += 1;
-      bucket.set(subject, row);
+      for (const subject of attendanceSubjectLabelsForEvent(event)) {
+        const row = bucket.get(subject) ?? { total: 0, attended: 0 };
+        row.total += 1;
+        if (isStudentPresent(attendanceMap[event.id])) row.attended += 1;
+        bucket.set(subject, row);
+      }
     }
 
     return Array.from(bucket.entries())
@@ -444,17 +480,20 @@ function AttendanceHistory({
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-medium text-foreground">Overall Attendance</p>
             <span className="text-sm font-semibold text-primary">
-              {totalPast > 0 ? Math.round((attended / totalPast) * 100) : 0}%
+              {overallPastTotal > 0
+                ? Math.round((overallPastAttended / overallPastTotal) * 100)
+                : 0}
+              %
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {attended}/{totalPast} classes attended
+            {overallPastAttended}/{overallPastTotal} classes attended
           </p>
           <div className="mt-2 h-2 w-full rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-primary"
               style={{
-                width: `${totalPast > 0 ? Math.round((attended / totalPast) * 100) : 0}%`,
+                width: `${overallPastTotal > 0 ? Math.round((overallPastAttended / overallPastTotal) * 100) : 0}%`,
               }}
             />
           </div>
@@ -536,7 +575,7 @@ function AttendanceHistory({
               )}
               <span className="truncate flex-1">{event.title}</span>
               <span className="text-sm text-muted-foreground shrink-0">
-                {event.student_group?.name ?? "Unknown subject"}
+                {decodeCalendarRequestSubjects(event.subject).join(", ") || "—"}
               </span>
               <span className="text-sm text-muted-foreground shrink-0">
                 {format(new Date(event.event_date), "MMM d, yyyy")}

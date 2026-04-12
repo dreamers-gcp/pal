@@ -22,7 +22,11 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarRequest, Profile, AttendanceRecord } from "@/lib/types";
-import { decodeCalendarRequestSubjects } from "@/lib/calendar-request-subject";
+import {
+  decodeCalendarRequestSubjects,
+  eventMatchesAttendanceSubjectFilter,
+  uniqueAttendanceSubjectLabels,
+} from "@/lib/calendar-request-subject";
 import { AttendanceViewSkeleton } from "@/components/ui/loading-skeletons";
 
 interface Props {
@@ -189,11 +193,10 @@ export function AttendanceView({ profile }: Props) {
     }
   }
 
-  const subjectOptions = useMemo(() => {
-    return Array.from(
-      new Set(data.map((d) => d.event.student_group?.name ?? "Unknown subject"))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [data]);
+  const subjectOptions = useMemo(
+    () => uniqueAttendanceSubjectLabels(data.map((d) => d.event)),
+    [data]
+  );
 
   const filteredData = useMemo(() => {
     const now = new Date();
@@ -201,14 +204,13 @@ export function AttendanceView({ profile }: Props) {
 
     return data.filter(({ event, records, enrolledStudents }) => {
       const eventDate = event.event_date;
-      const subject = event.student_group?.name ?? "Unknown subject";
       const total = enrolledStudents.length;
       const attended = enrolledStudents.filter((s) =>
         records.some((r) => r.student_id === s.id && r.verified)
       ).length;
       const pct = total > 0 ? Math.round((attended / total) * 100) : 0;
 
-      if (subjectFilter !== "all" && subject !== subjectFilter) return false;
+      if (!eventMatchesAttendanceSubjectFilter(event, subjectFilter)) return false;
 
       if (quickFilter === "today") return eventDate === today;
       if (quickFilter === "upcoming") return eventDate > today;

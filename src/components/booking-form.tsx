@@ -559,9 +559,6 @@ export function BookingForm({
             loading={subjectsLoading}
             placeholder="Search and select subjects from enrollments"
           />
-          <p className="text-xs text-muted-foreground">
-            Distinct subjects from the student enrollment roster (admin CSV).
-          </p>
         </div>
 
         <fieldset className="space-y-3 rounded-lg border border-border/80 bg-muted/20 px-3 py-3">

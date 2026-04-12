@@ -29,6 +29,8 @@ async function postFaceEmbeddingRequest(
     name: "face.jpg",
     type: "image/jpeg",
   } as unknown as Blob);
+  /** RN often drops `Authorization` on multipart requests; API also reads `access_token`. */
+  if (opts.accessToken) form.append("access_token", opts.accessToken);
 
   const headers: Record<string, string> = {};
   if (opts.accessToken) headers.Authorization = `Bearer ${opts.accessToken}`;
@@ -101,6 +103,7 @@ export async function postFaceCompare(
     type: "image/jpeg",
   } as unknown as Blob);
   form.append("studentId", studentId);
+  form.append("access_token", accessToken);
 
   const headers: HeadersInit = {
     Authorization: `Bearer ${accessToken}`,

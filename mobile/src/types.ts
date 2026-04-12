@@ -55,6 +55,8 @@ export interface StudentGroup {
 export interface Classroom {
   id: string;
   name: string;
+  attendance_wifi_ssid?: string | null;
+  attendance_wifi_bssid?: string | null;
 }
 
 export interface CalendarRequest {

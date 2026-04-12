@@ -1,12 +1,15 @@
 import type { ExpoConfig } from "expo/config";
 
 /**
- * "Access WiFi Information" is only allowed on a **paid** Apple Developer team.
- * Free Personal Team → leave unset so Xcode can sign. iOS may still return null SSID/BSSID;
- * Android is unaffected.
+ * iOS SSID/BSSID need the "Access WiFi Information" entitlement (`wifi-info`).
+ * - Apple Developer → Identifiers → your App ID → enable **Access WiFi Information** → save.
+ * - Regenerate provisioning profiles (EAS does this when credentials are synced).
+ * - Rebuild the native app (`eas build` or `expo prebuild --clean && expo run:ios`).
  *
- * For paid team + EAS: set IOS_WIFI_INFO_ENTITLEMENT=1 (EAS env / .env) and enable the
- * capability on the App ID at developer.apple.com, then `npx expo prebuild --clean`.
+ * EAS profiles in `eas.json` set IOS_WIFI_INFO_ENTITLEMENT=1. For **local** `expo run:ios`
+ * without EAS, use `IOS_WIFI_INFO_ENTITLEMENT=1` in the environment (or `.env`) after the
+ * capability is enabled. Set `IOS_WIFI_INFO_ENTITLEMENT=0` if your signing profile cannot
+ * include this capability (e.g. some free / personal setups).
  */
 const iosWifiInfoEntitlementEnabled =
   process.env.IOS_WIFI_INFO_ENTITLEMENT === "1" ||
@@ -16,6 +19,11 @@ export default (): ExpoConfig => ({
   name: "PAL",
   slug: "pal-mobile",
   version: "1.0.0",
+  extra: {
+    eas: {
+      projectId: "cd94f770-d2ca-414a-86dc-a4a59319ae2f",
+    },
+  },
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",

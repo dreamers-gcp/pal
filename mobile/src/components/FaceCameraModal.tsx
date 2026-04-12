@@ -76,7 +76,8 @@ export function FaceCameraModal({
                   setTaking(true);
                   try {
                     const photo = await camRef.current.takePictureAsync({
-                      quality: 0.85,
+                      /** Lower size → faster native upload to Storage (still enough for face match). */
+                      quality: 0.72,
                       base64: true,
                       // Android: skipProcessing often yields a URI that multipart FormData
                       // fails to read, so /api/face/embedding gets no file ("Embedding request failed").

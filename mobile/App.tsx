@@ -1,3 +1,4 @@
+import NetInfo from "@react-native-community/netinfo";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
@@ -16,6 +17,11 @@ import { SignupScreen, SignupSuccessScreen } from "./src/screens/SignupScreen";
 import { theme } from "./src/theme";
 
 type AuthGate = "login" | "signup" | { kind: "signupSuccess"; email: string };
+
+/** iOS only fetches SSID/BSSID when this is set at startup (see NetInfo README). */
+if (Platform.OS === "ios" || Platform.OS === "android") {
+  NetInfo.configure({ shouldFetchWiFiSSID: true });
+}
 
 const styles = StyleSheet.create({
   center: {
