@@ -37,7 +37,8 @@ interface Props {
 }
 
 export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   const [embeddings, setEmbeddings] = useState<FaceEmbedding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -64,14 +65,26 @@ export function FaceRegistration({ studentId, onRegistrationComplete }: Props) {
   }
 
   const fetchEmbeddings = useCallback(async () => {
-    const { data } = await supabase
-      .from("face_embeddings")
-      .select("*")
-      .eq("student_id", studentId)
-      .order("created_at", { ascending: true });
-    setEmbeddings(data ?? []);
-    setLoading(false);
-  }, [studentId, supabase]);
+    try {
+      const { data, error } = await supabase
+        .from("face_embeddings")
+        .select("*")
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: true });
+      if (error) {
+        toast.error(`Could not load your face photos: ${error.message}`);
+        setEmbeddings([]);
+        return;
+      }
+      setEmbeddings(data ?? []);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Could not load your face photos: ${msg}`);
+      setEmbeddings([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId]);
 
   useEffect(() => {
     fetchEmbeddings();

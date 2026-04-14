@@ -42,12 +42,14 @@ import { AdminSportsRequestsScreen } from "./admin/AdminSportsRequestsScreen";
 import { ProfessorCalendarScreen } from "./professor/ProfessorCalendarScreen";
 import { ProfessorMyRequestsScreen } from "./professor/ProfessorMyRequestsScreen";
 import { ProfessorScriptScreen } from "./professor/ProfessorScriptScreen";
+import { ProfessorBleMeshScreen } from "./professor/ProfessorBleMeshScreen";
 import { SectionPlaceholderScreen } from "./SectionPlaceholderScreen";
 import { SportsRequestsScreen } from "./shared/SportsRequestsScreen";
 import { UserParcelsScreen } from "./shared/UserParcelsScreen";
 import { StudentCalendarScreen } from "./student/StudentCalendarScreen";
 import { StudentCampusScreen } from "./student/StudentCampusScreen";
 import { StudentAttendanceScreen } from "./student/StudentAttendanceScreen";
+import { StudentBleMeshScreen } from "./student/StudentBleMeshScreen";
 import { StudentEventsScreen } from "./student/StudentEventsScreen";
 import { StudentFaceRegistrationScreen } from "./student/StudentFaceRegistrationScreen";
 import { StudentGuestHouseScreen } from "./student/StudentGuestHouseScreen";
@@ -418,6 +420,8 @@ function studentHomeSubtitle(navId: string | null): string {
       return "Browse your month and agenda.";
     case "attendance":
       return "Mark attendance when you're on campus.";
+    case "ble-mesh":
+      return "Bluetooth mesh check-in when your instructor starts a session.";
     case "face-registration":
       return "Set up face capture for attendance.";
     case "tasks":
@@ -752,6 +756,9 @@ export function HomeScreen({ session }: { session: Session }) {
     if (profile.role === "student" && activeNavId === "attendance") {
       return <StudentAttendanceScreen profile={profile} />;
     }
+    if (profile.role === "student" && activeNavId === "ble-mesh") {
+      return <StudentBleMeshScreen profile={profile} />;
+    }
     if (profile.role === "student" && activeNavId === "face-registration") {
       return <StudentFaceRegistrationScreen profile={profile} onRegistered={loadProfile} />;
     }
@@ -777,6 +784,9 @@ export function HomeScreen({ session }: { session: Session }) {
       return (
         <ProfessorCalendarScreen profile={profile} onOpenNewRequest={openProfessorMyRequests} />
       );
+    }
+    if (profile.role === "professor" && activeNavId === "ble-mesh") {
+      return <ProfessorBleMeshScreen profile={profile} />;
     }
     if (profile.role === "professor" && activeNavId === "sports") {
       return <SportsRequestsScreen profile={profile} requesterRole="professor" />;

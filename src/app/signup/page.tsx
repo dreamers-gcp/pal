@@ -30,6 +30,7 @@ import {
 } from "@/lib/phone-normalize";
 import { SignupFaceCapture, type CapturedFace } from "@/components/signup-face-capture";
 import { toast } from "sonner";
+import { GoogleLogo } from "@/components/auth/google-logo";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "student", label: "Student" },
@@ -48,6 +49,7 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [faceCaptures, setFaceCaptures] = useState<CapturedFace[]>([]);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -60,6 +62,25 @@ export default function SignupPage() {
 
   const isStudent = role === "student";
   const faceReady = faceCaptures.length >= MIN_FACE_PHOTOS;
+
+  async function handleGoogleSignup() {
+    setError("");
+    setOauthLoading(true);
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/auth/callback?next=/auth/onboarding`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+      setOauthLoading(false);
+    }
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -230,6 +251,35 @@ export default function SignupPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleGoogleSignup()}
+            disabled={loading || oauthLoading}
+            className="w-full rounded-[8px] py-3 text-base font-medium"
+          >
+            {oauthLoading ? (
+              <>
+                <Loader2 className="mr-2 size-4 shrink-0 animate-spin" aria-hidden />
+                Redirecting to Google…
+              </>
+            ) : (
+              <>
+                <GoogleLogo className="mr-2 size-4 shrink-0" />
+                Continue with Google
+              </>
+            )}
+          </Button>
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border/80" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">
+                or sign up with email
+              </span>
+            </div>
+          </div>
           <form onSubmit={handleSignup} className="space-y-0" noValidate>
             <div className="space-y-4">
               <p className="text-xs font-semibold capitalize tracking-wide text-muted-foreground">
@@ -400,7 +450,7 @@ export default function SignupPage() {
             )}
             <Button
               type="submit"
-              disabled={loading || (isStudent && !faceReady)}
+              disabled={loading || oauthLoading || (isStudent && !faceReady)}
               className="mt-6 w-full rounded-[8px] bg-primary py-3 text-base font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 active:bg-primary/85 disabled:opacity-70"
             >
               {loading ? (

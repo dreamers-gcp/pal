@@ -106,7 +106,6 @@ import {
 import { AdminParcelManagement } from "@/components/parcels/admin-parcel-management";
 import { AdminOverviewDashboard } from "@/components/admin/admin-overview-dashboard";
 import { AdminRequestRoutingPanel } from "@/components/admin/admin-request-routing-panel";
-import { ClassroomWifiAttendancePanel } from "@/components/admin/classroom-wifi-attendance-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ADMIN_DASHBOARD_SECTIONS,
@@ -1819,8 +1818,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         </TabsContent>
 
         {/* ========== TIMETABLE TAB ========== */}
-        <TabsContent value="timetable" className="mt-6 space-y-10">
-          <ClassroomWifiAttendancePanel />
+        <TabsContent value="timetable" className="mt-6">
           <TimetableGenerator profile={profile} />
         </TabsContent>
 

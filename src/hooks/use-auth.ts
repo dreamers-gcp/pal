@@ -31,19 +31,19 @@ export function useAuth() {
         .from("profiles")
         .select("*")
         .eq("id", nextUser.id)
-        .single();
+        .maybeSingle();
 
       if (!mountedRef.current) return;
 
-      if (error || !data) {
+      if (error) {
         console.error("Failed to load profile", error);
-        setUser(null);
+        setUser(nextUser);
         setProfile(null);
         return;
       }
 
       setUser(nextUser);
-      setProfile(data);
+      setProfile(data ?? null);
     } catch (err) {
       if (!mountedRef.current) return;
       console.error("Unexpected profile load error", err);

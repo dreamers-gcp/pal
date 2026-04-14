@@ -21,6 +21,7 @@ import {
   authInputClassName,
 } from "@/components/auth/auth-shared";
 import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { GoogleLogo } from "@/components/auth/google-logo";
 
 function LoginBrandPanel() {
   return (
@@ -60,8 +61,27 @@ export default function LoginPage() {
   }>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  async function handleGoogleLogin() {
+    setError("");
+    setOauthLoading(true);
+    const redirectTo = `${window.location.origin}/auth/callback?next=/dashboard`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+      setOauthLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -125,6 +145,38 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="pt-2">
             <form onSubmit={handleLogin} className="space-y-4" noValidate>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleGoogleLogin()}
+                disabled={loading || oauthLoading}
+                className="w-full rounded-[8px] py-3 text-base font-medium"
+              >
+                {oauthLoading ? (
+                  <>
+                    <Loader2
+                      className="mr-2 size-4 shrink-0 animate-spin"
+                      aria-hidden
+                    />
+                    Redirecting to Google…
+                  </>
+                ) : (
+                  <>
+                    <GoogleLogo className="mr-2 size-4 shrink-0" />
+                    Continue with Google
+                  </>
+                )}
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border/80" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    or use email
+                  </span>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -192,7 +244,7 @@ export default function LoginPage() {
               )}
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || oauthLoading}
                 className="w-full rounded-[8px] bg-primary py-3 text-base font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 active:bg-primary/85 disabled:opacity-70"
               >
                 {loading ? (

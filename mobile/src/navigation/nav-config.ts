@@ -13,6 +13,7 @@ export const STUDENT_NAV: NavEntry[] = [
   { type: "link", id: "events", label: "Events" },
   { type: "link", id: "calendar", label: "Calendar" },
   { type: "link", id: "attendance", label: "Attendance" },
+  { type: "link", id: "ble-mesh", label: "BLE mesh" },
   { type: "link", id: "face-registration", label: "Face registration" },
   { type: "link", id: "tasks", label: "Task Tracker" },
   { type: "link", id: "guest-house", label: "Guest House Requests" },
@@ -25,6 +26,7 @@ export const STUDENT_NAV: NavEntry[] = [
 export const PROFESSOR_NAV: NavEntry[] = [
   { type: "link", id: "my-requests", label: "My Requests" },
   { type: "link", id: "calendar", label: "Calendar" },
+  { type: "link", id: "ble-mesh", label: "BLE attendance" },
   { type: "link", id: "sports", label: "Sports Requests" },
   { type: "link", id: "parcels", label: "Parcels" },
   { type: "link", id: "script-evaluation", label: "Script evaluation" },

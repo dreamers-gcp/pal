@@ -40,6 +40,11 @@ export default (): ExpoConfig => ({
     infoPlist: {
       NSLocationWhenInUseUsageDescription:
         "PAL uses your location permission (required by the system) to read the Wi‑Fi network name when you mark attendance.",
+      NSBluetoothAlwaysUsageDescription:
+        "PAL uses Bluetooth for optional in-room attendance sessions (professor beacon and relays).",
+      NSBluetoothPeripheralUsageDescription:
+        "PAL can advertise a short attendance session code to nearby enrolled students over Bluetooth.",
+      UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral"],
     },
     ...(iosWifiInfoEntitlementEnabled
       ? {
@@ -61,12 +66,24 @@ export default (): ExpoConfig => ({
       "ACCESS_FINE_LOCATION",
       "ACCESS_COARSE_LOCATION",
       "ACCESS_WIFI_STATE",
+      "android.permission.BLUETOOTH",
+      "android.permission.BLUETOOTH_ADMIN",
+      "android.permission.BLUETOOTH_SCAN",
+      "android.permission.BLUETOOTH_CONNECT",
+      "android.permission.BLUETOOTH_ADVERTISE",
     ],
   },
   web: {
     favicon: "./assets/favicon.png",
   },
   plugins: [
+    [
+      "react-native-ble-plx",
+      {
+        /** BLE mesh beacons are not used for location; avoids tying scan to location on API 31+. */
+        neverForLocation: true,
+      },
+    ],
     "@react-native-community/datetimepicker",
     [
       "expo-camera",

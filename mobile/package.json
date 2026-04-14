@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start",
     "start:dev-client": "expo start --dev-client",
     "start:lan:dev-client": "expo start --lan --dev-client",
@@ -39,11 +40,14 @@
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-ble-advertiser": "0.0.17",
+    "react-native-ble-plx": "^3.5.1",
     "react-native-safe-area-context": "~5.6.0"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",
     "@types/react": "~19.1.0",
+    "patch-package": "^8.0.0",
     "typescript": "~5.9.2"
   },
   "private": true

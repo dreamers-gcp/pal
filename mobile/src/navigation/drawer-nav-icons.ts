@@ -9,6 +9,7 @@ export const DRAWER_NAV_ICON: Partial<Record<string, keyof typeof Ionicons.glyph
   events: "today-outline",
   calendar: "calendar-outline",
   attendance: "finger-print-outline",
+  "ble-mesh": "bluetooth-outline",
   "face-registration": "scan-outline",
   tasks: "checkbox-outline",
   "guest-house": "bed-outline",

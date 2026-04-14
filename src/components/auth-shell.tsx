@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { PlanovaWordmark } from "@/components/planova-wordmark";
 
-export function AuthShell({ children }: { children: React.ReactNode }) {
+interface AuthShellProps {
+  children: React.ReactNode;
+  /** Override the default "Back to home" link in the top-right corner. */
+  headerActions?: React.ReactNode;
+}
+
+export function AuthShell({ children, headerActions }: AuthShellProps) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white">
@@ -13,12 +19,14 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           >
             <PlanovaWordmark decorative size="md" />
           </Link>
-          <Link
-            href="/"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Back to home
-          </Link>
+          {headerActions ?? (
+            <Link
+              href="/"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Back to home
+            </Link>
+          )}
         </div>
       </header>
       <div className="flex flex-1 items-center justify-center px-4 py-12">
