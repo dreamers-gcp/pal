@@ -36,9 +36,16 @@ export default function TermsPage() {
         <Section title="1. Eligibility">
           <p>
             The Nucleus is intended for use by enrolled students, faculty, professors, and authorised staff of
-            participating colleges and universities. You must be at least 13 years of age
-            (or the minimum digital consent age in your jurisdiction) to use the platform. If your school has
-            made The Nucleus available to minors under 18, parental or guardian consent is required.
+            participating colleges and universities that have enabled or authorised use of the platform. You must
+            be at least 13 years of age (or the minimum digital consent age in your jurisdiction) to use the platform.
+            If your school has made The Nucleus available to minors under 18, parental or guardian consent is required
+            where applicable law demands it.
+          </p>
+          <p className="mt-3">
+            Your use of the platform may also be subject to separate agreements between {COMPANY_NAME} and your
+            educational institution (for example, deployment, support, or data-processing terms). Where those
+            agreements impose stricter rules, they apply to the extent they do not conflict with mandatory consumer
+            protection law.
           </p>
         </Section>
 
@@ -54,11 +61,22 @@ export default function TermsPage() {
           </p>
           <p className="mt-3">
             You agree to provide accurate, current, and complete information during registration and to keep your
-            profile up to date. Accounts found to contain false information may be suspended without notice.
+            profile up to date.             Accounts found to contain false or misleading information, or accounts used without proper authorisation,
+            may be suspended or terminated.
           </p>
         </Section>
 
-        <Section title="3. Biometric Data and Face Recognition">
+        <Section title="3. Institutional responsibility">
+          <p>
+            Educational institutions that deploy or authorise the platform are responsible for ensuring lawful
+            collection and use of student and staff data, for obtaining any consents required under applicable law
+            (including for minors), and for compliance with applicable data protection and sector rules. {COMPANY_NAME}{" "}
+            provides the software and related services; your institution remains responsible for its own policies and
+            for how it configures academic or disciplinary processes that rely on platform outputs.
+          </p>
+        </Section>
+
+        <Section title="4. Biometric Data and Face Recognition">
           <p>
             The Nucleus collects facial photographs and generates mathematical representations of your facial
             geometry for the purpose of verifying student identity during attendance marking.
@@ -70,13 +88,18 @@ export default function TermsPage() {
             <li>Comparison of your face against stored biometric templates during attendance sessions.</li>
           </ul>
           <p className="mt-3">
+            Biometric data is used solely for identity verification in connection with the platform. It is not sold,
+            rented, or used for unrelated commercial purposes.
+          </p>
+          <p className="mt-3">
             You may withdraw your biometric consent at any time by deleting your face registration from the app
             settings or by contacting us at {CONTACT_EMAIL}. Upon withdrawal, all stored facial photographs and
-            biometric data associated with your account will be permanently deleted within 30 days.
+            biometric data associated with your account will be permanently deleted within 30 days, except where
+            retention is required by law.
           </p>
         </Section>
 
-        <Section title="4. Camera and Device Permissions">
+        <Section title="5. Camera and Device Permissions">
           <p>
             The app requests access to your device camera solely for face registration and attendance verification.
             The app does not record continuous video, access your photo library, or capture images outside of
@@ -84,7 +107,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="5. Location Data">
+        <Section title="6. Location Data">
           <p>
             The app may request access to your device location to assist with Wi-Fi network based attendance
             verification (confirming you are on campus). Location data is used only for in-session attendance
@@ -92,7 +115,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="6. Acceptable Use">
+        <Section title="7. Acceptable Use">
           <p>You agree not to:</p>
           <ul className="mt-3 list-disc pl-6 space-y-2">
             <li>Register facial data of any person other than yourself.</li>
@@ -107,7 +130,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="7. Intellectual Property">
+        <Section title="8. Intellectual Property">
           <p>
             The Nucleus platform, including its software, design, and content, is owned by {COMPANY_NAME} and
             is protected by applicable intellectual property laws. You are granted a limited, non-exclusive,
@@ -117,7 +140,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="8. Availability and Modifications">
+        <Section title="9. Availability and Modifications">
           <p>
             We aim to maintain high availability but do not guarantee uninterrupted service. We reserve the
             right to modify, suspend, or discontinue any feature at any time with reasonable notice where
@@ -126,35 +149,53 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="9. Disclaimers">
+        <Section title="10. Accuracy and automated systems">
           <p>
-            The platform is provided &quot;as is&quot; and &quot;as available&quot; without warranties of any
-            kind, express or implied. {COMPANY_NAME} does not warrant that the face recognition system will be
-            100% accurate, and it should not be used as the sole basis for academic disciplinary action without
-            corroborating evidence.
+            The platform uses automated systems, including facial recognition, which may not be fully accurate in all
+            lighting, pose, or environmental conditions. Outputs should not be used as the sole basis for disciplinary
+            or academic decisions without appropriate human review and corroborating evidence, in line with your
+            institution&apos;s policies.
           </p>
         </Section>
 
-        <Section title="10. Limitation of Liability">
+        <Section title="11. Disclaimers">
+          <p>
+            The platform is provided &quot;as is&quot; and &quot;as available&quot; without warranties of any
+            kind, express or implied, except where such exclusions are prohibited by law.
+          </p>
+        </Section>
+
+        <Section title="12. Limitation of Liability">
           <p>
             To the maximum extent permitted by applicable law, {COMPANY_NAME} and its affiliates shall not be
             liable for any indirect, incidental, special, consequential, or punitive damages arising from your
             use of the platform, including but not limited to loss of data, missed attendance records, or
-            academic consequences. Our total aggregate liability for any claim shall not exceed the amount paid
-            by the fees paid for the service in the twelve months preceding the claim.
+            academic consequences. Our total aggregate liability for any claim shall not exceed the fees paid for
+            the service in the twelve months preceding the claim.
           </p>
         </Section>
 
-        <Section title="11. Data Deletion and Account Termination">
+        <Section title="13. Indemnity">
+          <p>
+            To the maximum extent permitted by applicable law, you agree to indemnify and hold harmless {COMPANY_NAME}{" "}
+            and its affiliates, officers, and contractors from any claims, damages, losses, or expenses (including
+            reasonable legal fees) arising out of: your misuse of the platform; your violation of these Terms; or your
+            violation of applicable laws or your educational institution&apos;s policies, in each case except to the
+            extent caused by our wilful misconduct or gross negligence.
+          </p>
+        </Section>
+
+        <Section title="14. Data Deletion and Account Termination">
           <p>
             You may request deletion of your account and all associated data (including biometric data) at any
             time by contacting us at {CONTACT_EMAIL} or using the delete-account option in app settings. Data
             will be permanently erased within 30 days of a confirmed deletion request, except where retention is
-            required by law. We may terminate accounts that violate these Terms.
+            required by law. We may suspend or terminate accounts that violate these Terms, for security reasons, or
+            where required by law or by an institution we reasonably believe is authorised to request suspension.
           </p>
         </Section>
 
-        <Section title="12. Governing Law">
+        <Section title="15. Governing Law">
           <p>
             These Terms are governed by the laws of India. Any disputes arising from these Terms shall be
             subject to the exclusive jurisdiction of the courts located in the place of {COMPANY_NAME}&apos;s
@@ -163,7 +204,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="13. Contact">
+        <Section title="16. Contact">
           <p>
             Questions about these Terms may be directed to:{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary underline underline-offset-2">

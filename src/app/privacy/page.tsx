@@ -63,10 +63,19 @@ export default function PrivacyPage() {
           </ul>
           <p className="mt-3">
             Biometric data is processed exclusively for the purpose of identity verification during attendance
-            sessions. It is never used for advertising, profiling, or sold to any third party.
+            sessions. It is encrypted and access-controlled, is not used for advertising or unrelated profiling, is not
+            used to build individual-level marketing or analytics profiles, and is not sold to any third party.
           </p>
 
-          <Subheading>1.3 Device Permissions</Subheading>
+          <Subheading>1.3 Identity documents (when required by your institution)</Subheading>
+          <p>
+            Where an educational institution configures the platform to collect identity documents (for example,
+            government-issued identification or a student ID card), we process that information only for identity
+            verification and fraud prevention as directed by the institution. Such documents are stored with restricted
+            access and are not used for advertising.
+          </p>
+
+          <Subheading>1.4 Device Permissions</Subheading>
           <ul className="mt-2 list-disc pl-6 space-y-1">
             <li>
               <strong className="text-foreground">Camera</strong> — used only during explicit user-initiated face
@@ -83,7 +92,7 @@ export default function PrivacyPage() {
             </li>
           </ul>
 
-          <Subheading>1.4 Usage Data</Subheading>
+          <Subheading>1.5 Usage Data</Subheading>
           <p>
             We collect standard server logs (IP address, device type, OS version, app version, timestamps) for
             security monitoring and debugging. These are retained for 90 days and then deleted.
@@ -94,6 +103,10 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-6 space-y-2">
             <li>Authenticate you and manage your account session.</li>
             <li>Verify your identity during attendance marking using your stored face profile data.</li>
+            <li>
+              Verify identity using documents or checks your institution enables, where applicable, and detect or
+              prevent fraudulent account activity.
+            </li>
             <li>Display your schedule, exam timetable, and campus calendar.</li>
             <li>Send important account notifications (e.g. email confirmation, password reset).</li>
             <li>Comply with legal obligations and prevent fraudulent activity.</li>
@@ -137,12 +150,22 @@ export default function PrivacyPage() {
               your name and email; Google does not receive your biometric data.
             </li>
             <li>
-              <strong className="text-foreground">Your school</strong> — aggregate, non-biometric attendance records
-              (such as present or absent counts) may be shared with authorised staff at your college or university for
-              academic purposes.
+              <strong className="text-foreground">Your school</strong> — attendance outcomes and related academic
+              records (for example, present or absent status tied to classes) may be visible to authorised staff at
+              your college or university for academic administration. We do not provide raw biometric photographs or
+              numerical face templates to institutions for unrelated commercial use; processing of such data remains
+              governed by this policy and your consent.
             </li>
           </ul>
           <p className="mt-3">We do not sell, rent, or trade personal data to any third party for commercial purposes.</p>
+          <h3 className="font-semibold text-foreground mt-8 mb-1">Institutional deployment</h3>
+          <p className="mt-2">
+            When the platform is deployed or sponsored by an educational institution, the institution determines how
+            attendance and academic records are used within its own policies. The institution is responsible for
+            obtaining any consents required under applicable law (including for minors) before students or staff use
+            certain features. {COMPANY_NAME} processes personal data to provide the services configured on the platform
+            and as described in this policy.
+          </p>
         </Section>
 
         <Section title="5. Data Retention">
@@ -162,7 +185,8 @@ export default function PrivacyPage() {
             We implement industry-standard safeguards: TLS encryption in transit, AES-256 encryption at rest for
             stored files, row-level security policies on all database tables, and short-lived signed URLs for
             accessing stored photos. Access to biometric data is restricted to authenticated requests from your
-            own account and authorised backend services.
+            own account and authorised backend services. We maintain access logs for privileged operations where
+            technically feasible and conduct periodic internal reviews of security configuration and access patterns.
           </p>
           <p className="mt-3">
             No method of transmission or storage is 100% secure. In the event of a personal data breach that is
@@ -262,8 +286,9 @@ export default function PrivacyPage() {
             cooperate with the Board as required by law.
           </p>
           <p className="mt-3 text-sm text-muted-foreground">
-            Cross-border transfers of personal data, where they occur, will follow restrictions and conditions notified
-            under the DPDPA and related rules from time to time.
+            Where personal data is stored or processed outside India, such processing will follow restrictions and
+            conditions notified under the DPDPA and related rules from time to time, including any requirements for
+            transfers to trusted jurisdictions or contractual safeguards.
           </p>
         </Section>
       </main>
@@ -306,6 +331,12 @@ function DataTable() {
       purpose: "Attendance verification",
       sensitive: "Yes — explicit consent",
       retention: "Until you withdraw consent or delete your account (then erased within 30 days)",
+    },
+    {
+      data: "Identity documents (if your institution collects them)",
+      purpose: "Identity verification and fraud prevention",
+      sensitive: "Yes — per institution process",
+      retention: "As required for the purpose or by law; deleted or minimised when no longer needed",
     },
     {
       data: "Camera (live preview)",

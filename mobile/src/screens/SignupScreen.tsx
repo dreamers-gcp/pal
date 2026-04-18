@@ -16,7 +16,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FaceBiometricConsentModal } from "../components/FaceBiometricConsentModal";
 import { FaceCameraModal, type FaceCaptureResult } from "../components/FaceCameraModal";
+import { useFaceBiometricConsentGate } from "../hooks/useFaceBiometricConsentGate";
 import { NucleusWordmark } from "../components/NucleusWordmark";
 import type { Session } from "@supabase/supabase-js";
 import { getPalApiBaseUrl } from "../lib/config";
@@ -118,6 +120,8 @@ export function SignupScreen(props: SignupScreenProps) {
   const [role, setRole] = useState<UserRole>("student");
   const [faceCaptures, setFaceCaptures] = useState<SignupFaceCapture[]>([]);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const { consentVisible, requestCameraAccess, onConsentAgree, onConsentDecline } =
+    useFaceBiometricConsentGate();
   const [faceBusy, setFaceBusy] = useState(false);
   const [lastFaceError, setLastFaceError] = useState<string | null>(null);
 
@@ -763,7 +767,7 @@ export function SignupScreen(props: SignupScreenProps) {
               ) : canAddFace ? (
                 <Pressable
                   style={[styles.outlineBtn, !apiOk && styles.outlineBtnDisabled]}
-                  onPress={() => apiOk && setCameraOpen(true)}
+                  onPress={() => apiOk && requestCameraAccess(() => setCameraOpen(true))}
                   disabled={
                     !apiOk || loading || oauthLoading || (!isEmail && oauthBootstrapping)
                   }
@@ -845,6 +849,11 @@ export function SignupScreen(props: SignupScreenProps) {
         </View>
       </ScrollView>
 
+      <FaceBiometricConsentModal
+        visible={consentVisible}
+        onClose={onConsentDecline}
+        onAgree={onConsentAgree}
+      />
       <FaceCameraModal
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}

@@ -10,7 +10,9 @@ import {
   View,
 } from "react-native";
 import { DatePickerField } from "../../components/DatePickerField";
+import { FaceBiometricConsentModal } from "../../components/FaceBiometricConsentModal";
 import { FaceCameraModal, type FaceCaptureResult } from "../../components/FaceCameraModal";
+import { useFaceBiometricConsentGate } from "../../hooks/useFaceBiometricConsentGate";
 import { SelectModal, type SelectOption } from "../../components/SelectModal";
 import { postFaceCompare } from "../../lib/face-api";
 import {
@@ -272,6 +274,8 @@ export function StudentAttendanceScreen({ profile }: Props) {
   const [faceRegistered, setFaceRegistered] = useState(profile.face_registered);
   const [verifyingEventId, setVerifyingEventId] = useState<string | null>(null);
   const [cameraForEventId, setCameraForEventId] = useState<string | null>(null);
+  const { consentVisible, requestCameraAccess, onConsentAgree, onConsentDecline } =
+    useFaceBiometricConsentGate();
   const [refreshing, setRefreshing] = useState(false);
   const [wifiSnap, setWifiSnap] = useState<WifiAttendanceSnapshot>({
     wifi_ssid: null,
@@ -614,7 +618,9 @@ export function StudentAttendanceScreen({ profile }: Props) {
               {!present && !profAbsent && inWindow && !verifying ? (
                 <Pressable
                   style={[styles.markBtn, !apiConfigured && styles.btnDisabled]}
-                  onPress={() => apiConfigured && setCameraForEventId(event.id)}
+                  onPress={() =>
+                    apiConfigured && requestCameraAccess(() => setCameraForEventId(event.id))
+                  }
                   disabled={!apiConfigured}
                 >
                   <Text style={styles.markBtnText}>Mark attendance</Text>
@@ -630,6 +636,11 @@ export function StudentAttendanceScreen({ profile }: Props) {
 
       <StudentAttendanceHistory events={events} attendanceMap={attendanceMap} />
 
+      <FaceBiometricConsentModal
+        visible={consentVisible}
+        onClose={onConsentDecline}
+        onAgree={onConsentAgree}
+      />
       <FaceCameraModal
         visible={cameraForEventId !== null}
         onClose={() => setCameraForEventId(null)}

@@ -8,7 +8,9 @@ import {
   Text,
   View,
 } from "react-native";
+import { FaceBiometricConsentModal } from "../../components/FaceBiometricConsentModal";
 import { FaceCameraModal, type FaceCaptureResult } from "../../components/FaceCameraModal";
+import { useFaceBiometricConsentGate } from "../../hooks/useFaceBiometricConsentGate";
 import { RefreshableScrollView } from "../../components/RefreshableScrollView";
 import { postFaceEmbedding } from "../../lib/face-api";
 import {
@@ -72,6 +74,8 @@ export function StudentFaceRegistrationScreen({ profile, onRegistered }: Props) 
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const { consentVisible, requestCameraAccess, onConsentAgree, onConsentDecline } =
+    useFaceBiometricConsentGate();
 
   const apiConfigured = Boolean(getPalApiBaseUrl());
 
@@ -261,7 +265,7 @@ export function StudentFaceRegistrationScreen({ profile, onRegistered }: Props) 
       {embeddings.length < FACE_REGISTRATION_MAX_PHOTOS && !uploading ? (
         <Pressable
           style={[styles.primaryBtn, !apiConfigured && styles.btnDisabled]}
-          onPress={() => apiConfigured && setCameraOpen(true)}
+          onPress={() => apiConfigured && requestCameraAccess(() => setCameraOpen(true))}
           disabled={!apiConfigured}
         >
           <Text style={styles.primaryBtnText}>
@@ -270,6 +274,11 @@ export function StudentFaceRegistrationScreen({ profile, onRegistered }: Props) 
         </Pressable>
       ) : null}
 
+      <FaceBiometricConsentModal
+        visible={consentVisible}
+        onClose={onConsentDecline}
+        onAgree={onConsentAgree}
+      />
       <FaceCameraModal
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}

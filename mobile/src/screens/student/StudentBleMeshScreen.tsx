@@ -13,7 +13,9 @@ import {
 } from "react-native";
 import { State } from "react-native-ble-plx";
 import type { PostgrestError } from "@supabase/supabase-js";
+import { FaceBiometricConsentModal } from "../../components/FaceBiometricConsentModal";
 import { FaceCameraModal, type FaceCaptureResult } from "../../components/FaceCameraModal";
+import { useFaceBiometricConsentGate } from "../../hooks/useFaceBiometricConsentGate";
 import { getPalApiBaseUrl } from "../../lib/config";
 import { postFaceCompare } from "../../lib/face-api";
 import { PAL_MESH_MAX_HOP } from "../../lib/ble-mesh-constants";
@@ -54,6 +56,8 @@ export function StudentBleMeshScreen({ profile }: Props) {
   const [discoveries, setDiscoveries] = useState<Discovery[]>([]);
   const [verifying, setVerifying] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const { consentVisible, requestCameraAccess, onConsentAgree, onConsentDecline } =
+    useFaceBiometricConsentGate();
   const [relaying, setRelaying] = useState(false);
   const [verifiedHop, setVerifiedHop] = useState<number | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
@@ -368,7 +372,7 @@ export function StudentBleMeshScreen({ profile }: Props) {
             <Pressable
               style={[styles.btnPrimary, (verifying || !apiOk) && styles.btnDisabled]}
               disabled={verifying || !apiOk}
-              onPress={() => setCameraOpen(true)}
+              onPress={() => requestCameraAccess(() => setCameraOpen(true))}
             >
               {verifying ? (
                 <ActivityIndicator color={theme.primaryForeground} />
@@ -405,6 +409,11 @@ export function StudentBleMeshScreen({ profile }: Props) {
         </View>
       ) : null}
 
+      <FaceBiometricConsentModal
+        visible={consentVisible}
+        onClose={onConsentDecline}
+        onAgree={onConsentAgree}
+      />
       <FaceCameraModal
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}
