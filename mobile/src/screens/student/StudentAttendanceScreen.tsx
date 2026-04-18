@@ -543,7 +543,7 @@ export function StudentAttendanceScreen({ profile }: Props) {
       {!apiConfigured ? (
         <View style={styles.warn}>
           <Text style={styles.warnText}>
-            Set EXPO_PUBLIC_PAL_API_URL to your Planova web URL (for /api/face/compare).
+            Set EXPO_PUBLIC_PAL_API_URL to your The Nucleus web URL (for /api/face/compare).
           </Text>
         </View>
       ) : null}

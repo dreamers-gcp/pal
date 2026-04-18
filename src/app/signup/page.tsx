@@ -23,7 +23,7 @@ import {
   PasswordStrengthBar,
   authInputClassName,
 } from "@/components/auth/auth-shared";
-import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { NucleusWordmark } from "@/components/nucleus-wordmark";
 import {
   normalizeTenDigitMobile,
   mobileFieldError,
@@ -212,7 +212,11 @@ export default function SignupPage() {
         <Card className="w-full max-w-md border-foreground/10 shadow-md">
           <CardHeader className="space-y-4 text-center">
             <div className="mx-auto flex justify-center">
-              <PlanovaWordmark size="lg" />
+              <NucleusWordmark
+                size="lg"
+                align="center"
+                tagline="You’re one step from the center of your campus workflow."
+              />
             </div>
             <div>
               <CardTitle className="text-2xl">Check your email</CardTitle>
@@ -241,12 +245,16 @@ export default function SignupPage() {
       <Card className="w-full max-w-md border-foreground/10 shadow-md">
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto flex justify-center">
-            <PlanovaWordmark size="lg" />
+            <NucleusWordmark
+              size="lg"
+              align="center"
+              tagline="Where your whole campus aligns—one hub, one source of truth."
+            />
           </div>
           <div>
             <CardTitle className="text-2xl">Create your account</CardTitle>
             <CardDescription className="mt-1.5">
-              Join Planova to manage your calendar
+              Join The Nucleus to manage your calendar
             </CardDescription>
           </div>
         </CardHeader>

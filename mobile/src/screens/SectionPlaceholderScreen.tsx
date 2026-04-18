@@ -23,7 +23,7 @@ export function SectionPlaceholderScreen({
       <Text style={styles.body}>{description}</Text>
       {webBase ? (
         <Pressable style={styles.btn} onPress={openDashboard}>
-          <Text style={styles.btnText}>Open in Planova (browser)</Text>
+          <Text style={styles.btnText}>Open The Nucleus (browser)</Text>
         </Pressable>
       ) : (
         <Text style={styles.muted}>Set EXPO_PUBLIC_PAL_API_URL in mobile/.env</Text>

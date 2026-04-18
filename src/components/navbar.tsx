@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, LayoutDashboard, Menu, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNotifications, NotificationList } from "@/components/notifications";
 import { cn } from "@/lib/utils";
-import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { NucleusWordmark } from "@/components/nucleus-wordmark";
 import { Button } from "@/components/ui/button";
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -110,7 +110,7 @@ export function Navbar() {
   const logoLink = (
     <Link
       href="/"
-      aria-label="Planova home"
+      aria-label="The Nucleus home"
       className={cn(
         "flex items-center gap-2 no-underline text-foreground transition-opacity hover:opacity-85",
         dashboardDesktopNav
@@ -118,7 +118,7 @@ export function Navbar() {
           : "shrink-0 justify-center"
       )}
     >
-      <PlanovaWordmark
+      <NucleusWordmark
         decorative
         rail={dashboardDesktopNav && !dashRailWide}
         size="md"

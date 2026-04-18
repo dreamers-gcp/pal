@@ -2,7 +2,7 @@
 
 /* Calendar container */
 .rbc-calendar {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Toolbar: title + nav + view buttons */

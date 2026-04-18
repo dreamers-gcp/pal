@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { NucleusWordmark } from "@/components/nucleus-wordmark";
 
 interface AuthShellProps {
   children: React.ReactNode;
@@ -14,10 +14,10 @@ export function AuthShell({ children, headerActions }: AuthShellProps) {
         <div className="mx-auto flex h-16 max-w-[1100px] items-center justify-between px-[clamp(1.5rem,5vw,4rem)]">
           <Link
             href="/"
-            aria-label="Planova home"
+            aria-label="The Nucleus home"
             className="flex items-center gap-2 no-underline text-foreground transition-opacity hover:opacity-90"
           >
-            <PlanovaWordmark decorative size="md" />
+            <NucleusWordmark decorative size="md" />
           </Link>
           {headerActions ?? (
             <Link

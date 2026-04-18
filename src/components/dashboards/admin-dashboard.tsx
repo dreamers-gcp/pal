@@ -950,7 +950,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
           )}
         >
       <div>
-              <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
                 Admin Dashboard
               </h1>
               <p className="mt-1 text-muted-foreground">
@@ -1825,7 +1825,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         {isSuperAdmin ? (
           <TabsContent value="admin-request-routing" className="mt-6">
             <div className="mb-4">
-              <h2 className="font-display text-xl font-normal tracking-tight text-foreground">
+              <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
                 Admin Access
               </h2>
             </div>

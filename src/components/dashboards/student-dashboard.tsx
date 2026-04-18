@@ -747,7 +747,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           )}
         >
       <div>
-              <h1 className="font-display text-2xl font-normal tracking-tight text-foreground break-words sm:text-3xl">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
                 {greeting}, {profile.full_name}!
               </h1>
       </div>

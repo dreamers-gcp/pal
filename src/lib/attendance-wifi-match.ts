@@ -61,4 +61,4 @@ export function matchStudentWifiToClassroom(
 }
 
 export const WEB_ATTENDANCE_WIFI_BLOCKED =
-  "This class requires Wi‑Fi verification. Mark attendance from the Planova mobile app on the room network.";
+  "This class requires Wi‑Fi verification. Mark attendance from The Nucleus mobile app on the room network.";

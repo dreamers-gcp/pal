@@ -1,4 +1,4 @@
-/** Planova branding accent for this feature */
+/** The Nucleus branding accent for this feature */
 export const AE_TEAL = "#01696f";
 export const AE_TEAL_FG = "#ffffff";
 export const AE_TEAL_MUTED = "color-mix(in oklch, #01696f 12%, transparent)";

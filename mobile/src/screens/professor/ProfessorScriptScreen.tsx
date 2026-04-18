@@ -15,12 +15,12 @@ export function ProfessorScriptScreen() {
     <View style={styles.box}>
       <Text style={styles.title}>Script evaluation</Text>
       <Text style={styles.body}>
-        Uploads, rubrics, and marking workflows match the web professor dashboard. Open Planova in
+        Uploads, rubrics, and marking workflows match the web professor dashboard. Open The Nucleus in
         your browser to use script evaluation with the full UI.
       </Text>
       {webBase ? (
         <Pressable onPress={open} style={styles.btn}>
-          <Text style={styles.btnText}>Open Planova</Text>
+          <Text style={styles.btnText}>Open The Nucleus</Text>
         </Pressable>
       ) : (
         <Text style={styles.warn}>Set EXPO_PUBLIC_PAL_API_URL in .env</Text>

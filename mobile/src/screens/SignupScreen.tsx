@@ -1,3 +1,4 @@
+import { GoogleLogo } from "../components/GoogleLogo";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -16,9 +17,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FaceCameraModal, type FaceCaptureResult } from "../components/FaceCameraModal";
-import { PlanovaWordmark } from "../components/PlanovaWordmark";
+import { NucleusWordmark } from "../components/NucleusWordmark";
+import type { Session } from "@supabase/supabase-js";
 import { getPalApiBaseUrl } from "../lib/config";
-import { postFaceEmbeddingForSignup } from "../lib/face-api";
+import { signInWithGoogleOAuth } from "../lib/google-oauth";
+import { postFaceEmbedding, postFaceEmbeddingForSignup } from "../lib/face-api";
 import {
   cosineSimilarity,
   FACE_REGISTRATION_MATCH_THRESHOLD,
@@ -47,13 +50,21 @@ export type SignupFaceCapture = {
 
 type SignupFaceSavePayload = { embedding: number[]; data: ArrayBuffer };
 
-type Props = {
-  onGoLogin: () => void;
-  /** When signup succeeds without an active session (e.g. email confirmation required). */
-  onSignupSuccessNoSession: (email: string) => void;
-};
+export type SignupScreenProps =
+  | {
+      variant?: "email";
+      onGoLogin: () => void;
+      onSignupSuccessNoSession: (email: string) => void;
+    }
+  | {
+      variant: "oauthProfile";
+      session: Session;
+      onComplete: () => void;
+    };
 
-export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
+export function SignupScreen(props: SignupScreenProps) {
+  const isEmail = props.variant !== "oauthProfile";
+  const oauthSession = !isEmail ? props.session : null;
   const insets = useSafeAreaInsets();
   const mounted = useRef(true);
   useEffect(() => {
@@ -62,6 +73,40 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
       mounted.current = false;
     };
   }, []);
+
+  const [oauthBootstrapping, setOauthBootstrapping] = useState(!isEmail);
+  const [oauthProfileMissing, setOauthProfileMissing] = useState(false);
+
+  useEffect(() => {
+    if (isEmail || !oauthSession) {
+      setOauthBootstrapping(false);
+      setOauthProfileMissing(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = getSupabase();
+      const sess = oauthSession;
+      const userId = sess.user.id;
+      const meta = (sess.user.user_metadata ?? {}) as Record<string, unknown>;
+      const nameHint = String(meta.full_name ?? meta.name ?? "");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, mobile_phone, role")
+        .eq("id", userId)
+        .maybeSingle();
+      if (cancelled) return;
+      setOauthProfileMissing(!profile);
+      setFullName(String(profile?.full_name ?? nameHint ?? ""));
+      setMobile(String(profile?.mobile_phone ?? ""));
+      setRole(((profile?.role as UserRole) ?? "student") as UserRole);
+      setEmail(sess.user.email ?? "");
+      setOauthBootstrapping(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEmail, oauthSession?.user.id]);
 
   const webBase = getPalApiBaseUrl();
   const apiOk = Boolean(webBase);
@@ -85,6 +130,7 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
   }>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   const isStudent = role === "student";
   const faceReady = faceCaptures.length >= FACE_REGISTRATION_MIN_PHOTOS;
@@ -94,12 +140,26 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
     setFaceCaptures((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  async function handleGoogleSignup() {
+    setError("");
+    setOauthLoading(true);
+    const supabase = getSupabase();
+    const result = await signInWithGoogleOAuth(supabase);
+    setOauthLoading(false);
+    if (result.ok) return;
+    if ("cancelled" in result && result.cancelled) return;
+    if ("error" in result) setError(result.error);
+  }
+
   async function onFaceCaptured({ uri, base64 }: FaceCaptureResult) {
     setCameraOpen(false);
     setFaceBusy(true);
     setLastFaceError(null);
     try {
-      const embRes = await postFaceEmbeddingForSignup(uri);
+      const token = oauthSession?.access_token;
+      const embRes = token
+        ? await postFaceEmbedding(token, uri)
+        : await postFaceEmbeddingForSignup(uri);
       if (!embRes.ok) {
         setLastFaceError(embRes.error);
         Alert.alert("Face processing", embRes.error);
@@ -150,7 +210,7 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
     if (payloads.length === 0) {
       Alert.alert(
         "Face photos not saved",
-        "Could not read your captured photos from this device. Open Face registration from the menu to finish."
+        "Could not read your captured photos from this device. After signing in, the app will prompt you to finish face registration."
       );
       return;
     }
@@ -160,7 +220,7 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
       console.error("Signup face save: profile row not ready for student RLS");
       Alert.alert(
         "Face registration pending",
-        "Your account was created but the profile was not ready in time. Open Face registration from the menu to finish."
+        "Your account was created but the profile was not ready in time. After signing in, the app will prompt you to finish face registration."
       );
       return;
     }
@@ -217,17 +277,110 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
     if (savedCount > 0) {
       Alert.alert(
         "Face registration incomplete",
-        `Only ${savedCount} of ${expected} photos were saved. Open Face registration from the menu to add the rest.`
+        `Only ${savedCount} of ${expected} photos were saved. After signing in, you can add the rest in face registration.`
       );
     } else if (expected > 0) {
       Alert.alert(
         "Face photos not saved",
-        "Your account was created but the photos could not be uploaded. Open Face registration from the menu after signing in."
+        "Your account was created but the photos could not be uploaded. After signing in, the app will prompt you to finish face registration."
       );
     }
   }
 
+  async function handleOAuthProfileComplete() {
+    if (!oauthSession) return;
+    setSubmitAttempted(true);
+    setError("");
+
+    const trimmedName = fullName.trim();
+    const next: typeof fieldErrors = {};
+    if (!trimmedName) next.fullName = "Full name is required.";
+    const mobileErr = mobileFieldError(mobile);
+    if (mobileErr) next.mobile = mobileErr;
+
+    setFieldErrors(next);
+    if (Object.keys(next).length > 0) return;
+
+    if (isStudent && !faceReady) {
+      setError(
+        `Please capture at least ${FACE_REGISTRATION_MIN_PHOTOS} face photos before continuing.`
+      );
+      return;
+    }
+
+    if (isStudent && !apiOk) {
+      setError(
+        "Set EXPO_PUBLIC_PAL_API_URL so this device can reach your face API (same host as your Next.js server, reachable from the phone)."
+      );
+      return;
+    }
+
+    const userEmail = oauthSession.user.email;
+    if (!userEmail) {
+      setError("Could not read account email from session. Please sign in again.");
+      return;
+    }
+
+    const normalizedMobile = normalizeTenDigitMobile(mobile)!;
+    setLoading(true);
+
+    let studentFacePayloads: SignupFaceSavePayload[] | null = null;
+    if (isStudent) {
+      const snapshots: SignupFaceSavePayload[] = [];
+      for (const cap of faceCaptures) {
+        try {
+          const data = await arrayBufferFromLocalUri(cap.uri, { base64: cap.base64 });
+          snapshots.push({ embedding: cap.embedding, data });
+        } catch (e) {
+          console.error("OAuth profile: failed to read face capture from disk:", e);
+        }
+      }
+      if (snapshots.length < FACE_REGISTRATION_MIN_PHOTOS) {
+        setError(
+          "Could not read your face photos from this device. Recapture them and try again."
+        );
+        if (mounted.current) setLoading(false);
+        return;
+      }
+      studentFacePayloads = snapshots;
+    }
+
+    const supabase = getSupabase();
+    const userId = oauthSession.user.id;
+    const { error: upErr } = await supabase.from("profiles").upsert(
+      {
+        id: userId,
+        email: userEmail,
+        full_name: trimmedName,
+        mobile_phone: normalizedMobile,
+        role,
+      },
+      { onConflict: "id" }
+    );
+
+    if (upErr) {
+      const msg = upErr.message ?? "";
+      if (/row-level security|violates row-level security/i.test(msg)) {
+        setError(
+          "Profile save blocked by database policy. Apply supabase/add-profiles-self-insert-policy.sql in Supabase, then try again."
+        );
+      } else {
+        setError(msg);
+      }
+      if (mounted.current) setLoading(false);
+      return;
+    }
+
+    if (isStudent && studentFacePayloads) {
+      await saveStudentFacesAfterSignup(userId, studentFacePayloads);
+    }
+
+    if (mounted.current) setLoading(false);
+    if (props.variant === "oauthProfile") props.onComplete();
+  }
+
   async function handleSignup() {
+    if (!isEmail) return;
     setSubmitAttempted(true);
     setError("");
 
@@ -252,7 +405,9 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
     }
 
     if (isStudent && !apiOk) {
-      setError("Set EXPO_PUBLIC_PAL_API_URL so face photos can be processed during signup.");
+      setError(
+        "Set EXPO_PUBLIC_PAL_API_URL so this device can reach your face API during signup (same host as your Next.js server, reachable from the phone)."
+      );
       return;
     }
 
@@ -324,18 +479,27 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
     } else if (isStudent && userId && studentFacePayloads && !session && mounted.current) {
       Alert.alert(
         "Confirm your email",
-        "After you confirm your email and sign in, open Face registration in the menu to capture your face."
+        "After you confirm your email and sign in, the app will guide you through face registration."
       );
     }
 
     if (mounted.current) setLoading(false);
 
     if (!session) {
-      onSignupSuccessNoSession(trimmedEmail);
+      props.onSignupSuccessNoSession(trimmedEmail);
     }
   }
 
   const pwStrength = password.length >= 12 ? 3 : password.length >= 8 ? 2 : password.length >= 6 ? 1 : 0;
+
+  if (!isEmail && oauthBootstrapping) {
+    return (
+      <View style={[styles.flex, styles.oauthLoadingRoot, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={styles.oauthLoadingText}>Loading your account…</Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -353,14 +517,75 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
           end={{ x: 1, y: 1 }}
           style={[styles.hero, { paddingTop: 20 + insets.top }]}
         >
-          <PlanovaWordmark size="sm" inverse />
-          <Text style={styles.heroTitle}>Join Planova</Text>
-          <Text style={styles.heroBody}>Create an account to manage your campus calendar.</Text>
+          {!isEmail ? (
+            <View style={styles.heroTopRow}>
+              <NucleusWordmark size="sm" inverse />
+              <Pressable
+                onPress={() => void getSupabase().auth.signOut()}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Sign out"
+              >
+                <Text style={styles.heroSignOut}>Sign out</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <NucleusWordmark size="sm" inverse />
+          )}
+          <Text style={[styles.heroTitle, !isEmail && styles.heroTitleTight]}>
+            {isEmail ? "Join The Nucleus" : "Finish setup"}
+          </Text>
+          <Text style={styles.heroBody}>
+            {isEmail
+              ? "Create an account to manage your campus calendar."
+              : "Use the same steps as email sign-up: your details and face photos (for students)."}
+          </Text>
         </LinearGradient>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create your account</Text>
-          <Text style={styles.cardSub}>Same fields as the web signup.</Text>
+          <Text style={styles.cardTitle}>{isEmail ? "Create your account" : "Your profile"}</Text>
+          <Text style={styles.cardSub}>
+            {isEmail
+              ? "Sign up with Google or email."
+              : "Signed in with Google — complete the fields below."}
+          </Text>
+
+          {isEmail ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.googleBtn,
+                  pressed && styles.googleBtnPressed,
+                  (loading || oauthLoading) && styles.googleBtnDisabled,
+                ]}
+                onPress={() => void handleGoogleSignup()}
+                disabled={loading || oauthLoading}
+              >
+                {oauthLoading ? (
+                  <ActivityIndicator color={theme.foreground} />
+                ) : (
+                  <>
+                    <GoogleLogo size={20} />
+                    <Text style={styles.googleBtnText}>Continue with Google</Text>
+                  </>
+                )}
+              </Pressable>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or sign up with email</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
+          ) : null}
+
+          {!isEmail && oauthProfileMissing ? (
+            <View style={styles.profileMissingNotice}>
+              <Text style={styles.profileMissingText}>
+                We could not find your profile row yet. Saving will create it.
+              </Text>
+            </View>
+          ) : null}
 
           <Text style={styles.sectionLabel}>Personal info</Text>
 
@@ -381,32 +606,38 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
                 }
               }}
               autoComplete="name"
-              editable={!loading}
+              editable={!loading && !oauthLoading && (isEmail || !oauthBootstrapping)}
             />
             {fieldErrors.fullName ? <Text style={styles.fieldErr}>{fieldErrors.fullName}</Text> : null}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[styles.input, fieldErrors.email ? styles.inputErr : null]}
-              placeholder="you@university.edu"
-              placeholderTextColor={theme.mutedForeground}
-              value={email}
-              onChangeText={(t) => {
-                setEmail(t);
-                if (submitAttempted) {
-                  setFieldErrors((f) => ({
-                    ...f,
-                    email: t.trim() ? undefined : "Email is required.",
-                  }));
-                }
-              }}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              editable={!loading}
-            />
+            {isEmail ? (
+              <TextInput
+                style={[styles.input, fieldErrors.email ? styles.inputErr : null]}
+                placeholder="you@university.edu"
+                placeholderTextColor={theme.mutedForeground}
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  if (submitAttempted) {
+                    setFieldErrors((f) => ({
+                      ...f,
+                      email: t.trim() ? undefined : "Email is required.",
+                    }));
+                  }
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                editable={!loading && !oauthLoading}
+              />
+            ) : (
+              <Text style={[styles.input, styles.inputReadonly]} selectable>
+                {email || "—"}
+              </Text>
+            )}
             {fieldErrors.email ? <Text style={styles.fieldErr}>{fieldErrors.email}</Text> : null}
           </View>
 
@@ -426,7 +657,7 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
               keyboardType="phone-pad"
               maxLength={14}
               autoComplete="tel"
-              editable={!loading}
+              editable={!loading && !oauthLoading && (isEmail || !oauthBootstrapping)}
             />
             <Text style={styles.hint}>
               10-digit Indian mobile. Used for campus services (e.g. parcel matching).
@@ -434,46 +665,51 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
             {fieldErrors.mobile ? <Text style={styles.fieldErr}>{fieldErrors.mobile}</Text> : null}
           </View>
 
-          <Text style={[styles.sectionLabel, styles.sectionSpaced]}>Account setup</Text>
+          {isEmail ? (
+            <>
+              <Text style={[styles.sectionLabel, styles.sectionSpaced]}>Account setup</Text>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={[styles.input, fieldErrors.password ? styles.inputErr : null]}
-              placeholder="Min 6 characters"
-              placeholderTextColor={theme.mutedForeground}
-              value={password}
-              onChangeText={(t) => {
-                setPassword(t);
-                if (submitAttempted) {
-                  setFieldErrors((f) => ({
-                    ...f,
-                    password: !t
-                      ? "Password is required."
-                      : t.length < 6
-                        ? "Password must be at least 6 characters."
-                        : undefined,
-                  }));
-                }
-              }}
-              secureTextEntry
-              autoComplete="new-password"
-              editable={!loading}
-            />
-            <View style={styles.strengthRow}>
-              <View style={[styles.strengthSeg, pwStrength >= 1 && styles.strengthOn]} />
-              <View style={[styles.strengthSeg, pwStrength >= 2 && styles.strengthOn]} />
-              <View style={[styles.strengthSeg, pwStrength >= 3 && styles.strengthOn]} />
-            </View>
-            {fieldErrors.password ? <Text style={styles.fieldErr}>{fieldErrors.password}</Text> : null}
-          </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={[styles.input, fieldErrors.password ? styles.inputErr : null]}
+                  placeholder="Min 6 characters"
+                  placeholderTextColor={theme.mutedForeground}
+                  value={password}
+                  onChangeText={(t) => {
+                    setPassword(t);
+                    if (submitAttempted) {
+                      setFieldErrors((f) => ({
+                        ...f,
+                        password: !t
+                          ? "Password is required."
+                          : t.length < 6
+                            ? "Password must be at least 6 characters."
+                            : undefined,
+                      }));
+                    }
+                  }}
+                  secureTextEntry
+                  autoComplete="new-password"
+                  editable={!loading && !oauthLoading}
+                />
+                <View style={styles.strengthRow}>
+                  <View style={[styles.strengthSeg, pwStrength >= 1 && styles.strengthOn]} />
+                  <View style={[styles.strengthSeg, pwStrength >= 2 && styles.strengthOn]} />
+                  <View style={[styles.strengthSeg, pwStrength >= 3 && styles.strengthOn]} />
+                </View>
+                {fieldErrors.password ? <Text style={styles.fieldErr}>{fieldErrors.password}</Text> : null}
+              </View>
+            </>
+          ) : null}
 
-          <Text style={styles.label}>I am a</Text>
+          <Text style={[styles.label, !isEmail && { marginTop: 4 }]}>I am a</Text>
           <View style={styles.roleRow}>
             {ROLE_OPTIONS.map((opt) => (
               <Pressable
                 key={opt.value}
                 onPress={() => setRole(opt.value)}
+                disabled={loading || oauthLoading || (!isEmail && oauthBootstrapping)}
                 style={[styles.roleChip, role === opt.value && styles.roleChipOn]}
               >
                 <Text style={[styles.roleChipText, role === opt.value && styles.roleChipTextOn]}>
@@ -487,12 +723,13 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
             <>
               <Text style={[styles.sectionLabel, styles.sectionSpaced]}>Face registration</Text>
               <Text style={styles.faceIntro}>
-                Take {FACE_REGISTRATION_MIN_PHOTOS}–{FACE_REGISTRATION_MAX_PHOTOS} clear photos from
-                slightly different angles (required for students).
+                Take {FACE_REGISTRATION_MIN_PHOTOS}–{FACE_REGISTRATION_MAX_PHOTOS} clear photos from slightly
+                different angles (required for students).
               </Text>
               {!apiOk ? (
                 <Text style={styles.warnInline}>
-                  Set EXPO_PUBLIC_PAL_API_URL to your Planova web URL for face processing.
+                  Set EXPO_PUBLIC_PAL_API_URL to your backend base URL (where /api/face runs) so photos can be
+                  processed on this device.
                 </Text>
               ) : null}
 
@@ -527,10 +764,14 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
                 <Pressable
                   style={[styles.outlineBtn, !apiOk && styles.outlineBtnDisabled]}
                   onPress={() => apiOk && setCameraOpen(true)}
-                  disabled={!apiOk || loading}
+                  disabled={
+                    !apiOk || loading || oauthLoading || (!isEmail && oauthBootstrapping)
+                  }
                 >
                   <Text style={styles.outlineBtnText}>
-                    {faceCaptures.length === 0 ? "Open camera — capture photo 1" : `Add photo ${faceCaptures.length + 1}`}
+                    {faceCaptures.length === 0
+                      ? "Open camera — capture photo 1"
+                      : `Add photo ${faceCaptures.length + 1}`}
                   </Text>
                 </Pressable>
               ) : null}
@@ -546,43 +787,60 @@ export function SignupScreen({ onGoLogin, onSignupSuccessNoSession }: Props) {
           <Pressable
             style={({ pressed }) => [
               styles.primaryBtn,
-              (loading || (isStudent && !faceReady)) && styles.primaryBtnDisabled,
+              (loading ||
+                oauthLoading ||
+                (isStudent && !faceReady) ||
+                (!isEmail && oauthBootstrapping)) &&
+                styles.primaryBtnDisabled,
               pressed && styles.primaryBtnPressed,
             ]}
-            onPress={handleSignup}
-            disabled={loading || (isStudent && !faceReady)}
+            onPress={() => void (isEmail ? handleSignup() : handleOAuthProfileComplete())}
+            disabled={
+              loading ||
+              oauthLoading ||
+              (isStudent && !faceReady) ||
+              (!isEmail && oauthBootstrapping)
+            }
           >
             {loading ? (
               <ActivityIndicator color={theme.primaryForeground} />
             ) : (
               <Text style={styles.primaryBtnText}>
                 {isStudent && !faceReady
-                  ? `Capture ${FACE_REGISTRATION_MIN_PHOTOS - faceCaptures.length} more photo${FACE_REGISTRATION_MIN_PHOTOS - faceCaptures.length === 1 ? "" : "s"}`
-                  : "Sign up"}
+                  ? `Capture ${FACE_REGISTRATION_MIN_PHOTOS - faceCaptures.length} more photo${
+                      FACE_REGISTRATION_MIN_PHOTOS - faceCaptures.length === 1 ? "" : "s"
+                    }`
+                  : isEmail
+                    ? "Sign up"
+                    : "Continue"}
               </Text>
             )}
           </Pressable>
 
-          <View style={styles.divider} />
-          <Text style={styles.footerMuted}>
-            Already have an account?{" "}
-            <Text style={styles.linkInline} onPress={onGoLogin}>
-              Sign in
-            </Text>
-          </Text>
-          {webBase ? (
-            <Text style={[styles.footerMuted, { marginTop: 10 }]}>
-              Prefer the browser?{" "}
-              <Text
-                style={styles.linkInline}
-                onPress={async () => {
-                  const url = `${webBase}/signup`;
-                  if (await Linking.canOpenURL(url)) await Linking.openURL(url);
-                }}
-              >
-                Open web signup
+          {isEmail ? (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.footerMuted}>
+                Already have an account?{" "}
+                <Text style={styles.linkInline} onPress={props.onGoLogin}>
+                  Sign in
+                </Text>
               </Text>
-            </Text>
+              {webBase ? (
+                <Text style={[styles.footerMuted, { marginTop: 10 }]}>
+                  Prefer the browser?{" "}
+                  <Text
+                    style={styles.linkInline}
+                    onPress={async () => {
+                      const url = `${webBase}/signup`;
+                      if (await Linking.canOpenURL(url)) await Linking.openURL(url);
+                    }}
+                  >
+                    Open web signup
+                  </Text>
+                </Text>
+              ) : null}
+            </>
           ) : null}
         </View>
       </ScrollView>
@@ -607,7 +865,7 @@ export function SignupSuccessScreen({
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.successRoot, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
-      <PlanovaWordmark size="lg" />
+      <NucleusWordmark size="lg" />
       <Text style={styles.successTitle}>Check your email</Text>
       <Text style={styles.successBody}>
         We&apos;ve sent a confirmation link to <Text style={styles.successEmail}>{email}</Text>. Open it
@@ -622,11 +880,20 @@ export function SignupSuccessScreen({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: theme.background },
+  oauthLoadingRoot: { flex: 1, justifyContent: "center", alignItems: "center" },
+  oauthLoadingText: { marginTop: 12, fontSize: 15, color: theme.mutedForeground },
   scroll: { flexGrow: 1 },
   hero: {
     paddingHorizontal: 24,
     paddingBottom: 28,
   },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  heroSignOut: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.95)" },
   heroTitle: {
     marginTop: 20,
     fontSize: 22,
@@ -634,6 +901,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     lineHeight: 28,
   },
+  heroTitleTight: { marginTop: 14 },
   heroBody: {
     marginTop: 10,
     fontSize: 14,
@@ -658,6 +926,51 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 22, fontWeight: "600", color: theme.foreground },
   cardSub: { marginTop: 6, fontSize: 15, color: theme.mutedForeground },
+  profileMissingNotice: {
+    marginTop: 14,
+    marginBottom: 4,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.5)",
+    backgroundColor: "rgba(254, 252, 232, 0.95)",
+  },
+  profileMissingText: { fontSize: 13, color: "#854d0e", lineHeight: 18 },
+  inputReadonly: {
+    color: theme.mutedForeground,
+    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+  },
+  googleBtn: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+    minHeight: 48,
+  },
+  googleBtnPressed: { opacity: 0.92 },
+  googleBtnDisabled: { opacity: 0.65 },
+  googleBtnText: { fontSize: 16, fontWeight: "600", color: theme.foreground },
+  dividerRow: {
+    marginTop: 18,
+    marginBottom: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: theme.border },
+  dividerText: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    color: theme.mutedForeground,
+    textTransform: "uppercase",
+  },
   sectionLabel: {
     marginTop: 20,
     fontSize: 11,

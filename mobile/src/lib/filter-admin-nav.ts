@@ -1,23 +1,15 @@
-import {
-  ADMIN_ASSIGNABLE_SECTION_VALUES,
-  SUPER_ADMIN_NAV_VALUE,
-} from "./admin-request-routing";
+import { ADMIN_ASSIGNABLE_SECTION_VALUES } from "./admin-request-routing";
 import { ADMIN_NAV, type NavEntry } from "../navigation/nav-config";
 
 const ROUTING_TABLE_IDS = new Set(ADMIN_ASSIGNABLE_SECTION_VALUES);
 
 /**
- * Super admin: full admin drawer plus Admin Access.
+ * Super admin: full admin drawer (Admin Access lives under the “More” section in `ADMIN_NAV`).
  * Other admins: only assignable sections present in `allowedKeys` (calendar & availability hidden — not in DB).
  */
 export function filterAdminNavForAccess(isSuper: boolean, allowedKeys: Set<string>): NavEntry[] {
   if (isSuper) {
-    const accessLink: NavEntry = {
-      type: "link",
-      id: SUPER_ADMIN_NAV_VALUE,
-      label: "Admin Access",
-    };
-    return [...ADMIN_NAV, accessLink];
+    return ADMIN_NAV;
   }
 
   const out: NavEntry[] = [];

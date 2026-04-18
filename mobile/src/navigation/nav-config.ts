@@ -8,13 +8,11 @@ export type NavEntry =
 /** @deprecated Use `NavEntry` / `navEntriesForRole`. */
 export type NavItem = { id: string; label: string };
 
-/** Matches web student dashboard sidebar; Attendance omitted (built last). */
+/** Matches web student dashboard sidebar (BLE mesh / face registration are web-only). */
 export const STUDENT_NAV: NavEntry[] = [
   { type: "link", id: "events", label: "Events" },
   { type: "link", id: "calendar", label: "Calendar" },
   { type: "link", id: "attendance", label: "Attendance" },
-  { type: "link", id: "ble-mesh", label: "BLE mesh" },
-  { type: "link", id: "face-registration", label: "Face registration" },
   { type: "link", id: "tasks", label: "Task Tracker" },
   { type: "link", id: "guest-house", label: "Guest House Requests" },
   { type: "link", id: "sports", label: "Sports Requests" },
@@ -32,10 +30,11 @@ export const PROFESSOR_NAV: NavEntry[] = [
   { type: "link", id: "script-evaluation", label: "Script evaluation" },
 ];
 
-/** Admin: requests + availability calendars + rest of rail (web order). */
+/** Admin: overview, calendar, grouped requests, availability, and More (web-aligned order). */
 export const ADMIN_NAV: NavEntry[] = [
   { type: "link", id: "request-overview", label: "Overview" },
   { type: "link", id: "calendar", label: "Calendar" },
+  { type: "heading", label: "Requests" },
   { type: "link", id: "request-event-requests", label: "Event requests" },
   { type: "link", id: "request-guest-house-requests", label: "Guest house" },
   { type: "link", id: "request-sports-requests", label: "Sports" },
@@ -50,12 +49,8 @@ export const ADMIN_NAV: NavEntry[] = [
   { type: "link", id: "avail-facilities", label: "Facility availability" },
   { type: "link", id: "avail-health", label: "Health availability" },
   { type: "heading", label: "More" },
-  { type: "link", id: "enrollments", label: "Enrollments" },
-  { type: "link", id: "students", label: "Manage Students" },
-  { type: "link", id: "prof-assignments", label: "Professor Assignments" },
-  { type: "link", id: "professors", label: "Manage Professors" },
   { type: "link", id: "parcel-management", label: "Parcel management" },
-  { type: "link", id: "timetable", label: "Timetable" },
+  { type: "link", id: "admin-request-routing", label: "Admin Access" },
 ];
 
 export function defaultNavId(role: UserRole): string {

@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Session } from "@supabase/supabase-js";
-import { PlanovaWordmark } from "../components/PlanovaWordmark";
+import { NucleusWordmark } from "../components/NucleusWordmark";
 import { filterAdminNavForAccess } from "../lib/filter-admin-nav";
 import { isSuperAdminProfile, normalizeAdminEmail } from "../lib/admin-request-routing";
 import { drawerNavIconName } from "../navigation/drawer-nav-icons";
@@ -49,9 +49,7 @@ import { UserParcelsScreen } from "./shared/UserParcelsScreen";
 import { StudentCalendarScreen } from "./student/StudentCalendarScreen";
 import { StudentCampusScreen } from "./student/StudentCampusScreen";
 import { StudentAttendanceScreen } from "./student/StudentAttendanceScreen";
-import { StudentBleMeshScreen } from "./student/StudentBleMeshScreen";
 import { StudentEventsScreen } from "./student/StudentEventsScreen";
-import { StudentFaceRegistrationScreen } from "./student/StudentFaceRegistrationScreen";
 import { StudentGuestHouseScreen } from "./student/StudentGuestHouseScreen";
 import { StudentTasksScreen } from "./student/StudentTasksScreen";
 
@@ -384,7 +382,7 @@ function AdminNoAccessPlaceholder({
             }}
             onPress={() => void onOpenWeb("/")}
           >
-            <Text style={{ color: theme.primaryForeground, fontWeight: "600" }}>Open Planova on web</Text>
+            <Text style={{ color: theme.primaryForeground, fontWeight: "600" }}>Open The Nucleus on the web</Text>
           </Pressable>
         ) : null}
       </View>
@@ -420,10 +418,6 @@ function studentHomeSubtitle(navId: string | null): string {
       return "Browse your month and agenda.";
     case "attendance":
       return "Mark attendance when you're on campus.";
-    case "ble-mesh":
-      return "Bluetooth mesh check-in when your instructor starts a session.";
-    case "face-registration":
-      return "Set up face capture for attendance.";
     case "tasks":
       return "Stay on top of assignments and tasks.";
     case "guest-house":
@@ -685,6 +679,20 @@ export function HomeScreen({ session }: { session: Session }) {
     return filterAdminNavForAccess(isSuperAdminProfile(profile), adminAllowedKeys);
   }, [profile, adminAllowedKeys]);
 
+  /** If drawer entries change (e.g. tab removed), avoid a stale activeNavId showing a placeholder. */
+  useEffect(() => {
+    if (!profile || profile.role === "admin") return;
+    const linkIds = navEntries.filter((e) => e.type === "link").map((e) => e.id);
+    if (linkIds.length === 0) {
+      setActiveNavId(null);
+      return;
+    }
+    setActiveNavId((prev) => {
+      if (prev && linkIds.includes(prev)) return prev;
+      return defaultNavId(profile.role);
+    });
+  }, [profile, navEntries]);
+
   useEffect(() => {
     if (!profile || profile.role !== "admin" || !adminRoutingReady) return;
     const linkIds = navEntries.filter((e) => e.type === "link").map((e) => e.id);
@@ -700,7 +708,7 @@ export function HomeScreen({ session }: { session: Session }) {
 
   const activeLabel = useMemo(() => {
     const item = navEntries.find((e) => e.type === "link" && e.id === activeNavId);
-    return item?.type === "link" ? item.label : "Planova";
+    return item?.type === "link" ? item.label : "The Nucleus";
   }, [navEntries, activeNavId]);
 
   const openWeb = useCallback(async (path: string) => {
@@ -755,12 +763,6 @@ export function HomeScreen({ session }: { session: Session }) {
     }
     if (profile.role === "student" && activeNavId === "attendance") {
       return <StudentAttendanceScreen profile={profile} />;
-    }
-    if (profile.role === "student" && activeNavId === "ble-mesh") {
-      return <StudentBleMeshScreen profile={profile} />;
-    }
-    if (profile.role === "student" && activeNavId === "face-registration") {
-      return <StudentFaceRegistrationScreen profile={profile} onRegistered={loadProfile} />;
     }
     if (profile.role === "student" && activeNavId === "tasks") {
       return <StudentTasksScreen profile={profile} />;
@@ -853,7 +855,7 @@ export function HomeScreen({ session }: { session: Session }) {
     return (
       <SectionPlaceholderScreen
         title={item?.type === "link" ? item.label : "Section"}
-        description="This area matches the web dashboard. Use Planova in your browser for the full workflow until it is ported to the app."
+        description="This area matches the web dashboard. Use The Nucleus in your browser for the full workflow until it is ported to the app."
       />
     );
   }, [profile, activeNavId, navEntries, openProfessorMyRequests, adminRoutingReady, openWeb]);
@@ -881,7 +883,7 @@ export function HomeScreen({ session }: { session: Session }) {
           <Text style={styles.menuIcon}>☰</Text>
         </Pressable>
         <View style={styles.headerCenter}>
-          <PlanovaWordmark size="sm" />
+          <NucleusWordmark size="sm" />
           <Text style={styles.headerSection} numberOfLines={1}>
             {activeLabel}
           </Text>

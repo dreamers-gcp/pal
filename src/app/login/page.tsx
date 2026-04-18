@@ -20,31 +20,31 @@ import {
   AuthPasswordField,
   authInputClassName,
 } from "@/components/auth/auth-shared";
-import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { NucleusHeroOrbitAmbient, NucleusWordmark } from "@/components/nucleus-wordmark";
 import { GoogleLogo } from "@/components/auth/google-logo";
 
 function LoginBrandPanel() {
   return (
-    <div className="relative flex min-h-[220px] w-full flex-1 flex-col justify-center overflow-hidden bg-gradient-to-br from-primary/90 via-[#5b52f0] to-[#312e81] p-8 text-primary-foreground md:min-h-full">
+    <div className="relative flex min-h-[220px] w-full flex-1 flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--nucleus-core)] via-[var(--nucleus-bright)] to-[var(--nucleus-deep)] p-8 text-primary-foreground md:min-h-full">
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.12]"
+        className="pointer-events-none absolute inset-0 opacity-[0.09]"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }}
       />
-      <div className="relative">
-        <PlanovaWordmark
-          variant="inverse"
-          size="sm"
-          decorative
-          className="opacity-95"
-        />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.28]">
+        <div className="aspect-square w-[145%] max-w-none -translate-y-6">
+          <NucleusHeroOrbitAmbient variant="inverse" />
+        </div>
+      </div>
+      <div className="relative z-10">
+        <NucleusWordmark variant="inverse" size="lg" decorative />
         <h2 className="mt-5 font-display text-2xl font-semibold leading-tight text-white md:text-3xl">
-          Your campus schedule, simplified.
+          Everything orbits from here.
         </h2>
         <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/85">
-          Book rooms, manage courses, and stay on top of attendance—all in one
-          place.
+          Professors, admins, and students meet in the same loop—requests, approvals,
+          and classrooms stay aligned without chasing threads across tools.
         </p>
       </div>
     </div>
@@ -133,13 +133,17 @@ export default function LoginPage() {
       <Card className="w-full max-w-4xl overflow-hidden border-foreground/10 shadow-md md:flex-row md:items-stretch md:gap-0 md:py-0">
         <div className="flex w-full flex-1 flex-col py-4 md:w-1/2 md:min-w-0 md:max-w-none md:py-4">
           <CardHeader className="space-y-4 pb-2 text-center md:text-left">
-            <div className="mx-auto flex justify-center md:mx-0 md:justify-start">
-              <PlanovaWordmark size="lg" />
+            <div className="mx-auto flex w-full max-w-sm justify-center md:mx-0 md:justify-start">
+              <NucleusWordmark
+                size="lg"
+                tagline="The center for campus operations"
+                align="start"
+              />
             </div>
             <div>
               <CardTitle className="text-2xl">Welcome back</CardTitle>
               <CardDescription className="mt-1.5">
-                Sign in to your Planova account
+                Sign in to The Nucleus
               </CardDescription>
             </div>
           </CardHeader>

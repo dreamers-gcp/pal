@@ -49,6 +49,21 @@
 }
 
 :root {
+  /* Nucleus brand spectrum — indigo core + violet depth + cool aurora accent */
+  --nucleus-deep: #312e81;
+  --nucleus-core: #4338ca;
+  --nucleus-bright: #4f46e5;
+  --nucleus-soft: #6366f1;
+  --nucleus-mist: #c7d2fe;
+  --nucleus-aurora: #0284c7;
+  --nucleus-glow: rgba(67, 56, 202, 0.55);
+  --nucleus-orbit: rgba(67, 56, 202, 0.42);
+  --nucleus-wordmark-from: #3730a3;
+  --nucleus-wordmark-to: #4f46e5;
+  --nucleus-wordmark-aurora: #0369a1;
+  --nucleus-hub-mid: rgba(67, 56, 202, 0.58);
+  --nucleus-hub-inner: rgba(55, 48, 163, 0.68);
+
   --background: #fafafa;
   --foreground: #1a1a2e;
   --card: #ffffff;
@@ -84,6 +99,20 @@
 }
 
 .dark {
+  --nucleus-deep: #1e1b4b;
+  --nucleus-core: #818cf8;
+  --nucleus-bright: #a5b4fc;
+  --nucleus-soft: #c7d2fe;
+  --nucleus-mist: rgba(199, 210, 254, 0.22);
+  --nucleus-aurora: #38bdf8;
+  --nucleus-glow: rgba(165, 180, 252, 0.55);
+  --nucleus-orbit: rgba(165, 180, 252, 0.45);
+  --nucleus-wordmark-from: #e0e7ff;
+  --nucleus-wordmark-to: #a5b4fc;
+  --nucleus-wordmark-aurora: #7dd3fc;
+  --nucleus-hub-mid: rgba(165, 180, 252, 0.62);
+  --nucleus-hub-inner: rgba(199, 210, 254, 0.55);
+
   --background: #12121a;
   --foreground: #f0f0f5;
   --card: #1a1a24;

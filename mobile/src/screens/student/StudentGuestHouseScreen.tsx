@@ -152,7 +152,7 @@ export function StudentGuestHouseScreen({ profile }: { profile: Profile }) {
       onRefresh={onRefresh}
     >
       <Text style={styles.hint}>
-        An admin assigns guest houses and rooms after approval (in the Planova admin app or on the web).
+        An admin assigns guest houses and rooms after approval (in The Nucleus admin app or on the web).
       </Text>
 
       <Text style={styles.sectionTitle}>New request</Text>

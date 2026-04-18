@@ -11,9 +11,6 @@ import {
   View,
 } from "react-native";
 import { BottomSheetModal } from "./BottomSheetModal";
-import { FullScreenModal } from "./FullScreenModal";
-import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { classroomDisplayName, professorCalendarLine } from "../lib/calendar-display";
 import { decodeCalendarRequestSubjects } from "../lib/calendar-subject";
 import type { AgendaDaySection, AgendaRow } from "../lib/calendar-agenda";
@@ -88,8 +85,6 @@ export function CalendarAgenda({
   onListRefresh,
 }: Props) {
   const [detailRow, setDetailRow] = useState<AgendaRow | null>(null);
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const insets = useSafeAreaInsets();
 
   const refreshControlMain = useMemo(
     () =>
@@ -108,41 +103,30 @@ export function CalendarAgenda({
     const k = "m";
     return (
       <>
-        <View style={styles.topChromeRow}>
-          <View style={styles.scopeRow}>
-            <Pressable
-              onPress={() => onScheduleScopeChange("day")}
-              style={[styles.scopeBtn, scheduleScope === "day" && styles.scopeBtnOn]}
-            >
-              <Text style={[styles.scopeText, scheduleScope === "day" && styles.scopeTextOn]}>
-                Day
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onScheduleScopeChange("week")}
-              style={[styles.scopeBtn, scheduleScope === "week" && styles.scopeBtnOn]}
-            >
-              <Text style={[styles.scopeText, scheduleScope === "week" && styles.scopeTextOn]}>
-                Week
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onScheduleScopeChange("month")}
-              style={[styles.scopeBtn, scheduleScope === "month" && styles.scopeBtnOn]}
-            >
-              <Text style={[styles.scopeText, scheduleScope === "month" && styles.scopeTextOn]}>
-                Month
-              </Text>
-            </Pressable>
-          </View>
+        <View style={styles.scopeRow}>
           <Pressable
-            onPress={() => setFullscreenOpen(true)}
-            style={styles.fullscreenBtn}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Open calendar full screen"
+            onPress={() => onScheduleScopeChange("day")}
+            style={[styles.scopeBtn, scheduleScope === "day" && styles.scopeBtnOn]}
           >
-            <Ionicons name="expand-outline" size={22} color={theme.foreground} />
+            <Text style={[styles.scopeText, scheduleScope === "day" && styles.scopeTextOn]}>
+              Day
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onScheduleScopeChange("week")}
+            style={[styles.scopeBtn, scheduleScope === "week" && styles.scopeBtnOn]}
+          >
+            <Text style={[styles.scopeText, scheduleScope === "week" && styles.scopeTextOn]}>
+              Week
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onScheduleScopeChange("month")}
+            style={[styles.scopeBtn, scheduleScope === "month" && styles.scopeBtnOn]}
+          >
+            <Text style={[styles.scopeText, scheduleScope === "month" && styles.scopeTextOn]}>
+              Month
+            </Text>
           </Pressable>
         </View>
 
@@ -221,84 +205,6 @@ export function CalendarAgenda({
       >
         {renderEmbeddedAgendaBody()}
       </ScrollView>
-
-      <FullScreenModal visible={fullscreenOpen} onClose={() => setFullscreenOpen(false)}>
-        <View style={[styles.fullscreenRoot, { paddingBottom: insets.bottom }]}>
-          <View style={styles.fullscreenHeader}>
-            <Text style={styles.fullscreenTitle}>Calendar</Text>
-          </View>
-
-          <View style={styles.fullscreenScopeWrap}>
-            <View style={styles.scopeRow}>
-              <Pressable
-                onPress={() => onScheduleScopeChange("day")}
-                style={[styles.scopeBtn, scheduleScope === "day" && styles.scopeBtnOn]}
-              >
-                <Text style={[styles.scopeText, scheduleScope === "day" && styles.scopeTextOn]}>
-                  Day
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onScheduleScopeChange("week")}
-                style={[styles.scopeBtn, scheduleScope === "week" && styles.scopeBtnOn]}
-              >
-                <Text style={[styles.scopeText, scheduleScope === "week" && styles.scopeTextOn]}>
-                  Week
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onScheduleScopeChange("month")}
-                style={[styles.scopeBtn, scheduleScope === "month" && styles.scopeBtnOn]}
-              >
-                <Text style={[styles.scopeText, scheduleScope === "month" && styles.scopeTextOn]}>
-                  Month
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.monthRow}>
-            <Pressable onPress={onNavigatePrev} style={styles.monthBtn} hitSlop={8}>
-              <Text style={styles.monthBtnText}>←</Text>
-            </Pressable>
-            <Text style={styles.monthTitle} numberOfLines={2}>
-              {rangeTitle}
-            </Text>
-            <Pressable onPress={onNavigateNext} style={styles.monthBtn} hitSlop={8}>
-              <Text style={styles.monthBtnText}>→</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.fullscreenGridArea}>
-            {loading ? (
-              <View style={styles.fullscreenLoading}>
-                <ActivityIndicator size="large" color={theme.primary} />
-              </View>
-            ) : scheduleScope === "month" && monthVisual ? (
-              <MonthCalendarGrid
-                monthAnchor={monthVisual.monthAnchor}
-                markedDateKeys={monthVisual.markedDateKeys}
-                expandLayout
-              />
-            ) : timeGrid ? (
-              <ScheduleTimeGrid
-                mode={timeGrid.mode}
-                rangeStart={timeGrid.rangeStart}
-                bookings={timeGrid.bookings}
-                facility={timeGrid.facility}
-                tasks={timeGrid.tasks}
-                classrooms={classrooms}
-                onSelectEvent={setDetailRow}
-                expandVertical
-              />
-            ) : (
-              <View style={styles.fullscreenLoading}>
-                <Text style={styles.empty}>{emptyMessage}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </FullScreenModal>
 
       <BottomSheetModal
         visible={detailRow !== null}
@@ -500,60 +406,11 @@ const styles = StyleSheet.create({
   outer: { flex: 1, minHeight: 0, minWidth: 0 },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingBottom: 40 },
-  topChromeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
   scopeRow: {
-    flex: 1,
     flexDirection: "row",
     gap: 8,
-    minWidth: 0,
-  },
-  fullscreenBtn: {
-    width: 44,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fullscreenRoot: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  fullscreenHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
-  },
-  fullscreenTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: theme.foreground,
-  },
-  fullscreenScopeWrap: {
-    paddingHorizontal: 4,
     marginBottom: 12,
-  },
-  fullscreenGridArea: {
-    flex: 1,
-    minHeight: 0,
-    paddingHorizontal: 8,
-  },
-  fullscreenLoading: {
-    flex: 1,
-    minHeight: 200,
-    alignItems: "center",
-    justifyContent: "center",
+    minWidth: 0,
   },
   scopeBtn: {
     paddingVertical: 8,

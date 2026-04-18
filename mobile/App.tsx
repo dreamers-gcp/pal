@@ -11,7 +11,7 @@ import {
   isSupabaseConfigured,
 } from "./src/lib/config";
 import { getSupabase } from "./src/lib/supabase";
-import { HomeScreen } from "./src/screens/HomeScreen";
+import { AuthenticatedRoot } from "./src/screens/AuthenticatedRoot";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { SignupScreen, SignupSuccessScreen } from "./src/screens/SignupScreen";
 import { theme } from "./src/theme";
@@ -82,7 +82,7 @@ function Root() {
   if (!configured) {
     return (
       <View style={styles.center}>
-        <Text style={styles.configTitle}>Configure Planova Mobile</Text>
+        <Text style={styles.configTitle}>Configure The Nucleus mobile</Text>
         <Text style={styles.configBody}>
           Copy mobile/.env.example to mobile/.env and set EXPO_PUBLIC_SUPABASE_URL and
           EXPO_PUBLIC_SUPABASE_ANON_KEY (same project as the web app). Optionally set
@@ -113,7 +113,7 @@ function Root() {
   if (session) {
     return (
       <>
-        <HomeScreen session={session} />
+        <AuthenticatedRoot session={session} />
         <StatusBar style="dark" />
       </>
     );
@@ -123,6 +123,7 @@ function Root() {
     return (
       <>
         <SignupScreen
+          variant="email"
           onGoLogin={() => setAuthGate("login")}
           onSignupSuccessNoSession={(email) => setAuthGate({ kind: "signupSuccess", email })}
         />

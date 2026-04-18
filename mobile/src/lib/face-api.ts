@@ -3,7 +3,8 @@ import { getPalApiBaseUrl } from "./config";
 function missingBase(): { ok: false; error: string; status: number } {
   return {
     ok: false,
-    error: "Set EXPO_PUBLIC_PAL_API_URL to your Planova web app (for /api/face/*).",
+    error:
+      "Set EXPO_PUBLIC_PAL_API_URL in mobile/.env to your API base URL (the host where /api/face runs, e.g. your Next.js server).",
     status: 0,
   };
 }

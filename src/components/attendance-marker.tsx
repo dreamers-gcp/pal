@@ -375,7 +375,7 @@ export function AttendanceMarker({ profile, events }: Props) {
                   ) : inWindow ? (
                     classroomExpectsWifi(event.classroom) ? (
                       <p className="pt-2 text-xs text-amber-800 dark:text-amber-200">
-                        This room requires Wi‑Fi verification with your face. Use the Planova mobile app
+                        This room requires Wi‑Fi verification with your face. Use The Nucleus mobile app
                         on the class network — web cannot read your Wi‑Fi network.
                       </p>
                     ) : (

@@ -1,3 +1,4 @@
+import { GoogleLogo } from "../components/GoogleLogo";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
 import {
@@ -13,8 +14,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PlanovaWordmark } from "../components/PlanovaWordmark";
+import { NucleusWordmark } from "../components/NucleusWordmark";
 import { getPalApiBaseUrl } from "../lib/config";
+import { signInWithGoogleOAuth } from "../lib/google-oauth";
 import { getSupabase } from "../lib/supabase";
 import { theme } from "../theme";
 
@@ -32,6 +34,7 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   async function openWeb(path: string) {
     if (!webBase) return;
@@ -63,6 +66,17 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
     }
   }
 
+  async function handleGoogleLogin() {
+    setError("");
+    setOauthLoading(true);
+    const supabase = getSupabase();
+    const result = await signInWithGoogleOAuth(supabase);
+    setOauthLoading(false);
+    if (result.ok) return;
+    if ("cancelled" in result && result.cancelled) return;
+    if ("error" in result) setError(result.error);
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -79,7 +93,7 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
           end={{ x: 1, y: 1 }}
           style={[styles.hero, { paddingTop: 20 + insets.top }]}
         >
-          <PlanovaWordmark size="sm" inverse />
+          <NucleusWordmark size="sm" inverse />
           <Text style={styles.heroTitle}>Your campus schedule, simplified.</Text>
           <Text style={styles.heroBody}>
             Book rooms, manage courses, and stay on top of attendance—all in one place.
@@ -87,9 +101,34 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
         </LinearGradient>
 
         <View style={styles.card}>
-          <PlanovaWordmark size="lg" />
+          <NucleusWordmark size="lg" />
           <Text style={styles.welcomeTitle}>Welcome back</Text>
-          <Text style={styles.welcomeSub}>Sign in to your Planova account</Text>
+          <Text style={styles.welcomeSub}>Sign in to The Nucleus</Text>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.googleBtn,
+              pressed && styles.googleBtnPressed,
+              (loading || oauthLoading) && styles.googleBtnDisabled,
+            ]}
+            onPress={() => void handleGoogleLogin()}
+            disabled={loading || oauthLoading}
+          >
+            {oauthLoading ? (
+              <ActivityIndicator color={theme.foreground} />
+            ) : (
+              <>
+                <GoogleLogo size={20} />
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or use email</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
@@ -110,7 +149,7 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
-              editable={!loading}
+              editable={!loading && !oauthLoading}
             />
             {fieldErrors.email ? (
               <Text style={styles.fieldErr}>{fieldErrors.email}</Text>
@@ -135,7 +174,7 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
               }}
               secureTextEntry
               autoComplete="password"
-              editable={!loading}
+              editable={!loading && !oauthLoading}
             />
             {fieldErrors.password ? (
               <Text style={styles.fieldErr}>{fieldErrors.password}</Text>
@@ -156,7 +195,7 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
           <Pressable
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
             onPress={handleSignIn}
-            disabled={loading}
+            disabled={loading || oauthLoading}
           >
             {loading ? (
               <ActivityIndicator color={theme.primaryForeground} />
@@ -232,6 +271,37 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 15,
     color: theme.mutedForeground,
+  },
+  googleBtn: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+    minHeight: 48,
+  },
+  googleBtnPressed: { opacity: 0.92 },
+  googleBtnDisabled: { opacity: 0.65 },
+  googleBtnText: { fontSize: 16, fontWeight: "600", color: theme.foreground },
+  dividerRow: {
+    marginTop: 20,
+    marginBottom: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: theme.border },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    color: theme.mutedForeground,
+    textTransform: "uppercase",
   },
   field: { marginTop: 18 },
   label: {

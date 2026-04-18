@@ -121,14 +121,7 @@ export function StudentCalendar({ studentId }: StudentCalendarProps) {
   const loading = loadingBookings || loadingFacility || loadingTasks;
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Colored blocks are approved classroom sessions;{" "}
-        <span className="font-medium text-teal-700 dark:text-teal-400">teal</span> blocks are
-        approved facility bookings (auditorium, halls, rooms). Everyone sees the same occupied
-        slots.
-      </p>
-      <RequestCalendar
+    <RequestCalendar
         bookings={bookings}
         studentTasks={studentTasks}
         classrooms={classrooms}
@@ -138,6 +131,5 @@ export function StudentCalendar({ studentId }: StudentCalendarProps) {
         showDescription={false}
         showStatus={false}
       />
-    </div>
   );
 }

@@ -18,6 +18,8 @@ export function getSupabase(): SupabaseClient<any> {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      // Required for signInWithOAuth + exchangeCodeForSession (stores code_verifier in AsyncStorage).
+      flowType: "pkce",
     },
   });
   return client;

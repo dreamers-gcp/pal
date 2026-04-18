@@ -39,11 +39,13 @@ export default (): ExpoConfig => ({
     bundleIdentifier: "com.pal.mobile",
     infoPlist: {
       NSLocationWhenInUseUsageDescription:
-        "PAL uses your location permission (required by the system) to read the Wi‑Fi network name when you mark attendance.",
+        "The Nucleus uses your location permission (required by the system) to read the Wi-Fi network name when you mark attendance.",
+      NSPhotoLibraryUsageDescription:
+        "The Nucleus does not access your photo library. If prompted, deny this permission.",
       NSBluetoothAlwaysUsageDescription:
-        "PAL uses Bluetooth for optional in-room attendance sessions (professor beacon and relays).",
+        "The Nucleus uses Bluetooth for optional in-room attendance sessions (professor beacon and relays).",
       NSBluetoothPeripheralUsageDescription:
-        "PAL can advertise a short attendance session code to nearby enrolled students over Bluetooth.",
+        "The Nucleus can advertise a short attendance session code to nearby enrolled students over Bluetooth.",
       UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral"],
     },
     ...(iosWifiInfoEntitlementEnabled
@@ -77,6 +79,7 @@ export default (): ExpoConfig => ({
     favicon: "./assets/favicon.png",
   },
   plugins: [
+    "expo-web-browser",
     [
       "react-native-ble-plx",
       {
@@ -89,14 +92,14 @@ export default (): ExpoConfig => ({
       "expo-camera",
       {
         cameraPermission:
-          "Allow PAL to use the camera for face registration and attendance verification.",
+          "Allow The Nucleus to use the camera for face registration and attendance verification.",
       },
     ],
     [
       "expo-location",
       {
         locationWhenInUsePermission:
-          "PAL needs location access so the system can share the Wi‑Fi network name when you mark attendance.",
+          "The Nucleus needs location access so the system can share the Wi-Fi network name when you mark attendance.",
       },
     ],
   ],

@@ -1,18 +1,30 @@
 import Link from "next/link";
 import { Shield, GraduationCap, BookOpen } from "lucide-react";
-import { PlanovaWordmark } from "@/components/planova-wordmark";
+import { LandingCalendarMock } from "@/components/landing-calendar-mock";
+import { LandingPageBackdrop } from "@/components/landing-page-backdrop";
+import {
+  NucleusHeroOrbitAmbient,
+  NucleusHubMark,
+  NucleusWordmark,
+} from "@/components/nucleus-wordmark";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-[rgba(0,0,0,0.06)] bg-white">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <LandingPageBackdrop />
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[var(--nucleus-mist)]/40 via-background/90 to-background dark:from-[var(--nucleus-deep)]/35 dark:via-background/88 dark:to-background"
+        aria-hidden
+      />
+      <div className="relative z-10 min-h-screen">
+      <header className="border-b border-[rgba(0,0,0,0.06)] bg-white/90 backdrop-blur-sm dark:bg-card/90">
         <div className="mx-auto flex h-16 max-w-[1100px] items-center justify-between px-[clamp(1.5rem,5vw,4rem)]">
           <Link
             href="/"
-            aria-label="Planova home"
+            aria-label="The Nucleus home"
             className="flex shrink-0 items-center gap-2 no-underline text-foreground"
           >
-            <PlanovaWordmark decorative size="lg" />
+            <NucleusWordmark decorative size="lg" />
           </Link>
           <div className="flex items-center gap-3">
           <Link
@@ -32,7 +44,7 @@ export default function Home() {
       </header>
 
       <main className="mx-auto max-w-[1100px] px-4">
-        <section className="grid items-center gap-12 py-20 lg:grid-cols-2 lg:gap-16 lg:py-24">
+        <section className="relative grid items-center gap-12 py-20 lg:grid-cols-2 lg:gap-16 lg:py-24">
           <div>
             <h1
               className="font-display mb-6 max-w-xl leading-[1.08] tracking-tight text-foreground"
@@ -40,11 +52,12 @@ export default function Home() {
                 fontSize: "clamp(2.5rem, 5vw, 4.5rem)",
               }}
             >
-              From slot request to approval — in seconds.
+              The calm center where every campus orbit meets.
             </h1>
             <p className="mb-10 max-w-lg text-[17px] leading-relaxed text-muted-foreground">
-              Planova connects Professors, Admins, and Students in one seamless
-              scheduling loop. Built for colleges.
+              From slot request to approval in seconds. Professors, admins, and students
+              share the same loop—so schedules stay true, rooms stay fair, and nobody is
+              left circling outside the conversation.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -63,10 +76,11 @@ export default function Home() {
           </div>
 
           <div className="flex justify-center lg:justify-end">
-            <div
-              className="w-full max-w-[520px] rounded-xl border border-foreground/10 bg-card p-3 shadow-[0_24px_64px_-12px_rgba(26,26,46,0.18)]"
-              style={{ transform: "rotate(2.5deg)" }}
-            >
+            <div className="relative w-full max-w-[520px]">
+              <div
+                className="relative w-full rounded-xl border border-foreground/10 bg-card/95 p-3 shadow-[0_24px_64px_-12px_rgba(26,26,46,0.18)] ring-1 ring-[var(--nucleus-orbit)] backdrop-blur-[2px] dark:bg-card/90 dark:shadow-[0_24px_64px_-12px_rgba(0,0,0,0.45)]"
+                style={{ transform: "rotate(2.5deg)" }}
+              >
               <div className="mb-3 flex items-center gap-2 border-b border-foreground/8 pb-3">
                 <div className="flex gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
@@ -74,84 +88,50 @@ export default function Home() {
                   <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
                 </div>
                 <div className="ml-2 flex-1 rounded-md bg-muted px-3 py-1.5 text-center text-xs text-muted-foreground">
-                  app.planova.edu / calendar
+                  thenucleus.in/calendar
                 </div>
               </div>
-              <div className="relative overflow-hidden rounded-lg border border-foreground/8 bg-background p-4">
+              <div className="bg-background p-2 sm:p-3">
+                <LandingCalendarMock />
+              </div>
+            </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          aria-labelledby="why-nucleus"
+          className="rounded-3xl border border-primary/15 bg-gradient-to-b from-primary/8 via-[var(--nucleus-mist)]/30 to-background px-6 py-16 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:from-primary/10 dark:via-[var(--nucleus-deep)]/25 dark:shadow-none md:px-10 md:py-20"
+        >
+          <div className="mx-auto max-w-2xl text-center">
+            <h2
+              id="why-nucleus"
+              className="font-display text-[clamp(1.35rem,3vw,1.85rem)] leading-tight text-foreground"
+            >
+              Why &ldquo;The Nucleus&rdquo;?
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-[17px]">
+              In biology, the nucleus holds the blueprint—everything else in the cell is
+              organized around it. We built the same idea for your college: one trusted
+              center where timetables, approvals, and attendance stay in sync, so your
+              campus doesn&apos;t spin on conflicting copies of the truth.
+            </p>
+            <div className="mt-10 flex justify-center">
+              <div className="relative">
                 <div
-                  className="absolute right-3 top-3 z-10 rounded-full border border-foreground/10 bg-card px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground/80 shadow-sm"
-                  title="Admin view"
-                >
-                  Pending Approvals
-                  <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-foreground px-1 text-[9px] text-background">
-                    3
-                  </span>
-                </div>
-                <div className="flex gap-3">
-                  <aside className="hidden w-[132px] shrink-0 rounded-lg border border-foreground/10 bg-card p-2.5 sm:block">
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      My Schedule
-                    </p>
-                    <p className="text-[11px] font-medium text-foreground">
-                      Dr. Rao
-                    </p>
-                    <p className="mb-2 text-[10px] text-muted-foreground">
-                      Computer Science
-                    </p>
-                    <ul className="space-y-1.5 text-[10px] text-foreground/70">
-                      <li className="rounded border border-foreground/8 bg-background px-1.5 py-1">
-                        Data Structures · Mon 10:00
-                      </li>
-                      <li className="rounded border border-foreground/8 bg-background px-1.5 py-1">
-                        Lab B · Wed 14:00
-                      </li>
-                    </ul>
-                  </aside>
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-foreground">
-                        Week of Apr 7
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Professor view
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 text-[9px]">
-                      {["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => (
-                        <div
-                          key={d}
-                          className="rounded-t border border-b-0 border-foreground/10 bg-card py-1 text-center font-medium text-muted-foreground"
-                        >
-                          {d}
-                        </div>
-                      ))}
-                      {Array.from({ length: 15 }).map((_, i) => {
-                        const col = i % 5;
-                        const row = Math.floor(i / 5);
-                        const isEvent =
-                          (col === 0 && row === 1) ||
-                          (col === 2 && row === 0) ||
-                          (col === 4 && row === 2);
-                        return (
-                          <div
-                            key={i}
-                            className={`min-h-[28px] border border-foreground/8 bg-card ${
-                              col === 0 ? "rounded-bl" : ""
-                            } ${col === 4 ? "rounded-br" : ""}`}
-                          >
-                            {isEvent ? (
-                              <div className="m-0.5 rounded bg-foreground px-1 py-0.5 text-[8px] font-medium leading-tight text-background">
-                                {col === 0
-                                  ? "CS-201"
-                                  : col === 2
-                                    ? "Review"
-                                    : "Office hrs"}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-primary/20"
+                  style={{ width: "min(18rem, 70vw)", height: "min(18rem, 70vw)" }}
+                  aria-hidden
+                />
+                <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-card via-card to-primary/5 px-8 py-6 shadow-[0_20px_60px_-24px_var(--nucleus-glow)] backdrop-blur-sm dark:to-primary/10">
+                  <div
+                    className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 opacity-[0.22]"
+                    aria-hidden
+                  >
+                    <NucleusHeroOrbitAmbient />
+                  </div>
+                  <div className="relative flex flex-col items-center gap-2">
+                    <NucleusHubMark size={56} className="drop-shadow-[0_0_16px_var(--nucleus-glow)]" />
                   </div>
                 </div>
               </div>
@@ -164,7 +144,7 @@ export default function Home() {
           className="border-t border-foreground/10 py-24 md:py-28"
         >
           <h2 className="font-display mb-12 text-center text-[clamp(1.75rem,3vw,2.25rem)] leading-tight text-foreground">
-            One loop for your whole campus
+            Three roles, one shared orbit
           </h2>
           <div className="grid gap-8 md:grid-cols-3 md:gap-10">
             <div className="rounded-2xl border border-foreground/10 bg-card p-8 shadow-sm">
@@ -208,8 +188,31 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-foreground/10 py-10 text-center text-sm text-muted-foreground">
-        <p>Planova — college calendar management</p>
+        <p className="mb-4">
+          The Nucleus — the center of gravity for college scheduling and attendance
+        </p>
+        <nav
+          className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
+          aria-label="Legal"
+        >
+          <Link
+            href="/terms"
+            className="font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Terms and Conditions
+          </Link>
+          <span className="hidden text-foreground/25 sm:inline" aria-hidden>
+            |
+          </span>
+          <Link
+            href="/privacy"
+            className="font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Privacy Policy
+          </Link>
+        </nav>
       </footer>
+      </div>
     </div>
   );
 }

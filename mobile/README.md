@@ -36,14 +36,30 @@ After sign-in, **☰ Menu** opens the same left-rail sections as the web dashboa
 | **Admin** | **Requests → Overview** | Same Supabase aggregates as web **Admin → Requests → Overview** (guest house, sports, classrooms, people, health, mess). Date range + Refresh / Today. |
 | **Admin** | **Calendar** | Campus-wide approved class + facility bookings; **Week** default, **Classes & sessions** list matching the web fields. |
 
-All other menu rows open a **placeholder** with **Open in Planova (browser)** → `/dashboard` for the full web workflow.
+All other menu rows open a **placeholder** with **Open The Nucleus (browser)** → `/dashboard` for the full web workflow.
 
 ## 3. Auth workflow (matches web)
 
-- **Sign in** with the same email/password as on the Planova web login page (`signInWithPassword`).
-- **Students without face registration** see a card linking to **`/face-registration`** on the web (same rule as the website).
+- **Sign in** with the same email/password as on The Nucleus web login page (`signInWithPassword`).
+- **Continue with Google** on login and signup uses the same Supabase provider as the web app (`signInWithOAuth` + PKCE). After Google returns to the app, **missing name or mobile** shows an in-app **Finish setup** screen (same data as web `/auth/onboarding`).
+- **Students without face registration** see a card linking to **`/face-registration`** on the web (same rule as the website); native **Face registration** is in the menu.
 - **Forgot password** / **Sign up** open your **`EXPO_PUBLIC_PAL_API_URL`** in the browser (`/forgot-password`, `/signup`) so complex flows stay identical to the web app.
 - **Full dashboard** opens **`/dashboard`** in the browser until more screens are native.
+
+### Google OAuth — Supabase redirect URL (required)
+
+The app scheme is **`pal`** (see `app.config.ts`). Add the mobile callback to **Supabase → Authentication → URL Configuration → Redirect URLs**:
+
+- **`pal://auth/callback`** (dev client and production builds)
+
+If Google still fails after a native rebuild, log the resolved URI once (it can differ in rare Expo setups):
+
+```ts
+import { getGoogleOAuthRedirectUri } from "./src/lib/google-oauth";
+console.log(getGoogleOAuthRedirectUri());
+```
+
+Add whatever exact string is printed to **Redirect URLs** as well.
 
 ## 4. Run Metro (one terminal for both phones)
 
@@ -74,7 +90,92 @@ npx expo start -c
 
 You do **not** need two Metro processes unless you want two different projects.
 
-## 6. EAS (store builds + dev clients) — when you’re ready
+## 6. Xcode + physical iPhone (dev client / `expo run:ios`)
+
+Use this when you build **PAL** in Xcode or install on a **real device** (not Expo Go).
+
+### A. One-time / after pulling native changes
+
+1. **Install JS deps** (repo root `mobile/`):
+
+   ```bash
+   cd mobile
+   npm install
+   ```
+
+2. **Install CocoaPods** (required for `EXApplication` and every other native pod):
+
+   ```bash
+   npm run ios:pods
+   ```
+
+   Or: `cd ios && pod install`
+
+3. **Node for Xcode script phases** — create `ios/.xcode.env` next to `Podfile` (this folder is often gitignored by Expo; the file lives only on your machine):
+
+   ```sh
+   # mobile/ios/.xcode.env
+   export NODE_BINARY=$(command -v node)
+   ```
+
+   If Xcode still says **`node` not found** (common with nvm/fnm), create `ios/.xcode.env.local` with a **full path** to `node` (see `ios-xcode.env.local.example` in this folder).
+
+### B. Open the correct project (critical)
+
+- **Always open:** `mobile/ios/PAL.xcworkspace`
+- **Never open only:** `mobile/ios/PAL.xcodeproj` — that skips the **Pods** project and causes errors like **missing `EXApplication.modulemap`** or empty `Build/Products/.../EXApplication`.
+
+Quick open from `mobile/`:
+
+```bash
+npm run ios:workspace
+```
+
+### C. “Sandbox: bash … deny file-write-data … `PAL.app/ip.txt`”
+
+Xcode **User Script Sandboxing** can block Expo/React Native build phases from writing into the app bundle. This repo sets **`ENABLE_USER_SCRIPT_SANDBOXING = NO`** on the **PAL** Xcode project. If you **regenerate** `ios/` with `expo prebuild --clean`, re-apply that setting (or turn off **User Script Sandboxing** under the project’s **Build Settings**) and rebuild.
+
+### D. Clean build when things look “stale”
+
+1. Quit Xcode.
+2. **Delete Derived Data** for this app: Xcode → **Settings** → **Locations** → **Derived Data** → arrow → delete the **`PAL-…`** folder (or delete all).
+3. Reopen **`PAL.xcworkspace`**.
+4. **Product → Clean Build Folder** (hold **Option** if needed).
+5. Build again.
+
+### E. Signing & install on your iPhone
+
+1. Connect the iPhone with USB (unlock it, tap **Trust** if asked).
+2. On the phone: **Settings → Privacy & Security → Developer Mode** → **On** (iOS 16+), reboot if prompted.
+3. In Xcode, select the **PAL** scheme and your **iPhone** as the run destination (not “Any iOS Device” only).
+4. Select the **PAL** target → **Signing & Capabilities**:
+   - Enable **Automatically manage signing**.
+   - **Team:** your Apple ID / organization (must match a valid **App ID** for `com.pal.mobile` in [Apple Developer](https://developer.apple.com/account) if you use capabilities; for local dev, Xcode often creates a development profile automatically).
+5. **Product → Run** (▶). First install may require: iPhone → **Settings → General → VPN & Device Management** → trust the developer app.
+
+**Bundle ID** is `com.pal.mobile` (`app.config.ts`). If that ID is taken or not in your team, change it in **Expo config** and regenerate native projects (`npx expo prebuild --clean`) or adjust **Product Bundle Identifier** in Xcode to match your Apple Developer identifier.
+
+### F. Wi‑Fi entitlement (optional)
+
+`app.config.ts` only adds the **Wi‑Fi information** entitlement when `IOS_WIFI_INFO_ENTITLEMENT=1`. If signing fails because of entitlements, leave it **unset** unless you need attendance Wi‑Fi features on device.
+
+### G. CLI alternative (same result as Xcode build)
+
+From `mobile/`:
+
+```bash
+npm run ios
+```
+
+Picks a simulator by default; for **device**, connect the phone and run:
+
+```bash
+npx expo run:ios --device
+```
+
+---
+
+## 7. EAS (store builds + dev clients) — when you’re ready
 
 ```bash
 npm install -g eas-cli
@@ -90,11 +191,11 @@ eas init
 
 Submit to stores: `eas submit` after production builds.
 
-## 7. Web app / Vercel
+## 8. Web app / Vercel
 
 The Next app at the repo root **excludes** `mobile/` in `tsconfig.json`, so Vercel `next build` is unchanged.
 
-## 8. “Internet connection appears to be offline” (Expo Go / Metro)
+## 9. “Internet connection appears to be offline” (Expo Go / Metro)
 
 That message almost always means the **phone cannot reach your dev machine** (where Metro runs), not that the public internet is down.
 

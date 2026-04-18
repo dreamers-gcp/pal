@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Work_Sans, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Work_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const workSans = Work_Sans({
@@ -9,9 +9,10 @@ const workSans = Work_Sans({
   display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
-  weight: "400",
+/** Display / headings — pairs with Work Sans; used for `font-display` across the app. */
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
@@ -22,9 +23,9 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Planova - Calendar Management",
+  title: "The Nucleus — Campus calendar",
   description:
-    "Planova helps Professors, Admins, and Learners manage event requests and attendance.",
+    "The Nucleus is the hub for your college: one place where schedules, room requests, approvals, and attendance stay aligned around the same truth.",
 };
 
 export default function RootLayout({
@@ -35,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${workSans.variable} ${instrumentSerif.variable} ${monoFont.variable} font-sans antialiased`}
+        className={`${workSans.variable} ${plusJakarta.variable} ${monoFont.variable} font-sans antialiased`}
       >
         {children}
       </body>

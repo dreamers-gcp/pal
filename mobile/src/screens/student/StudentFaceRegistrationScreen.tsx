@@ -226,8 +226,8 @@ export function StudentFaceRegistrationScreen({ profile, onRegistered }: Props) 
       {!apiConfigured ? (
         <View style={styles.warn}>
           <Text style={styles.warnText}>
-            Set EXPO_PUBLIC_PAL_API_URL in mobile/.env to your deployed Planova site so the app can call
-            /api/face/embedding.
+            Set EXPO_PUBLIC_PAL_API_URL in mobile/.env to the base URL your phone can reach (where{" "}
+            <Text style={{ fontWeight: "700" }}>/api/face/embedding</Text> is served).
           </Text>
         </View>
       ) : null}

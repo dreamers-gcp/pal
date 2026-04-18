@@ -36,7 +36,9 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup") ||
-    request.nextUrl.pathname.startsWith("/auth");
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/terms") ||
+    request.nextUrl.pathname.startsWith("/privacy");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
   const isOnboardingPath = request.nextUrl.pathname.startsWith("/auth/onboarding");
   const isFaceRegistrationPath = request.nextUrl.pathname.startsWith("/face-registration");
