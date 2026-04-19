@@ -4,7 +4,7 @@
 --   2) Rate limit: max N verification rows per student_id per rolling 1-minute window (all sessions).
 --
 -- Apply in Supabase SQL editor or `supabase db push` after review.
--- Mobile still needs native BLE (e.g. react-native-ble-plx) in a dev client / EAS build.
+-- The production mobile app does not ship BLE mesh yet; re-add a native BLE stack before using this flow in-app.
 
 -- ---------------------------------------------------------------------------
 -- Constants (change via editing this function if you need different limits)

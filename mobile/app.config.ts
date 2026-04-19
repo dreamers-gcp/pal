@@ -43,11 +43,6 @@ export default (): ExpoConfig => ({
         "The Nucleus uses your location permission (required by the system) to read the Wi-Fi network name when you mark attendance.",
       NSPhotoLibraryUsageDescription:
         "The Nucleus does not access your photo library. If prompted, deny this permission.",
-      NSBluetoothAlwaysUsageDescription:
-        "The Nucleus uses Bluetooth for optional in-room attendance sessions (professor beacon and relays).",
-      NSBluetoothPeripheralUsageDescription:
-        "The Nucleus can advertise a short attendance session code to nearby enrolled students over Bluetooth.",
-      UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral"],
     },
     ...(iosWifiInfoEntitlementEnabled
       ? {
@@ -66,14 +61,9 @@ export default (): ExpoConfig => ({
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     permissions: [
-      "ACCESS_FINE_LOCATION",
-      "ACCESS_COARSE_LOCATION",
+      // Location: declared by the `expo-location` plugin (with SDK-scoped attrs). Listing them
+      // here too merges duplicate `<uses-permission>` rows and Play rejects the AAB.
       "ACCESS_WIFI_STATE",
-      "android.permission.BLUETOOTH",
-      "android.permission.BLUETOOTH_ADMIN",
-      "android.permission.BLUETOOTH_SCAN",
-      "android.permission.BLUETOOTH_CONNECT",
-      "android.permission.BLUETOOTH_ADVERTISE",
     ],
   },
   web: {
@@ -81,13 +71,6 @@ export default (): ExpoConfig => ({
   },
   plugins: [
     "expo-web-browser",
-    [
-      "react-native-ble-plx",
-      {
-        /** BLE mesh beacons are not used for location; avoids tying scan to location on API 31+. */
-        neverForLocation: true,
-      },
-    ],
     "@react-native-community/datetimepicker",
     [
       "expo-camera",
