@@ -20,11 +20,11 @@ export const STUDENT_NAV: NavEntry[] = [
   { type: "link", id: "parcels", label: "Parcels" },
 ];
 
-/** Matches web professor dashboard sidebar; Attendance omitted. */
+/** Matches web professor dashboard sidebar (Attendance tab → class roster + overrides). */
 export const PROFESSOR_NAV: NavEntry[] = [
   { type: "link", id: "my-requests", label: "My Requests" },
   { type: "link", id: "calendar", label: "Calendar" },
-  { type: "link", id: "ble-mesh", label: "BLE attendance" },
+  { type: "link", id: "professor-attendance", label: "Attendance" },
   { type: "link", id: "sports", label: "Sports Requests" },
   { type: "link", id: "parcels", label: "Parcels" },
   { type: "link", id: "script-evaluation", label: "Script evaluation" },

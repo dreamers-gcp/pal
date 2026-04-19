@@ -9,20 +9,20 @@ export type GoogleOAuthResult =
 /**
  * Deep link used after Google OAuth. Must be listed in Supabase Dashboard →
  * Authentication → URL Configuration → Redirect URLs (add this exact string).
- * Expo resolves `pal://auth/callback` for dev client / standalone with scheme `pal`.
+ * Matches `scheme` in `app.config.ts` (not the same as iOS bundle id / Android package).
  */
 export function getGoogleOAuthRedirectUri(): string {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { makeRedirectUri } = require("expo-auth-session");
   return makeRedirectUri({
-    scheme: "pal",
+    scheme: "thenucleus",
     path: "auth/callback",
   });
 }
 
 /**
  * Same provider flow as web (`signInWithOAuth` + PKCE): opens the system browser,
- * returns to the app via the `pal` scheme, then exchanges the code for a session.
+ * returns to the app via the custom URL scheme, then exchanges the code for a session.
  *
  * All native module imports are lazy so the app doesn't crash on builds that
  * haven't linked `expo-web-browser` / `expo-auth-session` yet.

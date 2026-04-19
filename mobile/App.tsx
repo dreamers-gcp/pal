@@ -1,7 +1,7 @@
 import NetInfo from "@react-native-community/netinfo";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -10,17 +10,41 @@ import {
   getSupabaseUrl,
   isSupabaseConfigured,
 } from "./src/lib/config";
+import {
+  looksLikePasswordRecoveryUrl,
+  parsePasswordRecoveryPayload,
+} from "./src/lib/auth-deep-link";
 import { getSupabase } from "./src/lib/supabase";
 import { AuthenticatedRoot } from "./src/screens/AuthenticatedRoot";
+import { ForgotPasswordScreen } from "./src/screens/ForgotPasswordScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
+import { ResetPasswordScreen } from "./src/screens/ResetPasswordScreen";
 import { SignupScreen, SignupSuccessScreen } from "./src/screens/SignupScreen";
 import { theme } from "./src/theme";
 
-type AuthGate = "login" | "signup" | { kind: "signupSuccess"; email: string };
+type AuthGate = "login" | "signup" | "forgotPassword" | { kind: "signupSuccess"; email: string };
 
 /** iOS only fetches SSID/BSSID when this is set at startup (see NetInfo README). */
 if (Platform.OS === "ios" || Platform.OS === "android") {
   NetInfo.configure({ shouldFetchWiFiSSID: true });
+}
+
+async function applyPasswordRecoveryDeepLink(
+  supabase: ReturnType<typeof getSupabase>,
+  url: string
+): Promise<boolean> {
+  if (!looksLikePasswordRecoveryUrl(url)) return false;
+  const payload = parsePasswordRecoveryPayload(url);
+  if (!payload) return false;
+  if (payload.kind === "pkce") {
+    const { error } = await supabase.auth.exchangeCodeForSession(payload.code);
+    return !error;
+  }
+  const { error } = await supabase.auth.setSession({
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token,
+  });
+  return !error;
 }
 
 const styles = StyleSheet.create({
@@ -54,11 +78,14 @@ function Root() {
   const [session, setSession] = useState<Session | null>(null);
   const [booting, setBooting] = useState(true);
   const [authGate, setAuthGate] = useState<AuthGate>("login");
+  /** After email recovery deep link: show native new-password UI before main app. */
+  const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
   const prevSessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     if (prevSessionRef.current && !session) {
       setAuthGate("login");
+      setPasswordRecoveryActive(false);
     }
     prevSessionRef.current = session;
   }, [session]);
@@ -69,14 +96,43 @@ function Root() {
       return;
     }
     const supabase = getSupabase();
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-      setBooting(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    let cancelled = false;
+
+    (async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl && looksLikePasswordRecoveryUrl(initialUrl)) {
+        const ok = await applyPasswordRecoveryDeepLink(supabase, initialUrl);
+        if (!cancelled && ok) {
+          setPasswordRecoveryActive(true);
+        }
+      }
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled) {
+        setSession(data.session ?? null);
+        setBooting(false);
+      }
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
+      if (event === "PASSWORD_RECOVERY") {
+        setPasswordRecoveryActive(true);
+      }
     });
-    return () => sub.subscription.unsubscribe();
+
+    const linkSub = Linking.addEventListener("url", ({ url }) => {
+      void (async () => {
+        if (!looksLikePasswordRecoveryUrl(url)) return;
+        const ok = await applyPasswordRecoveryDeepLink(supabase, url);
+        if (ok) setPasswordRecoveryActive(true);
+      })();
+    });
+
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+      linkSub.remove();
+    };
   }, [configured]);
 
   if (!configured) {
@@ -111,9 +167,29 @@ function Root() {
   }
 
   if (session) {
+    if (passwordRecoveryActive) {
+      return (
+        <>
+          <ResetPasswordScreen
+            session={session}
+            onComplete={() => setPasswordRecoveryActive(false)}
+          />
+          <StatusBar style="dark" />
+        </>
+      );
+    }
     return (
       <>
         <AuthenticatedRoot session={session} />
+        <StatusBar style="dark" />
+      </>
+    );
+  }
+
+  if (authGate === "forgotPassword") {
+    return (
+      <>
+        <ForgotPasswordScreen onBackToLogin={() => setAuthGate("login")} />
         <StatusBar style="dark" />
       </>
     );
@@ -143,7 +219,10 @@ function Root() {
 
   return (
     <>
-      <LoginScreen onGoSignup={() => setAuthGate("signup")} />
+      <LoginScreen
+        onGoSignup={() => setAuthGate("signup")}
+        onForgotPassword={() => setAuthGate("forgotPassword")}
+      />
       <StatusBar style="dark" />
     </>
   );

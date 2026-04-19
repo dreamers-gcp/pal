@@ -33,6 +33,7 @@ After sign-in, **☰ Menu** opens the same left-rail sections as the web dashboa
 | **Student** | **Calendar** | Same data as web **Calendar**; **Week** is the default (like react-big-calendar on the web). Week strip + optional **Month** grid, then **Classes & sessions** list (room, professor, groups, subject, time—tap a row for full detail). |
 | **Professor** | **My Requests** | Your `calendar_requests` (merged by professor id + email), same as web **My Requests**. |
 | **Professor** | **Calendar** | **All rooms** / **My schedule**, room filter, **Week** or **Month** scope, **Classes & sessions** list + detail sheet; **New request / book a slot** opens `/dashboard`. |
+| **Professor** | **Attendance** | Same as web **Attendance** tab: your approved classes, enrolled students, present/absent from records, **Mark present / Mark absent** to override (same `upsert` as web). |
 | **Admin** | **Requests → Overview** | Same Supabase aggregates as web **Admin → Requests → Overview** (guest house, sports, classrooms, people, health, mess). Date range + Refresh / Today. |
 | **Admin** | **Calendar** | Campus-wide approved class + facility bookings; **Week** default, **Classes & sessions** list matching the web fields. |
 
@@ -43,14 +44,19 @@ All other menu rows open a **placeholder** with **Open The Nucleus (browser)** �
 - **Sign in** with the same email/password as on The Nucleus web login page (`signInWithPassword`).
 - **Continue with Google** on login and signup uses the same Supabase provider as the web app (`signInWithOAuth` + PKCE). After Google returns to the app, **missing name or mobile** shows an in-app **Finish setup** screen (same data as web `/auth/onboarding`).
 - **Students without face registration** see a card linking to **`/face-registration`** on the web (same rule as the website); native **Face registration** is in the menu.
-- **Forgot password** / **Sign up** open your **`EXPO_PUBLIC_PAL_API_URL`** in the browser (`/forgot-password`, `/signup`) so complex flows stay identical to the web app.
+- **Forgot password** is implemented in-app (email link must open this app; add **`thenucleus://reset-password`** to Supabase redirect URLs). **Sign up** still opens your **`EXPO_PUBLIC_PAL_API_URL`** in the browser (`/signup`) when you want the web flow.
 - **Full dashboard** opens **`/dashboard`** in the browser until more screens are native.
 
 ### Google OAuth — Supabase redirect URL (required)
 
-The app scheme is **`pal`** (see `app.config.ts`). Add the mobile callback to **Supabase → Authentication → URL Configuration → Redirect URLs**:
+The app URL scheme is **`thenucleus`** (see `app.config.ts`). This is **not** the same as the store package / bundle id (`in.thenucleus.app`). Add the mobile callback to **Supabase → Authentication → URL Configuration → Redirect URLs**:
 
-- **`pal://auth/callback`** (dev client and production builds)
+- **`thenucleus://auth/callback`** (dev client and production builds)
+- **`thenucleus://reset-password`** (password reset from the in-app **Forgot password** flow; required for native reset links to return to the app)
+
+**Password reset must use a build that registers the `thenucleus` URL scheme** (development client from `expo run:ios` / `expo run:android`, or a store/EAS build). **Expo Go does not open `thenucleus://` links**, so Mail/Safari may show “invalid address” after you tap the Supabase link. Request the reset from the same installed app, then open the email on the same device.
+
+PKCE: the app stores a short-lived verifier when you tap “Send reset link”. If `exchangeCodeForSession` still fails, try requesting a new email without clearing app data.
 
 If Google still fails after a native rebuild, log the resolved URI once (it can differ in rare Expo setups):
 
@@ -150,10 +156,10 @@ Xcode **User Script Sandboxing** can block Expo/React Native build phases from w
 3. In Xcode, select the **PAL** scheme and your **iPhone** as the run destination (not “Any iOS Device” only).
 4. Select the **PAL** target → **Signing & Capabilities**:
    - Enable **Automatically manage signing**.
-   - **Team:** your Apple ID / organization (must match a valid **App ID** for `com.pal.mobile` in [Apple Developer](https://developer.apple.com/account) if you use capabilities; for local dev, Xcode often creates a development profile automatically).
+   - **Team:** your Apple ID / organization (must match a valid **App ID** for `in.thenucleus.app` in [Apple Developer](https://developer.apple.com/account) if you use capabilities; for local dev, Xcode often creates a development profile automatically).
 5. **Product → Run** (▶). First install may require: iPhone → **Settings → General → VPN & Device Management** → trust the developer app.
 
-**Bundle ID** is `com.pal.mobile` (`app.config.ts`). If that ID is taken or not in your team, change it in **Expo config** and regenerate native projects (`npx expo prebuild --clean`) or adjust **Product Bundle Identifier** in Xcode to match your Apple Developer identifier.
+**Bundle ID / Android package** is `in.thenucleus.app` (`app.config.ts`). If that ID is taken or not in your team, change it in **Expo config** and regenerate native projects (`npx expo prebuild --clean`) or adjust **Product Bundle Identifier** / **applicationId** in Xcode / Gradle to match your Apple Developer / Play Console identifiers.
 
 ### F. Wi‑Fi entitlement (optional)
 

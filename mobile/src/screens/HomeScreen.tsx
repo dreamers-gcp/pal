@@ -42,7 +42,7 @@ import { AdminSportsRequestsScreen } from "./admin/AdminSportsRequestsScreen";
 import { ProfessorCalendarScreen } from "./professor/ProfessorCalendarScreen";
 import { ProfessorMyRequestsScreen } from "./professor/ProfessorMyRequestsScreen";
 import { ProfessorScriptScreen } from "./professor/ProfessorScriptScreen";
-import { ProfessorBleMeshScreen } from "./professor/ProfessorBleMeshScreen";
+import { ProfessorAttendanceScreen } from "./professor/ProfessorAttendanceScreen";
 import { SectionPlaceholderScreen } from "./SectionPlaceholderScreen";
 import { SportsRequestsScreen } from "./shared/SportsRequestsScreen";
 import { UserParcelsScreen } from "./shared/UserParcelsScreen";
@@ -787,8 +787,8 @@ export function HomeScreen({ session }: { session: Session }) {
         <ProfessorCalendarScreen profile={profile} onOpenNewRequest={openProfessorMyRequests} />
       );
     }
-    if (profile.role === "professor" && activeNavId === "ble-mesh") {
-      return <ProfessorBleMeshScreen profile={profile} />;
+    if (profile.role === "professor" && activeNavId === "professor-attendance") {
+      return <ProfessorAttendanceScreen profile={profile} />;
     }
     if (profile.role === "professor" && activeNavId === "sports") {
       return <SportsRequestsScreen profile={profile} requesterRole="professor" />;

@@ -9,7 +9,6 @@ export const DRAWER_NAV_ICON: Partial<Record<string, keyof typeof Ionicons.glyph
   events: "today-outline",
   calendar: "calendar-outline",
   attendance: "finger-print-outline",
-  "ble-mesh": "bluetooth-outline",
   tasks: "checkbox-outline",
   "guest-house": "bed-outline",
   sports: "basketball-outline",
@@ -17,6 +16,7 @@ export const DRAWER_NAV_ICON: Partial<Record<string, keyof typeof Ionicons.glyph
   parcels: "cube-outline",
   // Professor
   "my-requests": "document-text-outline",
+  "professor-attendance": "people-outline",
   "script-evaluation": "create-outline",
   // Admin — requests & tools
   "request-overview": "stats-chart-outline",

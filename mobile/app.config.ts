@@ -28,7 +28,8 @@ export default (): ExpoConfig => ({
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  scheme: "pal",
+  /** Deep links + OAuth return URL (`thenucleus://…`). Separate from `ios.bundleIdentifier` / `android.package`. */
+  scheme: "thenucleus",
   splash: {
     image: "./assets/splash-icon.png",
     resizeMode: "contain",
@@ -36,7 +37,7 @@ export default (): ExpoConfig => ({
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.pal.mobile",
+    bundleIdentifier: "in.thenucleus.app",
     infoPlist: {
       NSLocationWhenInUseUsageDescription:
         "The Nucleus uses your location permission (required by the system) to read the Wi-Fi network name when you mark attendance.",
@@ -61,7 +62,7 @@ export default (): ExpoConfig => ({
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#ffffff",
     },
-    package: "com.pal.mobile",
+    package: "in.thenucleus.app",
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     permissions: [

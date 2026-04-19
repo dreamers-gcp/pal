@@ -23,9 +23,11 @@ import { theme } from "../theme";
 type LoginProps = {
   /** Native signup flow; if omitted, Sign up opens the web app when PAL URL is set. */
   onGoSignup?: () => void;
+  /** Native forgot-password screen (recommended). */
+  onForgotPassword?: () => void;
 };
 
-export function LoginScreen({ onGoSignup }: LoginProps) {
+export function LoginScreen({ onGoSignup, onForgotPassword }: LoginProps) {
   const insets = useSafeAreaInsets();
   const webBase = getPalApiBaseUrl();
   const [email, setEmail] = useState("");
@@ -179,8 +181,13 @@ export function LoginScreen({ onGoSignup }: LoginProps) {
             {fieldErrors.password ? (
               <Text style={styles.fieldErr}>{fieldErrors.password}</Text>
             ) : null}
-            {webBase ? (
-              <Pressable onPress={() => openWeb("/forgot-password")} style={styles.forgotWrap}>
+            {onForgotPassword || webBase ? (
+              <Pressable
+                onPress={() =>
+                  onForgotPassword ? onForgotPassword() : void openWeb("/forgot-password")
+                }
+                style={styles.forgotWrap}
+              >
                 <Text style={styles.link}>Forgot password?</Text>
               </Pressable>
             ) : null}
