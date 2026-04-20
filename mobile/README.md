@@ -23,6 +23,22 @@ cp .env.example .env
 npm install
 ```
 
+### Play Store / TestFlight (EAS Build) — required
+
+Store installs do **not** load `mobile/.env` from your laptop. `EXPO_PUBLIC_*` must exist in the **EAS build environment** or the app shows “missing” Supabase settings. The **production** profile in `eas.json` uses `environment: "production"` and `distribution: "store"` so variables must be defined for that **production** environment in [expo.dev](https://expo.dev) (not only under *preview*).
+
+From `mobile/`, create [EAS secrets](https://docs.expo.dev/build-reference/variables/) (same values as web `.env.local` / Vercel):
+
+```bash
+eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value "https://YOUR_PROJECT.supabase.co" --type string
+eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "YOUR_ANON_JWT" --type string
+eas secret:create --scope project --name EXPO_PUBLIC_PAL_API_URL --value "https://your-production-site.example" --type string
+```
+
+Then rebuild and submit a **new** binary (`eas build --platform android --profile production` — and iOS if applicable). Updating secrets alone does not change an APK/AAB already on the Play Store.
+
+You can also use [`eas env:create` / the Expo dashboard](https://docs.expo.dev/eas/environment-variables/) with **`--environment production`** so variables attach to the same environment as the production build profile.
+
 ## 2. In-app dashboard (first sidebar item per role)
 
 After sign-in, **☰ Menu** opens the same left-rail sections as the web dashboard (**Attendance** is omitted until last).

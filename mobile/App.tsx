@@ -139,19 +139,42 @@ function Root() {
     return (
       <View style={styles.center}>
         <Text style={styles.configTitle}>Configure The Nucleus mobile</Text>
-        <Text style={styles.configBody}>
-          Copy mobile/.env.example to mobile/.env and set EXPO_PUBLIC_SUPABASE_URL and
-          EXPO_PUBLIC_SUPABASE_ANON_KEY (same project as the web app). Optionally set
-          EXPO_PUBLIC_PAL_API_URL for links to sign up and the dashboard.
-        </Text>
-        <Text style={styles.configMono}>
-          Supabase: {getSupabaseUrl() ? "set" : "missing"}
-          {"\n"}
-          Anon key: {getSupabaseAnonKey() ? "set" : "missing"}
-          {"\n"}
-          Web app URL: {getPalApiBaseUrl() || "(optional)"}
-        </Text>
-        <Text style={styles.configHint}>Restart with: npx expo start -c</Text>
+        {__DEV__ ? (
+          <>
+            <Text style={styles.configBody}>
+              Copy mobile/.env.example to mobile/.env and set EXPO_PUBLIC_SUPABASE_URL and
+              EXPO_PUBLIC_SUPABASE_ANON_KEY (same project as the web app). Optionally set
+              EXPO_PUBLIC_PAL_API_URL for links to sign up and the dashboard.
+            </Text>
+            <Text style={styles.configMono}>
+              Supabase: {getSupabaseUrl() ? "set" : "missing"}
+              {"\n"}
+              Anon key: {getSupabaseAnonKey() ? "set" : "missing"}
+              {"\n"}
+              Web app URL: {getPalApiBaseUrl() || "(optional)"}
+            </Text>
+            <Text style={styles.configHint}>Restart with: npx expo start -c</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.configBody}>
+              This install was built without Supabase settings. Those values are not read from a file
+              on your phone—they must be set as EAS environment variables when the app is built, then
+              a new release must be uploaded to the Play Store.
+            </Text>
+            <Text style={styles.configMono}>
+              Supabase URL: {getSupabaseUrl() ? "set" : "missing"}
+              {"\n"}
+              Anon key: {getSupabaseAnonKey() ? "set" : "missing"}
+              {"\n"}
+              Web app URL: {getPalApiBaseUrl() || "(optional — needed for signup / dashboard links)"}
+            </Text>
+            <Text style={styles.configHint}>
+              Developer: see “Play Store / EAS Build” in mobile/README.md — set EXPO_PUBLIC_* secrets and
+              run eas build again.
+            </Text>
+          </>
+        )}
         <StatusBar style="dark" />
       </View>
     );

@@ -7,17 +7,23 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "env": {
         "IOS_WIFI_INFO_ENTITLEMENT": "1"
       }
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
+      "autoIncrement": true,
       "env": {
         "IOS_WIFI_INFO_ENTITLEMENT": "1"
       }
     },
     "production": {
+      "distribution": "store",
+      "environment": "production",
+      "autoIncrement": true,
       "env": {
         "IOS_WIFI_INFO_ENTITLEMENT": "1"
       }
