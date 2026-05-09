@@ -49,6 +49,7 @@ import {
   BOOKING_NOT_IN_PAST_MSG,
   isBookingStartBeforeNow,
   isDateOnlyBeforeToday,
+  pastRequestDatesAllowedForTesting,
 } from "@/lib/booking-start-not-in-past";
 
 function badge(status: string) {
@@ -110,6 +111,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
     [apptDurationMins]
   );
   const pStartOptions = useMemo(() => {
+    if (pastRequestDatesAllowedForTesting()) return pStartOptionsBase;
     if (pDate !== todayIso) return pStartOptionsBase;
     const now = new Date();
     const cutoff = now.getHours() * 60 + now.getMinutes();
@@ -238,7 +240,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
       toast.error("Pick a meal date.");
       return;
     }
-    if (mDate < minMess) {
+    if (!pastRequestDatesAllowedForTesting() && mDate < minMess) {
       toast.error("Mess extras must be requested at least one day in advance.");
       return;
     }
@@ -359,7 +361,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>From</Label>
-                  <DatePicker value={lStart} onChange={setLStart} min={todayIso} />
+                  <DatePicker value={lStart} onChange={setLStart} min={pastRequestDatesAllowedForTesting() ? undefined : todayIso} />
                 </div>
                 <div className="space-y-2">
                   <Label>To</Label>
@@ -397,7 +399,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
                   meal.
                 </p>
               </div>
-              <DatePicker value={mDate} onChange={setMDate} min={minMess} />
+              <DatePicker value={mDate} onChange={setMDate} min={pastRequestDatesAllowedForTesting() ? undefined : minMess} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Meal</Label>
@@ -511,7 +513,7 @@ export function StudentCampusTab({ profile }: { profile: Profile }) {
                   <DatePicker
                     value={pDate}
                     onChange={setPDate}
-                    min={todayIso}
+                    min={pastRequestDatesAllowedForTesting() ? undefined : todayIso}
                     placeholder="Pick a date"
                   />
                 </div>

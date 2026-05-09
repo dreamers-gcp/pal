@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { parseAnswerKeyPdfToRubric } from "@/lib/evaluation/parse-answer-key";
 import {
-  extractRubricFromKey,
-  extractionToQuestions,
-  extractionToSummary,
-} from "@/lib/answer-scripts-rubric-extraction";
+  canonicalRubricToAnswerKeySummary,
+  canonicalRubricToExamQuestions,
+} from "@/lib/evaluation/evaluation-map";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const MODEL = process.env.OPENAI_EVAL_MODEL?.trim() || "gpt-5-nano";
+const MODEL = process.env.OPENAI_EVAL_MODEL?.trim() || "gpt-4o";
 
 /**
- * Pre-extracts the rubric + correct answers from the answer key PDF.
- * Called when the professor finishes Step 1 so the rubric is ready
- * before grading starts — eliminates one API call from the grading path.
+ * Pre-extract canonical rubric from the answer key PDF (same parser as grading).
+ * Matches `Documents/evaluation` parse_key PDF path + rubric validation.
  */
 export async function POST(req: NextRequest) {
   if (!process.env.OPENAI_API_KEY?.trim()) {
@@ -39,8 +38,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const examName = (form.get("examName") as string | null)?.trim() || "Exam";
-
   const keyBuf = Buffer.from(await answerKey.arrayBuffer());
   if (keyBuf.byteLength > 32 * 1024 * 1024) {
     return NextResponse.json(
@@ -53,9 +50,9 @@ export async function POST(req: NextRequest) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   try {
-    const extracted = await extractRubricFromKey(openai, MODEL, keyDataUrl, examName);
-    const derivedQuestions = extractionToQuestions(extracted);
-    const answerKeySummary = extractionToSummary(extracted);
+    const rubric = await parseAnswerKeyPdfToRubric(openai, MODEL, keyDataUrl);
+    const derivedQuestions = canonicalRubricToExamQuestions(rubric);
+    const answerKeySummary = canonicalRubricToAnswerKeySummary(rubric);
 
     if (derivedQuestions.length === 0) {
       return NextResponse.json(
@@ -64,7 +61,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ derivedQuestions, answerKeySummary });
+    return NextResponse.json({
+      derivedQuestions,
+      answerKeySummary,
+      canonicalRubric: rubric,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Extraction failed.";
     console.error("[answer-scripts/extract-rubric]", e);

@@ -25,18 +25,18 @@ export function EvaluationStepper({ current }: { current: number }) {
 
   return (
     <nav
-      className="w-full min-w-0 overflow-x-auto rounded-xl border border-[#01696f]/20 bg-[#01696f]/[0.04] px-2 py-3 sm:px-4"
+      className="w-full min-w-0 overflow-x-auto rounded-xl border border-[#01696f]/20 bg-[#01696f]/[0.04] px-3 py-3.5 sm:px-5"
       aria-label="Evaluation progress"
     >
-      <ol className="grid w-full min-w-0 grid-cols-3 gap-x-1 gap-y-2 sm:gap-x-2">
+      <ol className="grid w-full min-w-0 grid-cols-3 gap-x-2 gap-y-2.5 sm:gap-x-3">
         {steps.map((s) => {
           const done = s.n < current;
           const active = current === s.n;
           return (
-            <li key={s.n} className="flex min-w-0 flex-col items-center gap-1">
+            <li key={s.n} className="flex min-w-0 flex-col items-center gap-1.5">
               <span
                 className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors",
                   done && "bg-[#01696f] text-white",
                   active && !done && "bg-[#01696f]/15 text-[#01696f] ring-2 ring-[#01696f]/40",
                   !active && !done && "bg-muted text-muted-foreground"
@@ -47,7 +47,7 @@ export function EvaluationStepper({ current }: { current: number }) {
               </span>
               <span
                 className={cn(
-                  "w-full min-w-0 truncate px-0.5 text-center text-[11px] font-medium sm:text-xs",
+                  "w-full min-w-0 truncate px-0.5 text-center text-xs font-medium sm:text-sm",
                   active && "text-[#01696f]",
                   !active && !done && "text-muted-foreground"
                 )}

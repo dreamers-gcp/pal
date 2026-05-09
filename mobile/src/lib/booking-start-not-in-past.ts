@@ -4,8 +4,14 @@ export const BOOKING_NOT_IN_PAST_MSG =
 export const BOOKING_DATE_NOT_IN_PAST_MSG =
   "Date must be today or a future day.";
 
+/** Set `EXPO_PUBLIC_ALLOW_PAST_REQUEST_DATES=true` to allow past dates/times while testing. */
+export function pastRequestDatesAllowedForTesting(): boolean {
+  return process.env.EXPO_PUBLIC_ALLOW_PAST_REQUEST_DATES === "true";
+}
+
 /** `yyyy-MM-dd` strictly before local today. */
 export function isDateOnlyBeforeToday(dateStr: string, now = new Date()): boolean {
+  if (pastRequestDatesAllowedForTesting()) return false;
   const part = String(dateStr).split("T")[0];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(part)) return true;
   const y = now.getFullYear();
@@ -31,6 +37,7 @@ export function isBookingStartBeforeNow(
   timeStr: string,
   now = new Date()
 ): boolean {
+  if (pastRequestDatesAllowedForTesting()) return false;
   const dt = parseLocalStart(dateStr, timeStr);
   if (!dt || Number.isNaN(dt.getTime())) return true;
   return dt.getTime() < now.getTime();

@@ -52,6 +52,8 @@ export interface TimeRangeSelectProps {
   stepMinutes?: number;
   /** When this yyyy-MM-dd is local today, start times before the current clock time are hidden. */
   eventDate?: string;
+  /** When true, all start times stay available even on local today (for testing past slots). */
+  allowPastStartTimesOnSelectedDay?: boolean;
 }
 
 /**
@@ -74,29 +76,41 @@ export function TimeRangeSelect({
   className,
   stepMinutes = 15,
   eventDate,
+  allowPastStartTimesOnSelectedDay = false,
 }: TimeRangeSelectProps) {
   const allOptions = React.useMemo(() => getTimeOptions(stepMinutes), [stepMinutes]);
 
   const todayYmd = format(new Date(), "yyyy-MM-dd");
 
   const startOptions = React.useMemo(() => {
+    if (allowPastStartTimesOnSelectedDay) return allOptions;
     if (!eventDate || eventDate !== todayYmd) return allOptions;
     const n = new Date();
     const nowMins = n.getHours() * 60 + n.getMinutes();
     return allOptions.filter((o) => timeToMinutes(o.value) >= nowMins);
-  }, [allOptions, eventDate, todayYmd]);
+  }, [allOptions, eventDate, todayYmd, allowPastStartTimesOnSelectedDay]);
 
   const startSelectOptions =
-    eventDate && eventDate === todayYmd ? startOptions : allOptions;
+    eventDate && eventDate === todayYmd && !allowPastStartTimesOnSelectedDay
+      ? startOptions
+      : allOptions;
 
   React.useEffect(() => {
+    if (allowPastStartTimesOnSelectedDay) return;
     if (!eventDate || eventDate !== todayYmd || !startValue) return;
     const n = new Date();
     const nowMins = n.getHours() * 60 + n.getMinutes();
     if (timeToMinutes(startValue) >= nowMins) return;
     const next = startOptions[0]?.value;
     if (next && next !== startValue) onStartChange(next);
-  }, [eventDate, todayYmd, startValue, startOptions, onStartChange]);
+  }, [
+    allowPastStartTimesOnSelectedDay,
+    eventDate,
+    todayYmd,
+    startValue,
+    startOptions,
+    onStartChange,
+  ]);
 
   const endOptions = React.useMemo(() => {
     if (!startValue) return allOptions;

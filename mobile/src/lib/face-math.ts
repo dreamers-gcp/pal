@@ -9,4 +9,3 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 export const FACE_REGISTRATION_MIN_PHOTOS = 3;
 export const FACE_REGISTRATION_MAX_PHOTOS = 5;
 export const FACE_REGISTRATION_MATCH_THRESHOLD = 0.35;
-export const ATTENDANCE_WINDOW_MINUTES = 15;

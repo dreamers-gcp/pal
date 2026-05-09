@@ -9,7 +9,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto w-full min-w-0 max-w-[1100px] overflow-x-hidden px-3 py-6 sm:px-4 sm:py-8 md:py-10">
+      <main className="mx-auto w-full min-w-0 max-w-[1100px] overflow-x-hidden px-3 py-6 sm:px-4 sm:py-8 md:py-10 xl:max-w-[min(100%,1580px)]">
         {children}
       </main>
       <Toaster />

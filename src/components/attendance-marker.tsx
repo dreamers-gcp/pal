@@ -25,8 +25,12 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, parse, addMinutes, isWithinInterval } from "date-fns";
+import { format } from "date-fns";
 import type { CalendarRequest, AttendanceRecord, Profile } from "@/lib/types";
+import {
+  getClassScheduledInterval,
+  isWithinClassAttendanceWindow,
+} from "@/lib/attendance-window";
 import {
   decodeCalendarRequestSubjects,
   attendanceSubjectLabelsForEvent,
@@ -43,8 +47,6 @@ import {
 } from "@/lib/attendance-wifi-match";
 import { DatePicker } from "@/components/ui/date-picker";
 import { AttendanceMarkerListSkeleton } from "@/components/ui/loading-skeletons";
-
-const ATTENDANCE_WINDOW_MINUTES = 15;
 
 function isEventToday(dateStr: string): boolean {
   const now = new Date();
@@ -121,23 +123,16 @@ export function AttendanceMarker({ profile, events }: Props) {
 
   const todayEvents = events.filter((e) => isEventToday(e.event_date));
 
-  function isWithinAttendanceWindow(event: CalendarRequest): boolean {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startTime = parse(event.start_time, "HH:mm:ss", today);
-    const windowStart = startTime; // only after class start
-    const windowEnd = addMinutes(startTime, ATTENDANCE_WINDOW_MINUTES);
-    return isWithinInterval(now, { start: windowStart, end: windowEnd });
-  }
-
   async function handleCapture(event: CalendarRequest, blob: Blob) {
     killCamStream();
     setVerifying(event.id);
 
     try {
       // Double-check the time window at the moment we verify (prevents front-end tampering).
-      if (!isWithinAttendanceWindow(event)) {
-        toast.error("Attendance window not active for this class. Please try again within 15 minutes of start time.");
+      if (!isWithinClassAttendanceWindow(event)) {
+        toast.error(
+          "Attendance is only available during the scheduled class time (from start through end on your timetable)."
+        );
         return;
       }
 
@@ -276,7 +271,8 @@ export function AttendanceMarker({ profile, events }: Props) {
           Today&apos;s Attendance
         </h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Mark attendance within {ATTENDANCE_WINDOW_MINUTES} minutes after class start
+          Mark attendance any time during the scheduled class (from start time through end time on
+          your timetable).
         </p>
       </div>
 
@@ -291,7 +287,7 @@ export function AttendanceMarker({ profile, events }: Props) {
         <div className="grid gap-4 md:grid-cols-2">
           {todayEvents.map((event) => {
             const att = attendanceMap[event.id];
-            const inWindow = isWithinAttendanceWindow(event);
+            const inWindow = isWithinClassAttendanceWindow(event);
             const present = isStudentPresent(att);
             const profAbsent = isProfessorMarkedAbsent(att);
 
@@ -319,10 +315,11 @@ export function AttendanceMarker({ profile, events }: Props) {
                       <Badge variant="outline" className="text-muted-foreground">
                         {(() => {
                           const now = new Date();
-                          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                          return parse(event.start_time, "HH:mm:ss", today) > now
-                            ? "Upcoming"
-                            : "Missed";
+                          const { start: classStart, end: classEnd } =
+                            getClassScheduledInterval(event);
+                          if (now < classStart) return "Upcoming";
+                          if (now > classEnd) return "Missed";
+                          return "Missed";
                         })()}
                       </Badge>
                     )}

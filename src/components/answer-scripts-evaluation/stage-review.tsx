@@ -25,17 +25,21 @@ import type {
 
 function confidenceBadge(c: StepConfidence) {
   if (c === "high")
-    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">High</Badge>;
+    return (
+      <Badge className="bg-emerald-600 text-sm text-white hover:bg-emerald-600">High</Badge>
+    );
   if (c === "medium")
-    return <Badge className="bg-amber-500 text-amber-950 hover:bg-amber-500">Medium</Badge>;
-  return <Badge variant="destructive">Low</Badge>;
+    return (
+      <Badge className="bg-amber-500 text-sm text-amber-950 hover:bg-amber-500">Medium</Badge>
+    );
+  return <Badge variant="destructive" className="text-sm">Low</Badge>;
 }
 
 function stepIcon(st: AiStepGrade) {
   return st.ok ? (
-    <Check className="h-4 w-4 text-emerald-600" aria-label="OK" />
+    <Check className="h-5 w-5 text-emerald-600" aria-label="OK" />
   ) : (
-    <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Warning" />
+    <AlertTriangle className="h-5 w-5 text-amber-600" aria-label="Warning" />
   );
 }
 
@@ -155,10 +159,10 @@ export function StageReview({
         <Button type="button" variant="outline" size="sm" onClick={onBackToQueue}>
           ← Queue
         </Button>
-        <p className="text-center text-sm text-muted-foreground">
-          <kbd className="rounded border bg-muted px-1 text-xs">→</kbd> Next ·{" "}
-          <kbd className="rounded border bg-muted px-1 text-xs">A</kbd> Approve ·{" "}
-          <kbd className="rounded border bg-muted px-1 text-xs">O</kbd> Override note
+        <p className="text-center text-base text-muted-foreground">
+          <kbd className="rounded border bg-muted px-1.5 py-0.5 text-sm">→</kbd> Next ·{" "}
+          <kbd className="rounded border bg-muted px-1.5 py-0.5 text-sm">A</kbd> Approve ·{" "}
+          <kbd className="rounded border bg-muted px-1.5 py-0.5 text-sm">O</kbd> Override note
         </p>
       </div>
 
@@ -166,20 +170,20 @@ export function StageReview({
       <div
         className={cn(
           "grid min-h-0 w-full min-w-0 max-w-full flex-1 gap-4",
-          "lg:grid-cols-[minmax(0,42%)_minmax(0,58%)]",
+          "lg:grid-cols-[minmax(0,44%)_minmax(0,56%)] xl:grid-cols-[minmax(0,46%)_minmax(0,54%)]",
           "lg:grid-rows-[minmax(0,1fr)] lg:min-h-0 lg:overflow-hidden"
         )}
       >
         {/* LEFT — script PDF (single inner scroll) */}
-        <Card className="flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden lg:h-full">
+        <Card className="flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden text-base lg:h-full">
           <CardHeader className="flex shrink-0 flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base">Student script</CardTitle>
+            <CardTitle className="text-lg">Student script</CardTitle>
             <div className="flex gap-1">
               <Button
                 type="button"
                 size="icon"
                 variant="outline"
-                className="h-8 w-8"
+                className="h-9 w-9"
                 onClick={() => setZoom((z) => Math.max(75, z - 25))}
                 aria-label="Zoom out"
               >
@@ -189,7 +193,7 @@ export function StageReview({
                 type="button"
                 size="icon"
                 variant="outline"
-                className="h-8 w-8"
+                className="h-9 w-9"
                 onClick={() => setZoom((z) => Math.min(175, z + 25))}
                 aria-label="Zoom in"
               >
@@ -206,10 +210,10 @@ export function StageReview({
                 <iframe
                   title="Student script"
                   src={scriptUrl}
-                  className="min-h-[min(100%,480px)] w-full max-w-full border-0 lg:min-h-full lg:h-full"
+                  className="min-h-[min(62dvh,520px)] w-full max-w-full border-0 lg:min-h-full lg:h-full"
                 />
               ) : (
-                <div className="flex min-h-[200px] items-center justify-center p-6 text-sm text-muted-foreground">
+                <div className="flex min-h-[200px] items-center justify-center p-6 text-base text-muted-foreground">
                   No PDF preview (object URL missing).
                 </div>
               )}
@@ -224,10 +228,10 @@ export function StageReview({
         >
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-3 sm:px-4">
             <div className="sticky top-0 z-10 -mx-3 mb-2 border-b border-[#01696f]/15 bg-[#01696f]/[0.06] px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4">
-              <p className="text-xs font-semibold capitalize tracking-wide text-[#01696f]">
+              <p className="text-sm font-semibold capitalize tracking-wide text-[#01696f]">
                 Marks &amp; review
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Scroll this panel for AI breakdown and answer key — script scrolls separately on the
                 left.
               </p>
@@ -236,17 +240,17 @@ export function StageReview({
             {questions.map((q) => (
               <Card
                 key={q.questionId}
-                className="min-w-0 max-w-full border-dashed border-[#01696f]/35 bg-background/90 shadow-sm"
+                className="min-w-0 max-w-full border-dashed border-[#01696f]/35 bg-background/90 text-base shadow-sm"
               >
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle className="text-lg">
                       {q.label}{" "}
                       <span className="text-muted-foreground font-normal">
                         · {q.maxMarks} marks
                       </span>
                     </CardTitle>
-                    <div className="text-sm">
+                    <div className="text-base">
                       <span className="text-muted-foreground">AI total </span>
                       <span className="font-semibold tabular-nums text-[#01696f]">
                         {q.aiAwarded.toFixed(1)}
@@ -266,7 +270,7 @@ export function StageReview({
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
                             {stepIcon(st)}
-                            <span className="font-medium">Part {st.subPartLabel}</span>
+                            <span className="text-base font-medium">Part {st.subPartLabel}</span>
                             {confidenceBadge(st.confidence)}
                           </div>
                           <div className="flex items-center gap-1">
@@ -274,7 +278,7 @@ export function StageReview({
                               type="button"
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-9 w-9 text-lg"
                               onClick={() =>
                                 onOverrideChange(st.stepId, Math.max(0, eff - 0.5))
                               }
@@ -282,7 +286,7 @@ export function StageReview({
                               −
                             </Button>
                             <Input
-                              className="h-8 w-16 text-center tabular-nums"
+                              className="h-9 w-[4.25rem] text-center text-base tabular-nums"
                               type="number"
                               step="any"
                               min={0}
@@ -299,7 +303,7 @@ export function StageReview({
                               type="button"
                               size="icon"
                               variant="outline"
-                              className="h-8 w-8"
+                              className="h-9 w-9 text-lg"
                               onClick={() =>
                                 onOverrideChange(
                                   st.stepId,
@@ -311,27 +315,27 @@ export function StageReview({
                             </Button>
                           </div>
                         </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Max marks for this part: {st.stepMax}
                         </p>
                         {st.llmRubricBlock && (
                           <div className="mt-2">
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                               LLM evaluator rubric
                             </p>
-                            <pre className="mt-1 rounded-md border border-[#01696f]/20 bg-muted/40 p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-foreground/90">
+                            <pre className="mt-1 rounded-md border border-[#01696f]/20 bg-muted/40 p-2.5 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground/90">
                               {st.llmRubricBlock}
                             </pre>
                           </div>
                         )}
                         <div className="mt-2">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Grading rationale
                           </p>
-                          <p className="mt-1 text-xs text-muted-foreground">{st.justification}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{st.justification}</p>
                         </div>
                         {overridden && (
-                          <p className="mt-2 text-xs font-medium text-[#01696f]">
+                          <p className="mt-2 text-sm font-medium text-[#01696f]">
                             AI gave {st.awarded} → You set {eff}
                           </p>
                         )}
@@ -343,7 +347,7 @@ export function StageReview({
                                 st.stepId === firstLowStepId ? firstLowReasonRef : undefined
                               }
                               rows={2}
-                              className="text-sm"
+                              className="text-base"
                               placeholder="Explain adjustment for low-confidence item…"
                               value={overrideReasons[st.stepId] ?? ""}
                               onChange={(e) => onReasonChange(st.stepId, e.target.value)}
@@ -354,10 +358,10 @@ export function StageReview({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="mt-2 h-8 text-xs"
+                          className="mt-2 h-9 text-sm"
                           onClick={() => onRevertStep(st.stepId)}
                         >
-                          <RotateCcw className="mr-1 h-3 w-3" />
+                          <RotateCcw className="mr-1 h-4 w-4" />
                           Revert to AI score
                         </Button>
                       </div>
@@ -371,15 +375,15 @@ export function StageReview({
               id="answer-key-reference"
               className="scroll-mt-4 rounded-xl border border-dashed border-[#01696f]/35 bg-background/95 p-4"
             >
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-                <BookOpen className="h-4 w-4 shrink-0 text-[#01696f]" aria-hidden />
+              <div className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
+                <BookOpen className="h-5 w-5 shrink-0 text-[#01696f]" aria-hidden />
                 Answer key reference
               </div>
-              <ul className="space-y-3 text-sm">
+              <ul className="space-y-3 text-base">
                 {answerKeyTree.map((q) => (
                   <li key={q.id} className="rounded-md border bg-muted/30 p-3">
-                    <p className="font-semibold">Q{q.questionNo}</p>
-                    <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+                    <p className="text-base font-semibold">Q{q.questionNo}</p>
+                    <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
                       {q.steps.map((s) => (
                         <li key={s.id}>
                           <span className="font-mono text-foreground">{s.subPartLabel}</span> ·{" "}
@@ -395,12 +399,12 @@ export function StageReview({
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-20 mt-auto w-full shrink-0 min-w-0 max-w-full rounded-xl border border-[#01696f]/20 bg-background/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+      <div className="sticky bottom-0 z-20 mt-auto w-full shrink-0 min-w-0 max-w-full rounded-xl border border-[#01696f]/20 bg-background/95 px-4 py-3.5 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-medium">{studentName}</p>
-            <p className="text-xs text-muted-foreground">Roll {rollNo}</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base font-medium">{studentName}</p>
+            <p className="text-sm text-muted-foreground">Roll {rollNo}</p>
+            <p className="text-base text-muted-foreground">
               AI score:{" "}
               <span className="tabular-nums font-semibold text-[#01696f]">
                 {aiTotal.toFixed(1)}
@@ -426,5 +430,5 @@ export function StageReview({
 }
 
 function LabelMini({ children }: { children: React.ReactNode }) {
-  return <label className="text-xs font-medium text-muted-foreground">{children}</label>;
+  return <label className="text-sm font-medium text-muted-foreground">{children}</label>;
 }

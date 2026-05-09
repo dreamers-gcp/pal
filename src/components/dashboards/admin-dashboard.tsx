@@ -113,6 +113,10 @@ import {
   normalizeAdminEmail,
   SUPER_ADMIN_EMAIL,
 } from "@/lib/admin-request-routing";
+import {
+  clearDashboardSectionTitle,
+  dispatchDashboardSectionTitle,
+} from "@/lib/dashboard-section-title";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -210,6 +214,18 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
   const [adminMainTab, setAdminMainTab] = useState("request-overview");
+  const adminSectionHeading = useMemo(() => {
+    const s = visibleSections.find((x) => x.value === adminMainTab);
+    if (s) return s.label;
+    if (adminMainTab === "admin-request-routing") return "Admin access";
+    return "Overview";
+  }, [visibleSections, adminMainTab]);
+
+  useEffect(() => {
+    dispatchDashboardSectionTitle(adminSectionHeading);
+    return () => clearDashboardSectionTitle();
+  }, [adminSectionHeading]);
+
   const [adminRequestsNavOpen, setAdminRequestsNavOpen] = useState(true);
   const [guestHouseBookings, setGuestHouseBookings] = useState<GuestHouseBooking[]>([]);
   const [guestHouseLoading, setGuestHouseLoading] = useState(true);
@@ -951,7 +967,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         >
       <div>
               <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
-                Admin Dashboard
+                {adminSectionHeading}
               </h1>
               <p className="mt-1 text-muted-foreground">
           Welcome, {profile.full_name}. Review requests and manage students.
@@ -966,7 +982,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   onClick={() => setTabMenuOpen(false)}
                 />
                 <aside
-                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
+                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-[min(26rem,92vw)] flex-col border-r bg-background p-5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
                   role="dialog"
                   aria-modal="true"
                   aria-label="Section navigation"
@@ -976,11 +992,11 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0"
+                      className="h-9 w-9 shrink-0"
                       onClick={() => setTabMenuOpen(false)}
                       aria-label="Close menu"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-5 w-5" />
                     </Button>
                   </div>
                   <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
@@ -988,29 +1004,29 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       <>
                         <button
                           type="button"
-                          className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          className="flex min-h-[3.25rem] w-full items-center justify-between rounded-md px-3 py-3 text-base font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                           onClick={() => setAdminRequestsNavOpen((o) => !o)}
                           aria-expanded={adminRequestsNavOpen}
                         >
-                          <span className="flex items-center gap-1.5">
-                            <ClipboardList className="h-4 w-4 shrink-0" />
+                          <span className="flex items-center gap-2">
+                            <ClipboardList className="h-5 w-5 shrink-0" />
                             Requests
                           </span>
                           <ChevronDown
                             className={cn(
-                              "h-4 w-4 shrink-0 transition-transform",
+                              "h-5 w-5 shrink-0 transition-transform",
                               adminRequestsNavOpen && "rotate-180"
                             )}
                             aria-hidden
                           />
                         </button>
                         {adminRequestsNavOpen && (
-                          <TabsList className="flex flex-col items-stretch gap-0.5 border-0 bg-transparent p-0 pl-2">
+                          <TabsList className="flex flex-col items-stretch gap-1 border-0 bg-transparent p-0 pl-2">
                             {visibleRequestSubtabs.map((item) => (
                               <TabsTrigger
                                 key={item.value}
                                 value={item.value}
-                                className="w-full justify-start gap-1.5 py-2 pl-4 text-[13px]"
+                                className="min-h-[3rem] w-full justify-start py-3 pl-4 text-base [&_svg]:size-5"
                                 onClick={() => setTabMenuOpen(false)}
                               >
                                 {item.label}
@@ -1020,17 +1036,17 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                         )}
                       </>
                     ) : null}
-                    <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 border-0 bg-transparent p-0">
+                    <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 border-0 bg-transparent p-0">
                       {visibleMainSections.map((section) => {
                         const Icon = MAIN_SECTION_ICONS[section.value] ?? FileSpreadsheet;
                         return (
                           <TabsTrigger
                             key={section.value}
                             value={section.value}
-                            className="w-full justify-start gap-1.5"
+                            className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                             onClick={() => setTabMenuOpen(false)}
                           >
-                            <Icon className="h-4 w-4" />
+                            <Icon className="h-5 w-5" />
                             {section.label}
                           </TabsTrigger>
                         );
@@ -1038,10 +1054,10 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                       {isSuperAdmin ? (
                         <TabsTrigger
                           value="admin-request-routing"
-                          className="w-full justify-start gap-1.5"
+                          className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                           onClick={() => setTabMenuOpen(false)}
                         >
-                          <Settings2 className="h-4 w-4" />
+                          <Settings2 className="h-5 w-5" />
                           Admin Access
                         </TabsTrigger>
                       ) : null}

@@ -53,8 +53,8 @@ export function StageSetup({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3 rounded-xl border border-[#01696f]/25 bg-[#01696f]/[0.06] px-4 py-3 text-sm">
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#01696f]" aria-hidden />
+      <div className="flex items-start gap-3 rounded-xl border border-[#01696f]/25 bg-[#01696f]/[0.06] px-4 py-3.5 text-base leading-relaxed">
+        <Info className="mt-0.5 h-6 w-6 shrink-0 text-[#01696f]" aria-hidden />
         <p className="text-foreground/90">
           <span className="font-semibold text-[#01696f]">Step 1:</span> Enter exam
           details and upload your <strong>answer key + marking scheme</strong> as a
@@ -64,9 +64,9 @@ export function StageSetup({
         </p>
       </div>
 
-      <Card>
+      <Card className="text-base">
         <CardHeader>
-          <CardTitle className="text-lg">Exam details &amp; answer key</CardTitle>
+          <CardTitle className="text-xl">Exam details &amp; answer key</CardTitle>
           <CardDescription>
             Fill in the exam info, choose evaluation strictness, and upload the
             professor&apos;s answer key with marking scheme.
@@ -113,7 +113,7 @@ export function StageSetup({
                   type="button"
                   onClick={() => setStrictness(opt.id)}
                   className={cn(
-                    "rounded-full border px-4 py-2 text-left text-sm font-medium transition-colors",
+                    "rounded-full border px-4 py-2.5 text-left text-base font-medium transition-colors",
                     value.strictness === opt.id
                       ? "border-[#01696f] bg-[#01696f] text-white shadow-sm"
                       : "border-border bg-background hover:bg-muted/60"
@@ -122,7 +122,7 @@ export function StageSetup({
                   <span className="block">{opt.label}</span>
                   <span
                     className={cn(
-                      "mt-0.5 block text-xs font-normal",
+                      "mt-0.5 block text-sm font-normal",
                       value.strictness === opt.id ? "text-white/85" : "text-muted-foreground"
                     )}
                   >
@@ -167,13 +167,13 @@ export function StageSetup({
               )}
             >
               <Upload className="mb-2 h-10 w-10 text-[#01696f]/70" />
-              <p className="text-sm font-medium">Answer key + marking scheme (single PDF)</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-base font-medium">Answer key + marking scheme (single PDF)</p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Drag and drop or click to browse · .pdf only
               </p>
               {answerKeyFile && (
-                <p className="mt-3 flex items-center gap-2 text-sm text-[#01696f]">
-                  <FileText className="h-4 w-4 shrink-0" />
+                <p className="mt-3 flex items-center gap-2 text-base text-[#01696f]">
+                  <FileText className="h-5 w-5 shrink-0" />
                   <span className="truncate">{answerKeyFile.name}</span>
                 </p>
               )}
@@ -181,7 +181,7 @@ export function StageSetup({
 
             {/* PDF preview */}
             <div className="flex min-h-[300px] flex-col rounded-xl border bg-muted/20">
-              <p className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+              <p className="border-b px-3 py-2.5 text-sm font-medium text-muted-foreground">
                 Preview
               </p>
               {answerKeyUrl ? (
@@ -191,7 +191,7 @@ export function StageSetup({
                   className="min-h-[300px] w-full flex-1 rounded-b-xl"
                 />
               ) : (
-                <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
+                <div className="flex flex-1 items-center justify-center p-8 text-base text-muted-foreground">
                   Upload a PDF to preview here.
                 </div>
               )}

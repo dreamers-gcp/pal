@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { extractNameRollFromExamScriptText } from "@/lib/extract-exam-script-meta";
+import {
+  extractNameRollFromExamScriptText,
+  parseStudentMetaFromLlmJsonContent,
+} from "@/lib/extract-exam-script-meta";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -52,11 +55,8 @@ async function extractMetaViaLlm(
     const text = completion.choices[0]?.message?.content;
     if (!text) return { name: "", roll: "" };
 
-    const parsed = JSON.parse(text) as { name?: string; rollNo?: string };
-    return {
-      name: (parsed.name ?? "").trim(),
-      roll: (parsed.rollNo ?? "").trim(),
-    };
+    const llm = parseStudentMetaFromLlmJsonContent(text);
+    return { name: llm.name, roll: llm.roll };
   } catch (e) {
     console.error("[extract-script-meta] LLM fallback failed:", e);
     return { name: "", roll: "" };

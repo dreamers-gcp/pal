@@ -1,4 +1,4 @@
-import { format, parse, addMinutes, isWithinInterval } from "date-fns";
+import { format } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,8 +16,9 @@ import { useFaceBiometricConsentGate } from "../../hooks/useFaceBiometricConsent
 import { SelectModal, type SelectOption } from "../../components/SelectModal";
 import { postFaceCompare } from "../../lib/face-api";
 import {
-  ATTENDANCE_WINDOW_MINUTES,
-} from "../../lib/face-math";
+  getClassScheduledInterval,
+  isWithinClassAttendanceWindow,
+} from "../../lib/attendance-window";
 import { getPalApiBaseUrl } from "../../lib/config";
 import {
   classroomExpectsWifi,
@@ -340,14 +341,6 @@ export function StudentAttendanceScreen({ profile }: Props) {
     [events]
   );
 
-  function isWithinAttendanceWindow(event: CalendarRequest): boolean {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startTime = parse(event.start_time, "HH:mm:ss", today);
-    const windowEnd = addMinutes(startTime, ATTENDANCE_WINDOW_MINUTES);
-    return isWithinInterval(now, { start: startTime, end: windowEnd });
-  }
-
   async function handleAttendancePhoto(event: CalendarRequest, capture: FaceCaptureResult) {
     setVerifyingEventId(event.id);
     const supabase = getSupabase();
@@ -357,10 +350,10 @@ export function StudentAttendanceScreen({ profile }: Props) {
     const token = session?.access_token;
 
     try {
-      if (!isWithinAttendanceWindow(event)) {
+      if (!isWithinClassAttendanceWindow(event)) {
         Alert.alert(
-          "Window closed",
-          `You can only mark attendance within ${ATTENDANCE_WINDOW_MINUTES} minutes after class start.`
+          "Outside class time",
+          "You can mark attendance only during the scheduled class (from start through end time)."
         );
         return;
       }
@@ -524,7 +517,8 @@ export function StudentAttendanceScreen({ profile }: Props) {
         </Pressable>
       </View>
       <Text style={styles.sub}>
-        Mark within {ATTENDANCE_WINDOW_MINUTES} minutes after class start using your front camera.
+        Mark attendance any time during the scheduled class (start through end on your timetable)
+        using your front camera.
       </Text>
 
       <View style={styles.wifiCard}>
@@ -557,7 +551,7 @@ export function StudentAttendanceScreen({ profile }: Props) {
       ) : (
         todayEvents.map((event) => {
           const att = attendanceMap[event.id];
-          const inWindow = isWithinAttendanceWindow(event);
+          const inWindow = isWithinClassAttendanceWindow(event);
           const present = isStudentPresent(att);
           const profAbsent = isProfessorMarkedAbsent(att);
           const verifying = verifyingEventId === event.id;
@@ -575,9 +569,8 @@ export function StudentAttendanceScreen({ profile }: Props) {
             badgeBg = "rgba(1, 105, 111, 0.12)";
           } else {
             const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const st = parse(event.start_time, "HH:mm:ss", today);
-            statusLabel = st > now ? "Upcoming" : "Missed";
+            const { start: classStart, end: classEnd } = getClassScheduledInterval(event);
+            statusLabel = now < classStart ? "Upcoming" : now > classEnd ? "Missed" : "Missed";
           }
 
           return (

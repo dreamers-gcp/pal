@@ -65,7 +65,22 @@ import { useClientTodayIso } from "@/hooks/use-client-today";
 import {
   BOOKING_NOT_IN_PAST_MSG,
   isBookingStartBeforeNow,
+  pastRequestDatesAllowedForTesting,
 } from "@/lib/booking-start-not-in-past";
+
+import {
+  clearDashboardSectionTitle,
+  dispatchDashboardSectionTitle,
+} from "@/lib/dashboard-section-title";
+
+const PROFESSOR_SECTION_LABELS: Record<string, string> = {
+  "my-requests": "My requests",
+  calendar: "Calendar",
+  attendance: "Attendance",
+  sports: "Sports requests",
+  parcels: "Parcels",
+  "script-evaluation": "Answer scripts evaluation",
+};
 
 export function ProfessorDashboard({ profile }: { profile: Profile }) {
   const todayIso = useClientTodayIso();
@@ -81,6 +96,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     useState<CalendarRequestKind>("extra_class");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
+  const [mainTab, setMainTab] = useState("my-requests");
 
   useEffect(() => {
     function handleOpenTabMenu() {
@@ -338,6 +354,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
     else setGreeting("Good night");
   }, []);
 
+  const professorSectionHeading =
+    PROFESSOR_SECTION_LABELS[mainTab] ?? PROFESSOR_SECTION_LABELS["my-requests"];
+
+  useEffect(() => {
+    dispatchDashboardSectionTitle(professorSectionHeading);
+    return () => clearDashboardSectionTitle();
+  }, [professorSectionHeading]);
+
   const sportsAvailabilityResource = useMemo(
     () =>
       ({
@@ -448,7 +472,11 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
 
   return (
     <>
-    <Tabs defaultValue="my-requests" className="min-w-0 w-full max-w-full">
+    <Tabs
+      value={mainTab}
+      onValueChange={setMainTab}
+      className="min-w-0 w-full max-w-full"
+    >
         <aside
           className={cn(
             "fixed left-0 top-16 z-[45] hidden h-[calc(100dvh-4rem)] flex-col border-r border-[rgba(0,0,0,0.06)] bg-white transition-[width] duration-200 ease-out md:flex",
@@ -555,9 +583,12 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
           )}
         >
       <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
-                {greeting}, {profile.full_name}!
-              </h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
+          {professorSectionHeading}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+          {greeting}, {profile.full_name}
+        </p>
       </div>
 
             {tabMenuOpen && (
@@ -568,7 +599,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   onClick={() => setTabMenuOpen(false)}
                 />
                 <aside
-                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
+                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-[min(26rem,92vw)] flex-col border-r bg-background p-5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
                   role="dialog"
                   aria-modal="true"
                   aria-label="Section navigation"
@@ -578,60 +609,60 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0"
+                      className="h-9 w-9 shrink-0"
                       onClick={() => setTabMenuOpen(false)}
                       aria-label="Close menu"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-5 w-5" />
                     </Button>
                   </div>
-                  <TabsList className="flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto overscroll-contain">
+                  <TabsList className="flex min-h-0 flex-1 flex-col items-stretch gap-1 overflow-y-auto overscroll-contain">
                     <TabsTrigger
                       value="my-requests"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <ClipboardList className="h-4 w-4" />
+                      <ClipboardList className="h-5 w-5" />
                       My Requests
                     </TabsTrigger>
                     <TabsTrigger
                       value="calendar"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <CalendarDays className="h-4 w-4" />
+                      <CalendarDays className="h-5 w-5" />
                       Calendar
                     </TabsTrigger>
                     <TabsTrigger
                       value="attendance"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <ScanFace className="h-4 w-4" />
+                      <ScanFace className="h-5 w-5" />
                       Attendance
                     </TabsTrigger>
                     <TabsTrigger
                       value="sports"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <Trophy className="h-4 w-4" />
+                      <Trophy className="h-5 w-5" />
                       Sports Requests
                     </TabsTrigger>
                     <TabsTrigger
                       value="parcels"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <Package className="h-4 w-4" />
+                      <Package className="h-5 w-5" />
                       Parcels
                     </TabsTrigger>
                     <TabsTrigger
                       value="script-evaluation"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <FileCheck2 className="h-4 w-4" />
+                      <FileCheck2 className="h-5 w-5" />
                       Script evaluation
                     </TabsTrigger>
                   </TabsList>
@@ -823,7 +854,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={sportDate}
                         onChange={setSportDate}
-                        min={todayIso}
+                        min={pastRequestDatesAllowedForTesting() ? undefined : todayIso}
                         placeholder="Pick date"
                       />
                     </div>
@@ -834,6 +865,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                         onStartChange={setSportStartTime}
                         onEndChange={setSportEndTime}
                         eventDate={sportDate}
+                        allowPastStartTimesOnSelectedDay={pastRequestDatesAllowedForTesting()}
                         startLabel={<Label>Start Time</Label>}
                         endLabel={<Label>End Time</Label>}
                         stepMinutes={60}
@@ -937,7 +969,7 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
 
         <TabsContent value="script-evaluation" className="mt-6 min-h-0">
           <div className="rounded-xl border border-border bg-card min-w-0 max-w-full overflow-hidden">
-            <div className="max-h-[min(calc(100dvh-11rem),920px)] overflow-y-auto overflow-x-hidden p-4 md:p-6">
+            <div className="max-h-[calc(100dvh-6.5rem)] overflow-y-auto overflow-x-hidden p-4 md:p-5 lg:p-6">
               <AnswerScriptsEvaluation />
             </div>
           </div>

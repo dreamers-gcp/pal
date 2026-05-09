@@ -69,7 +69,12 @@ import {
   BOOKING_NOT_IN_PAST_MSG,
   isBookingStartBeforeNow,
   isDateOnlyBeforeToday,
+  pastRequestDatesAllowedForTesting,
 } from "@/lib/booking-start-not-in-past";
+import {
+  clearDashboardSectionTitle,
+  dispatchDashboardSectionTitle,
+} from "@/lib/dashboard-section-title";
 
 /** Local calendar day for an event (no UTC shift from date-only strings). */
 function eventBaseLocalDate(e: CalendarRequest): Date | null {
@@ -118,6 +123,17 @@ function formatGuestStatusLabel(status: GuestHouseBooking["status"]): string {
   return "Pending";
 }
 
+const STUDENT_SECTION_LABELS: Record<string, string> = {
+  events: "Events",
+  calendar: "Calendar",
+  attendance: "Attendance",
+  tasks: "Task tracker",
+  "guest-house": "Guest house requests",
+  sports: "Sports requests",
+  campus: "Campus services",
+  parcels: "Parcels",
+};
+
 export function StudentDashboard({ profile }: { profile: Profile }) {
   const [events, setEvents] = useState<CalendarRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +144,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   /** Desktop: fixed rail under header; hamburger opens, back arrow collapses (mobile uses overlay). */
   const [sectionNavExpanded, setSectionNavExpanded] = useState(true);
+  const [mainTab, setMainTab] = useState("events");
   const [guestBookings, setGuestBookings] = useState<GuestHouseBooking[]>([]);
   const [guestLoading, setGuestLoading] = useState(true);
   const [guestSubmitting, setGuestSubmitting] = useState(false);
@@ -460,6 +477,14 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
     else setGreeting("Good night");
   }, []);
 
+  const studentSectionHeading =
+    STUDENT_SECTION_LABELS[mainTab] ?? STUDENT_SECTION_LABELS.events;
+
+  useEffect(() => {
+    dispatchDashboardSectionTitle(studentSectionHeading);
+    return () => clearDashboardSectionTitle();
+  }, [studentSectionHeading]);
+
   const sportsAvailabilityResource = useMemo(
     () =>
       ({
@@ -613,7 +638,11 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
   }
 
   return (
-    <Tabs defaultValue="events" className="min-w-0 w-full max-w-full gap-1">
+    <Tabs
+      value={mainTab}
+      onValueChange={setMainTab}
+      className="min-w-0 w-full max-w-full gap-1"
+    >
         {/* Desktop: left rail — wide (icons+labels) or narrow (icons only), like a classic app sidebar */}
         <aside
           className={cn(
@@ -747,9 +776,12 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
           )}
         >
       <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
-                {greeting}, {profile.full_name}!
-              </h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground break-words sm:text-3xl">
+          {studentSectionHeading}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+          {greeting}, {profile.full_name}
+        </p>
       </div>
 
       {!loading && studentGroupIds.length === 0 && (
@@ -773,7 +805,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                   onClick={() => setTabMenuOpen(false)}
                 />
                 <aside
-                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-72 max-w-[80vw] flex-col border-r bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
+                  className="fixed left-0 top-16 bottom-0 z-[60] flex w-[min(26rem,92vw)] flex-col border-r bg-background p-5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200 md:hidden"
                   role="dialog"
                   aria-modal="true"
                   aria-label="Section navigation"
@@ -783,76 +815,76 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0"
+                      className="h-9 w-9 shrink-0"
                       onClick={() => setTabMenuOpen(false)}
                       aria-label="Close menu"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-5 w-5" />
                     </Button>
                   </div>
-                  <TabsList className="flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto overscroll-contain">
+                  <TabsList className="flex min-h-0 flex-1 flex-col items-stretch gap-1 overflow-y-auto overscroll-contain">
                     <TabsTrigger
                       value="events"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <ClipboardList className="h-4 w-4" />
+                      <ClipboardList className="h-5 w-5" />
                       Events
                     </TabsTrigger>
                     <TabsTrigger
                       value="calendar"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-            <CalendarDays className="h-4 w-4" />
+                      <CalendarDays className="h-5 w-5" />
                       Calendar
                     </TabsTrigger>
                     <TabsTrigger
                       value="attendance"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <ScanFace className="h-4 w-4" />
+                      <ScanFace className="h-5 w-5" />
                       Attendance
                     </TabsTrigger>
                     <TabsTrigger
                       value="tasks"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <ListTodo className="h-4 w-4" />
+                      <ListTodo className="h-5 w-5" />
                       Task Tracker
                     </TabsTrigger>
                     <TabsTrigger
                       value="guest-house"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <Building2 className="h-4 w-4" />
+                      <Building2 className="h-5 w-5" />
                       Guest House Requests
                     </TabsTrigger>
                     <TabsTrigger
                       value="sports"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <Trophy className="h-4 w-4" />
+                      <Trophy className="h-5 w-5" />
                       Sports Requests
                     </TabsTrigger>
                     <TabsTrigger
                       value="campus"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <Landmark className="h-4 w-4" />
+                      <Landmark className="h-5 w-5" />
                       Campus services
                     </TabsTrigger>
                     <TabsTrigger
                       value="parcels"
-                      className="w-full justify-start gap-1.5"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
                     >
-                      <Package className="h-4 w-4" />
+                      <Package className="h-5 w-5" />
                       Parcels
                     </TabsTrigger>
                   </TabsList>
@@ -1167,7 +1199,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={guestCheckIn}
                         onChange={setGuestCheckIn}
-                        min={todayIso}
+                        min={pastRequestDatesAllowedForTesting() ? undefined : todayIso}
                         placeholder="Pick date"
                       />
                     </div>
@@ -1176,7 +1208,11 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={guestCheckOut}
                         onChange={setGuestCheckOut}
-                        min={guestCheckIn || todayIso}
+                        min={
+                          pastRequestDatesAllowedForTesting()
+                            ? guestCheckIn || undefined
+                            : guestCheckIn || todayIso
+                        }
                         placeholder="Pick date"
                       />
                     </div>
@@ -1302,7 +1338,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                       <DatePicker
                         value={sportDate}
                         onChange={setSportDate}
-                        min={todayIso}
+                        min={pastRequestDatesAllowedForTesting() ? undefined : todayIso}
                         placeholder="Pick date"
                       />
                     </div>
@@ -1313,6 +1349,7 @@ export function StudentDashboard({ profile }: { profile: Profile }) {
                         onStartChange={setSportStartTime}
                         onEndChange={setSportEndTime}
                         eventDate={sportDate}
+                        allowPastStartTimesOnSelectedDay={pastRequestDatesAllowedForTesting()}
                         startLabel={<label className="text-sm font-medium">Start Time</label>}
                         endLabel={<label className="text-sm font-medium">End Time</label>}
                         stepMinutes={60}

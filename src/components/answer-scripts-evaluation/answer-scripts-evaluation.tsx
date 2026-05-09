@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileCheck2 } from "lucide-react";
 import { toast } from "sonner";
 import { examQuestionsFromAiGrades } from "@/lib/answer-scripts-grade-helpers";
+import type { CanonicalRubric } from "@/lib/evaluation/rubric-schema";
 
 const EXPECTED_SCRIPT_TOTAL = 45;
 
@@ -49,6 +50,8 @@ export function AnswerScriptsEvaluation() {
   const [parsedQuestions, setParsedQuestions] = useState<ExamQuestion[]>([]);
   /** Cached text summary of correct answers from the answer key (extracted once, reused for all students). */
   const [answerKeySummary, setAnswerKeySummary] = useState<string | null>(null);
+  /** Canonical rubric from `Documents/evaluation`-style parser (reused across students). */
+  const [canonicalRubric, setCanonicalRubric] = useState<CanonicalRubric | null>(null);
   /** Track whether pre-extraction is running so we don't fire it twice. */
   const rubricExtractionRef = useRef<AbortController | null>(null);
 
@@ -97,6 +100,7 @@ export function AnswerScriptsEvaluation() {
     answerKeyUrl: null as string | null,
     answerKeyFileName: null as string | null,
     answerKeySummary: null as string | null,
+    canonicalRubric: null as CanonicalRubric | null,
   });
   gradePayloadRef.current = {
     examSetup,
@@ -104,6 +108,7 @@ export function AnswerScriptsEvaluation() {
     answerKeyUrl,
     answerKeyFileName: answerKeyFile?.name ?? null,
     answerKeySummary,
+    canonicalRubric,
   };
 
   /* Advance queue: waiting → comparing (fast — no artificial "reading" delay) */
@@ -143,6 +148,7 @@ export function AnswerScriptsEvaluation() {
           answerKeyUrl: akUrl,
           answerKeyFileName,
           answerKeySummary: cachedSummary,
+          canonicalRubric: cachedRubric,
         } = gradePayloadRef.current;
         if (!akUrl) {
           toast.error("Upload the answer key PDF in step 1 before grading.");
@@ -177,6 +183,7 @@ export function AnswerScriptsEvaluation() {
             strictness: es.strictness,
             questions: pq,
             ...(cachedSummary ? { answerKeySummary: cachedSummary } : {}),
+            ...(cachedRubric ? { canonicalRubric: cachedRubric } : {}),
           })
         );
         const res = await fetch("/api/answer-scripts/grade", {
@@ -188,6 +195,9 @@ export function AnswerScriptsEvaluation() {
           grades?: AiQuestionGrade[];
           answerKeySummary?: string;
           derivedQuestions?: ExamQuestion[];
+          canonicalRubric?: CanonicalRubric;
+          evaluationFlags?: string[];
+          evaluationNeedsReview?: boolean;
           error?: string;
         };
         if (!res.ok) throw new Error(data.error ?? res.statusText);
@@ -195,6 +205,9 @@ export function AnswerScriptsEvaluation() {
 
         if (data.answerKeySummary) {
           setAnswerKeySummary((prev) => prev ?? data.answerKeySummary!);
+        }
+        if (data.canonicalRubric) {
+          setCanonicalRubric((prev) => prev ?? data.canonicalRubric!);
         }
         if (data.derivedQuestions?.length) {
           setParsedQuestions((prev) =>
@@ -206,6 +219,11 @@ export function AnswerScriptsEvaluation() {
           );
         }
         setAiGrades((g) => ({ ...g, [pending.id]: data.grades! }));
+        if (data.evaluationNeedsReview && (data.evaluationFlags?.length ?? 0) > 0) {
+          toast.message("Evaluation flagged for review", {
+            description: data.evaluationFlags!.join("; "),
+          });
+        }
         setEvalStudents((prev) =>
           prev.map((s) =>
             s.id === pending.id ? { ...s, phase: "scored" as const, progress: 100 } : s
@@ -236,7 +254,7 @@ export function AnswerScriptsEvaluation() {
 
   /** Fire rubric pre-extraction in the background (called when leaving Step 1). */
   const preExtractRubric = useCallback(() => {
-    if (answerKeySummary) return;
+    if (answerKeySummary || canonicalRubric) return;
     if (!answerKeyUrl || !answerKeyFile) return;
     rubricExtractionRef.current?.abort();
     const ac = new AbortController();
@@ -257,10 +275,14 @@ export function AnswerScriptsEvaluation() {
         const data = (await res.json()) as {
           derivedQuestions?: ExamQuestion[];
           answerKeySummary?: string;
+          canonicalRubric?: CanonicalRubric;
           error?: string;
         };
         if (!res.ok || !data.answerKeySummary) return;
         setAnswerKeySummary((prev) => prev ?? data.answerKeySummary!);
+        if (data.canonicalRubric) {
+          setCanonicalRubric((prev) => prev ?? data.canonicalRubric!);
+        }
         if (data.derivedQuestions?.length) {
           setParsedQuestions((prev) =>
             prev.length > 0 ? prev : data.derivedQuestions!
@@ -270,7 +292,7 @@ export function AnswerScriptsEvaluation() {
         /* pre-extraction is best-effort; grading route has its own fallback */
       }
     })();
-  }, [answerKeySummary, answerKeyUrl, answerKeyFile, examSetup.name]);
+  }, [answerKeySummary, answerKeyUrl, answerKeyFile, examSetup.name, canonicalRubric]);
 
   const startNewSession = () => {
     rubricExtractionRef.current?.abort();
@@ -283,6 +305,7 @@ export function AnswerScriptsEvaluation() {
     setAnswerKeyUrl(null);
     setParsedQuestions([]);
     setAnswerKeySummary(null);
+    setCanonicalRubric(null);
     setScripts([]);
     setEvalStudents([]);
     setAiGrades({});
@@ -395,15 +418,15 @@ export function AnswerScriptsEvaluation() {
               <div className="flex gap-3">
                 <FileCheck2 className="h-10 w-10 shrink-0 text-[#01696f]" aria-hidden />
                 <div>
-                  <h2 className="font-display text-xl font-medium text-foreground">
+                  <h2 className="font-display text-2xl font-medium text-foreground">
                     {examSetup.name.trim() || "Saved session"}
                   </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-1 text-base text-muted-foreground">
                     {examSetup.subject && <span>{examSetup.subject}</span>}
                     {examSetup.subject && examSetup.date && " · "}
                     {examSetup.date && <span>{examSetup.date}</span>}
                   </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 text-base text-muted-foreground">
                     {evalStudents.length > 0
                       ? `${evalStudents.filter((s) => s.phase === "scored").length} of ${evalStudents.length} scripts scored · Max ${examMaxMarks || "—"} marks`
                       : "Session saved — continue to upload scripts and run grading."}
@@ -434,17 +457,17 @@ export function AnswerScriptsEvaluation() {
           </div>
 
           {evalStudents.length > 0 && (
-            <Card>
+            <Card className="text-base">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Students &amp; marks</CardTitle>
+                <CardTitle className="text-lg">Students &amp; marks</CardTitle>
                 <CardDescription>
                   Totals use your overrides where set; &quot;Revert to AI&quot; uses the model score.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full min-w-[320px] border-collapse text-sm">
+                <table className="w-full min-w-[320px] border-collapse text-base">
                   <thead>
-                    <tr className="border-b text-left text-muted-foreground">
+                    <tr className="border-b text-left text-sm text-muted-foreground">
                       <th className="py-2 pr-3 font-medium">Roll</th>
                       <th className="py-2 pr-3 font-medium">Name</th>
                       <th className="py-2 pr-3 font-medium">Status</th>
@@ -474,7 +497,7 @@ export function AnswerScriptsEvaluation() {
                                 : "Waiting";
                       return (
                         <tr key={s.id} className="border-b border-border/60 last:border-0">
-                          <td className="py-2.5 pr-3 font-mono text-xs">{s.rollNo}</td>
+                          <td className="py-2.5 pr-3 font-mono text-sm">{s.rollNo}</td>
                           <td className="py-2.5 pr-3">{s.name}</td>
                           <td className="py-2.5 pr-3">
                             <Badge
@@ -503,7 +526,7 @@ export function AnswerScriptsEvaluation() {
           )}
 
           {evalStudents.length === 0 && answerKeyUrl && (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-base text-muted-foreground">
               Answer key PDF is uploaded. Continue session to add scripts and start grading.
             </p>
           )}
@@ -514,10 +537,10 @@ export function AnswerScriptsEvaluation() {
     return (
       <div className="rounded-xl border border-dashed border-[#01696f]/30 bg-[#01696f]/[0.04] p-10 text-center">
         <FileCheck2 className="mx-auto mb-4 h-12 w-12 text-[#01696f]" />
-        <h2 className="font-display text-xl font-medium text-foreground">
+        <h2 className="font-display text-2xl font-medium text-foreground">
           Answer scripts evaluation
         </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+        <p className="mx-auto mt-2 max-w-md text-base text-muted-foreground">
           LLM-assisted grading: upload the answer key &amp; marking scheme, then add
           student scripts, and review marks per student.
         </p>
@@ -536,7 +559,7 @@ export function AnswerScriptsEvaluation() {
   return (
     <div className="answer-scripts-evaluation flex min-h-0 min-w-0 max-w-full flex-col space-y-6 overflow-x-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           Session: <span className="font-medium text-foreground">{examSetup.name || "Untitled"}</span>
         </p>
         <Button
@@ -599,7 +622,7 @@ export function AnswerScriptsEvaluation() {
 
       {/* Step 4 (internal): Per-student review */}
       {step === 4 && reviewStudent && reviewQuestions && (
-        <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden max-lg:h-auto max-lg:max-h-none lg:h-[min(760px,calc(100dvh-13rem))] lg:max-h-[min(760px,calc(100dvh-13rem))]">
+        <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden max-lg:h-auto max-lg:max-h-none lg:h-[min(88dvh,calc(100dvh-8.5rem))] lg:max-h-[min(88dvh,calc(100dvh-8.5rem))]">
           <StageReview
             studentId={reviewStudent.id}
             studentName={reviewStudent.name}
@@ -648,7 +671,7 @@ export function AnswerScriptsEvaluation() {
       )}
 
       {step === 4 && (!reviewStudent || !reviewQuestions) && (
-        <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border p-8 text-center text-base text-muted-foreground">
           No student selected.{" "}
           <Button type="button" variant="link" className="text-[#01696f]" onClick={() => goStep(3)}>
             Return to queue

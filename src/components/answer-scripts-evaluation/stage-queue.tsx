@@ -12,15 +12,15 @@ import type { EvalPhase, EvalStudent } from "./types";
 function phaseBadge(phase: EvalPhase) {
   switch (phase) {
     case "waiting":
-      return <Badge className="bg-slate-200 text-slate-800">Waiting</Badge>;
+      return <Badge className="bg-slate-200 text-sm text-slate-800">Waiting</Badge>;
     case "reading":
-      return <Badge className="bg-blue-600 text-white">Reading</Badge>;
+      return <Badge className="bg-blue-600 text-sm text-white">Reading</Badge>;
     case "comparing":
-      return <Badge className="bg-amber-500 text-amber-950">Comparing</Badge>;
+      return <Badge className="bg-amber-500 text-sm text-amber-950">Comparing</Badge>;
     case "scored":
-      return <Badge className="bg-emerald-600 text-white">Scored</Badge>;
+      return <Badge className="bg-emerald-600 text-sm text-white">Scored</Badge>;
     case "failed":
-      return <Badge variant="destructive">Needs review</Badge>;
+      return <Badge variant="destructive" className="text-sm">Needs review</Badge>;
     default:
       return null;
   }
@@ -89,10 +89,10 @@ export function StageQueue({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="text-base">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-lg">AI evaluation queue</CardTitle>
+            <CardTitle className="text-xl">AI evaluation queue</CardTitle>
             <CardDescription>
               Scripts move through Waiting → Reading → Comparing → <strong>Scored</strong>. Then open
               a <strong>Scored</strong> card (or the button below) to review marks in the same
@@ -107,7 +107,7 @@ export function StageQueue({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-[#01696f]/20 bg-[#01696f]/[0.06] px-4 py-3 text-sm font-medium text-[#01696f]">
+          <div className="rounded-lg border border-[#01696f]/20 bg-[#01696f]/[0.06] px-4 py-3.5 text-base font-medium text-[#01696f]">
             {headerLine}
           </div>
 
@@ -116,8 +116,8 @@ export function StageQueue({
               <div className="flex gap-3">
                 <ClipboardCheck className="mt-0.5 h-6 w-6 shrink-0 text-[#01696f]" aria-hidden />
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Ready to review marks</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="text-base font-semibold text-foreground">Ready to review marks</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     Open the PDF, AI breakdown, and answer key to adjust marks. Starting with{" "}
                     <span className="font-medium text-foreground">{firstReviewable.name}</span> (
                     {firstReviewable.rollNo}).
@@ -152,19 +152,19 @@ export function StageQueue({
               >
                 <div className="relative flex items-center justify-center">
                   <ProgressRing value={s.progress} />
-                  <span className="absolute text-[10px] font-semibold tabular-nums text-[#01696f]">
+                  <span className="absolute text-xs font-semibold tabular-nums text-[#01696f]">
                     {s.progress}%
                   </span>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="truncate font-medium leading-tight">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">Roll {s.rollNo}</p>
+                  <p className="truncate text-base font-medium leading-tight">{s.name}</p>
+                  <p className="text-sm text-muted-foreground">Roll {s.rollNo}</p>
                   {phaseBadge(s.phase)}
                   {canReview && (
-                    <p className="text-[10px] font-medium text-[#01696f]">Click to review marks</p>
+                    <p className="text-xs font-medium text-[#01696f]">Click to review marks</p>
                   )}
                   {s.phase === "scored" && !canOpenReview(s.id) && (
-                    <p className="text-[10px] text-[#01696f]">Preparing breakdown…</p>
+                    <p className="text-xs text-[#01696f]">Preparing breakdown…</p>
                   )}
                 </div>
               </button>

@@ -39,6 +39,7 @@ import { useClientTodayIso } from "@/hooks/use-client-today";
 import {
   BOOKING_NOT_IN_PAST_MSG,
   isBookingStartBeforeNow,
+  pastRequestDatesAllowedForTesting,
 } from "@/lib/booking-start-not-in-past";
 import { groupsForProfessorBookingForm } from "@/lib/professor-booking-groups";
 import { toTitleCase } from "@/lib/utils";
@@ -661,7 +662,7 @@ export function BookingForm({
           <DatePicker
             value={eventDate}
             onChange={setEventDate}
-            min={todayIso}
+            min={pastRequestDatesAllowedForTesting() ? undefined : todayIso}
             placeholder="Pick a date"
           />
         </div>
@@ -676,6 +677,7 @@ export function BookingForm({
             onStartChange={setStartTime}
             onEndChange={setEndTime}
             eventDate={eventDate}
+            allowPastStartTimesOnSelectedDay={pastRequestDatesAllowedForTesting()}
             startLabel={
               <Label htmlFor="bf-start-time" className="text-muted-foreground font-normal text-sm">
                 Start

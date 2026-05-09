@@ -12,6 +12,10 @@ import { useNotifications, NotificationList } from "@/components/notifications";
 import { cn } from "@/lib/utils";
 import { NucleusWordmark } from "@/components/nucleus-wordmark";
 import { Button } from "@/components/ui/button";
+import {
+  DASHBOARD_SECTION_TITLE_EVENT,
+  type DashboardSectionTitleDetail,
+} from "@/lib/dashboard-section-title";
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   admin: "destructive",
@@ -24,11 +28,14 @@ function TabMenuButton({ className }: { className?: string }) {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent("pal:open-tab-menu"))}
-      className={className}
+      className={cn(
+        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[rgba(0,0,0,0.08)] bg-white text-foreground/70 transition-colors hover:border-[rgba(0,0,0,0.12)] hover:bg-[rgba(0,0,0,0.03)] hover:text-foreground",
+        className
+      )}
       aria-label="Open tab menu"
       title="Open menu"
     >
-      <Menu className="h-4 w-4" />
+      <Menu className="h-5 w-5" />
     </button>
   );
 }
@@ -42,6 +49,8 @@ export function Navbar() {
   const [isMobileNav, setIsMobileNav] = useState(false);
   /** Wide labels vs narrow icon rail; synced from dashboard via `pal:section-nav-expanded`. */
   const [dashRailWide, setDashRailWide] = useState(true);
+  /** Synced from dashboard tabs via `pal:dashboard-section-title`. */
+  const [dashboardSectionTitle, setDashboardSectionTitle] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const {
     items: notificationItems,
@@ -86,6 +95,20 @@ export function Navbar() {
   }, []);
 
   const isDashboardRoute = pathname?.startsWith("/dashboard") ?? false;
+
+  useEffect(() => {
+    if (!isDashboardRoute) {
+      setDashboardSectionTitle("");
+      return;
+    }
+    function onSectionTitle(e: Event) {
+      const d = (e as CustomEvent<DashboardSectionTitleDetail>).detail;
+      setDashboardSectionTitle(typeof d?.title === "string" ? d.title.trim() : "");
+    }
+    window.addEventListener(DASHBOARD_SECTION_TITLE_EVENT, onSectionTitle);
+    return () => window.removeEventListener(DASHBOARD_SECTION_TITLE_EVENT, onSectionTitle);
+  }, [isDashboardRoute]);
+
   const dashboardDesktopNav =
     Boolean(profile) && isDashboardRoute && !isMobileNav;
 
@@ -103,9 +126,6 @@ export function Navbar() {
         .toUpperCase()
         .slice(0, 2)
     : "??";
-
-  const tabMenuBtnClass =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[rgba(0,0,0,0.08)] bg-white text-foreground/70 transition-colors hover:border-[rgba(0,0,0,0.12)] hover:bg-[rgba(0,0,0,0.03)] hover:text-foreground";
 
   const logoLink = (
     <Link
@@ -156,7 +176,7 @@ export function Navbar() {
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.08)] bg-white text-popover-foreground shadow-lg">
+            <div className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(0,0,0,0.08)] bg-white text-popover-foreground shadow-lg">
               {showNavbarNotifications && (
                 <>
                   <NotificationList
@@ -167,18 +187,18 @@ export function Navbar() {
                   <div className="h-px bg-border" />
                 </>
               )}
-              <div className="p-2">
-                <div className="px-2 py-1.5">
-                  <p className="truncate text-sm font-medium">{profile.full_name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
+              <div className="p-2.5">
+                <div className="px-2 py-2">
+                  <p className="truncate text-base font-medium">{profile.full_name}</p>
+                  <p className="truncate text-sm text-muted-foreground">{profile.email}</p>
                 </div>
                 <div className="my-1 h-px bg-border" />
                 <Link
                   href="/dashboard"
                   onClick={() => setMenuOpen(false)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-popover-foreground no-underline transition-colors hover:bg-accent hover:text-accent-foreground"
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-base text-popover-foreground no-underline transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
-                  <LayoutDashboard className="h-4 w-4 shrink-0" />
+                  <LayoutDashboard className="h-5 w-5 shrink-0" />
                   Dashboard
                 </Link>
                 <button
@@ -187,9 +207,9 @@ export function Navbar() {
                     setMenuOpen(false);
                     handleSignOut();
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-base transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
-                  <LogOut className="h-4 w-4 shrink-0" />
+                  <LogOut className="h-5 w-5 shrink-0" />
                   Sign Out
                 </button>
               </div>
@@ -204,9 +224,10 @@ export function Navbar() {
       {profile ? (
         <Link
           href="/dashboard"
-          className="text-sm font-medium text-muted-foreground no-underline transition-colors hover:text-foreground"
+          className="max-w-[min(100%,22rem)] truncate text-center text-base font-medium text-muted-foreground no-underline transition-colors hover:text-foreground"
+          title={dashboardSectionTitle || "Dashboard"}
         >
-          Dashboard
+          {dashboardSectionTitle || "Dashboard"}
         </Link>
       ) : null}
     </nav>
@@ -273,10 +294,10 @@ export function Navbar() {
             {logoLink}
             {/* Mobile /dashboard: open section nav directly (no avatar → “Dashboard menu” hop). */}
             {profile && isDashboardRoute && (
-              <TabMenuButton className={cn(tabMenuBtnClass, "md:hidden")} />
+              <TabMenuButton className="md:hidden" />
             )}
             {profile && !isDashboardRoute ? (
-              <TabMenuButton className={`${tabMenuBtnClass} hidden md:inline-flex`} />
+              <TabMenuButton className="hidden md:inline-flex" />
             ) : null}
           </div>
           {dashboardLinkNav}
