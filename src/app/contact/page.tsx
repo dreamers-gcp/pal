@@ -1,0 +1,37 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { NucleusWordmark } from "@/components/nucleus-wordmark";
+import { COMPANY } from "@/lib/landing-data";
+
+export default function ContactPage() {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container-wide h-16 flex items-center justify-between">
+          <Link href="/"><NucleusWordmark decorative /></Link>
+          <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-4 h-4" />Back to home
+          </Link>
+        </div>
+      </header>
+      <main className="container-tight py-24 text-center">
+        <h1 className="font-display font-bold text-foreground mb-4" style={{ fontSize: "clamp(2rem, 4vw, 3rem)" }}>
+          Contact Us
+        </h1>
+        <p className="text-muted-foreground text-lg max-w-lg mx-auto mb-8">
+          For demo requests, partnership enquiries, or support — reach us directly.
+        </p>
+        <div className="space-y-2">
+          <p className="text-sm">
+            <span className="text-muted-foreground">Email: </span>
+            <a href={`mailto:${COMPANY.email}`} className="text-primary hover:underline">{COMPANY.email}</a>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Book a demo: </span>
+            <a href={COMPANY.demoLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Schedule a call</a>
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}

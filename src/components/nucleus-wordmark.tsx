@@ -336,6 +336,18 @@ export function NucleusWordmark({
   );
 }
 
+/** Inline branded "The Nucleus" — use inside prose/body text. */
+export function NucleusName({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline whitespace-nowrap font-bold", className)}>
+      <span className="text-foreground">The </span>
+      <span className="bg-gradient-to-r from-[var(--nucleus-wordmark-from)] via-[var(--nucleus-bright)] to-[var(--nucleus-wordmark-to)] bg-clip-text text-transparent">
+        Nucleus
+      </span>
+    </span>
+  );
+}
+
 /** Larger marketing block: wordmark + optional tagline + optional supporting line. */
 export function NucleusBrandLockup({
   variant = "default",

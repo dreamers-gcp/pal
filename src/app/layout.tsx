@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Work_Sans, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
-const workSans = Work_Sans({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-sans",
   display: "swap",
 });
 
-/** Display / headings — pairs with Work Sans; used for `font-display` across the app. */
-const plusJakarta = Plus_Jakarta_Sans({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
   variable: "--font-display",
@@ -23,9 +23,17 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The Nucleus — Campus calendar",
+  title: "The Nucleus — Campus Intelligence Platform",
   description:
-    "The Nucleus is the hub for your college: one place where schedules, room requests, approvals, and attendance stay aligned around the same truth.",
+    "The Nucleus is the intelligence layer for educational institutions. Connect your ERP, attendance, and fee systems to get student risk alerts, financial health dashboards, and real-time campus intelligence.",
+  openGraph: {
+    title: "The Nucleus — Campus Intelligence Platform",
+    description:
+      "Your ERP stores records. The Nucleus makes sense of them. Student risk alerts, financial dashboards, and campus intelligence — built for Indian institutions.",
+    siteName: "The Nucleus",
+    locale: "en_IN",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -36,9 +44,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${workSans.variable} ${plusJakarta.variable} ${monoFont.variable} font-sans antialiased`}
+        className={`${dmSans.variable} ${spaceGrotesk.variable} ${monoFont.variable} font-sans antialiased`}
       >
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
