@@ -33,6 +33,7 @@ export const ADMIN_DASHBOARD_SECTIONS: AdminDashboardSection[] = [
   { value: "professors", label: "Manage Professors", navGroup: "main" },
   { value: "parcel-management", label: "Parcel management", navGroup: "main" },
   { value: "timetable", label: "Timetable", navGroup: "main" },
+  { value: "admin-analytics", label: "Analytics", navGroup: "main" },
 ];
 
 /** Subset under “Requests” — for backward compatibility and grouped UI. */

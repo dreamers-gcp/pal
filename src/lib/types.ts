@@ -353,6 +353,16 @@ export interface AppointmentBooking {
   student?: Profile;
 }
 
+/** Admin Chart Builder: saved configuration + dataset JSON per user. */
+export interface AdminSavedChart {
+  id: string;
+  user_id: string;
+  title: string;
+  snapshot: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Super-admin routing: which dashboard request tabs an admin email may see. */
 export interface AdminRequestRouting {
   id: string;
