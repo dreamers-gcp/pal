@@ -39,6 +39,14 @@ Then rebuild and submit a **new** binary (`eas build --platform android --profil
 
 You can also use [`eas env:create` / the Expo dashboard](https://docs.expo.dev/eas/environment-variables/) with **`--environment production`** so variables attach to the same environment as the production build profile.
 
+### EAS: `npx expo prebuild … exited with code 1` (Android)
+
+The native app and `expo` dependency live under **`mobile/`**, not the monorepo root. If EAS runs prebuild from the repo root, there is no local `expo` package and the step fails (often reported only as **exit code 1**).
+
+1. **expo.dev** → your project → **General** (or **Project settings**): set **Root directory** / monorepo subdirectory to **`mobile`** so cloud builds `cd` there before `expo prebuild`.
+2. From your machine, always run **`cd mobile`** then `eas build …` (not from the parent `pal/` folder).
+3. In the EAS build log, expand **Run expo prebuild**. If you see **`expo` is not installed** or **Cannot determine the project's Expo SDK version**, the working directory is still wrong.
+
 ## 2. In-app dashboard (first sidebar item per role)
 
 After sign-in, **☰ Menu** opens the same left-rail sections as the web dashboard (**Attendance** is omitted until last).

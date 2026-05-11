@@ -15,8 +15,12 @@ const iosWifiInfoEntitlementEnabled =
   process.env.IOS_WIFI_INFO_ENTITLEMENT === "1" ||
   process.env.IOS_WIFI_INFO_ENTITLEMENT === "true";
 
+/** Master app icon (1024×1024 recommended; this 512 asset is the real brand mark vs placeholder `assets/icon.png`). */
+const APP_ICON = "./assets/play-store/play-store-icon-512.png";
+
 export default (): ExpoConfig => ({
-  name: "PAL",
+  /** Shown under the launcher icon and as the default install label (Play / device). */
+  name: "The Nucleus",
   slug: "pal-mobile",
   version: "1.0.0",
   extra: {
@@ -25,13 +29,13 @@ export default (): ExpoConfig => ({
     },
   },
   orientation: "portrait",
-  icon: "./assets/icon.png",
+  icon: APP_ICON,
   userInterfaceStyle: "light",
   newArchEnabled: true,
   /** Deep links + OAuth return URL (`thenucleus://…`). Separate from `ios.bundleIdentifier` / `android.package`. */
   scheme: "thenucleus",
   splash: {
-    image: "./assets/splash-icon.png",
+    image: APP_ICON,
     resizeMode: "contain",
     backgroundColor: "#ffffff",
   },
@@ -54,7 +58,7 @@ export default (): ExpoConfig => ({
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: "./assets/adaptive-icon.png",
+      foregroundImage: APP_ICON,
       backgroundColor: "#ffffff",
     },
     package: "in.thenucleus.app",

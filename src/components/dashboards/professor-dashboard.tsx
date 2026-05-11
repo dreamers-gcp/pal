@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  BarChart3,
   ClipboardList,
   Plus,
   CalendarDays,
@@ -72,6 +73,7 @@ import {
   clearDashboardSectionTitle,
   dispatchDashboardSectionTitle,
 } from "@/lib/dashboard-section-title";
+import { AdminAnalyticsPanel } from "@/components/admin/admin-analytics-panel";
 
 const PROFESSOR_SECTION_LABELS: Record<string, string> = {
   "my-requests": "My requests",
@@ -79,6 +81,7 @@ const PROFESSOR_SECTION_LABELS: Record<string, string> = {
   attendance: "Attendance",
   sports: "Sports requests",
   parcels: "Parcels",
+  analytics: "Analytics",
   "script-evaluation": "Answer scripts evaluation",
 };
 
@@ -557,6 +560,19 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                   <span className={cn(!sectionNavExpanded && "sr-only")}>Parcels</span>
                 </TabsTrigger>
                 <TabsTrigger
+                  value="analytics"
+                  title="Analytics"
+                  className={cn(
+                    "h-auto min-h-10 w-full rounded-md py-2.5",
+                    sectionNavExpanded
+                      ? "justify-start gap-2 whitespace-normal px-2 text-left"
+                      : "justify-center px-0"
+                  )}
+                >
+                  <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className={cn(!sectionNavExpanded && "sr-only")}>Analytics</span>
+                </TabsTrigger>
+                <TabsTrigger
                   value="script-evaluation"
                   title="Answer scripts evaluation"
                   className={cn(
@@ -658,6 +674,14 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
                       Parcels
                     </TabsTrigger>
                     <TabsTrigger
+                      value="analytics"
+                      className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
+                      onClick={() => setTabMenuOpen(false)}
+                    >
+                      <BarChart3 className="h-5 w-5" />
+                      Analytics
+                    </TabsTrigger>
+                    <TabsTrigger
                       value="script-evaluation"
                       className="min-h-[3.25rem] w-full justify-start gap-2.5 py-3.5 text-base [&_svg]:size-5"
                       onClick={() => setTabMenuOpen(false)}
@@ -689,6 +713,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
               <TabsTrigger value="parcels" className="gap-1.5">
                 <Package className="h-4 w-4" />
                 Parcels
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="gap-1.5">
+                <BarChart3 className="h-4 w-4" />
+                Analytics
               </TabsTrigger>
               <TabsTrigger value="script-evaluation" className="gap-1.5">
                 <FileCheck2 className="h-4 w-4" />
@@ -965,6 +993,10 @@ export function ProfessorDashboard({ profile }: { profile: Profile }) {
 
         <TabsContent value="parcels" className="mt-6">
           <UserParcelTab profile={profile} />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="mt-6">
+          <AdminAnalyticsPanel profile={profile} />
         </TabsContent>
 
         <TabsContent value="script-evaluation" className="mt-6 min-h-0">

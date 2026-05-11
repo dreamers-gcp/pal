@@ -56,7 +56,6 @@ import {
 } from "lucide-react";
 import { endOfDay, format, startOfDay, startOfYear, subDays } from "date-fns";
 import { toast } from "sonner";
-import { toJpeg } from "html-to-image";
 
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, AdminSavedChart } from "@/lib/types";
@@ -2083,6 +2082,7 @@ export function AdminAnalyticsPanel({ profile }: { profile: Profile }) {
     }
     setExportingJpeg(true);
     try {
+      const { toJpeg } = await import("html-to-image");
       const dataUrl = await toJpeg(el, {
         quality: 0.92,
         pixelRatio: 2,
