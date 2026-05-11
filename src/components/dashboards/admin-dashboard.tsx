@@ -71,6 +71,7 @@ import { adminRequestActionVisibility } from "@/lib/admin-request-action-visibil
 import { ProfessorCsvUpload } from "@/components/professor-csv-upload";
 import { TimetableGenerator } from "@/components/timetable-generator";
 import {
+  BarChart3,
   FileSpreadsheet,
   Filter,
   BookOpen,
@@ -106,6 +107,7 @@ import {
 import { AdminParcelManagement } from "@/components/parcels/admin-parcel-management";
 import { AdminOverviewDashboard } from "@/components/admin/admin-overview-dashboard";
 import { AdminRequestRoutingPanel } from "@/components/admin/admin-request-routing-panel";
+import { AdminAnalyticsPanel } from "@/components/admin/admin-analytics-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ADMIN_DASHBOARD_SECTIONS,
@@ -160,6 +162,7 @@ const MAIN_SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> 
   professors: Users,
   "parcel-management": Package,
   timetable: Wand2,
+  "admin-analytics": BarChart3,
 };
 
 export function AdminDashboard({ profile }: { profile: Profile }) {
@@ -1837,6 +1840,10 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <TabsContent value="timetable" className="mt-6">
           <TimetableGenerator profile={profile} />
         </TabsContent>
+
+          <TabsContent value="admin-analytics" className="mt-6">
+            <AdminAnalyticsPanel profile={profile} />
+          </TabsContent>
 
         {isSuperAdmin ? (
           <TabsContent value="admin-request-routing" className="mt-6">
