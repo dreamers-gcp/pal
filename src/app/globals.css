@@ -45,42 +45,42 @@
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
-  /* Nucleus brand spectrum — indigo core + violet depth + cool aurora accent */
+  /* Nucleus brand spectrum — indigo core */
   --nucleus-deep: #312e81;
   --nucleus-core: #4338ca;
   --nucleus-bright: #4f46e5;
   --nucleus-soft: #6366f1;
   --nucleus-mist: #c7d2fe;
-  --nucleus-aurora: #0284c7;
-  --nucleus-glow: rgba(67, 56, 202, 0.55);
-  --nucleus-orbit: rgba(67, 56, 202, 0.42);
+  --nucleus-aurora: #0ea5e9;
+  --nucleus-glow: rgba(79, 70, 229, 0.4);
+  --nucleus-orbit: rgba(79, 70, 229, 0.28);
   --nucleus-wordmark-from: #3730a3;
   --nucleus-wordmark-to: #4f46e5;
   --nucleus-wordmark-aurora: #0369a1;
-  --nucleus-hub-mid: rgba(67, 56, 202, 0.58);
+  --nucleus-hub-mid: rgba(67, 56, 202, 0.55);
   --nucleus-hub-inner: rgba(55, 48, 163, 0.68);
 
-  --background: #fafafa;
-  --foreground: #1a1a2e;
-  --card: #ffffff;
-  --card-foreground: #1a1a2e;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a2e;
+  /* Page tokens */
+  --background: #F9F8F5;
+  --foreground: #0D1021;
+  --card: #FFFFFF;
+  --card-foreground: #0D1021;
+  --popover: #FFFFFF;
+  --popover-foreground: #0D1021;
   --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #1a1a2e;
-  --muted: #f4f4f5;
-  --muted-foreground: rgba(26, 26, 46, 0.62);
-  --accent: #eef2ff;
-  --accent-foreground: #1a1a2e;
+  --secondary: #F3F2EE;
+  --secondary-foreground: #0D1021;
+  --muted: #F3F2EE;
+  --muted-foreground: rgba(13, 16, 33, 0.52);
+  --accent: #EEF2FF;
+  --accent-foreground: #0D1021;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: rgba(26, 26, 46, 0.1);
-  --input: rgba(26, 26, 46, 0.12);
+  --border: rgba(13, 16, 33, 0.09);
+  --input: rgba(13, 16, 33, 0.11);
   --ring: #4f46e5;
   --chart-1: #4f46e5;
   --chart-2: #6366f1;
@@ -88,13 +88,13 @@
   --chart-4: #a5b4fc;
   --chart-5: #312e81;
   --radius: 0.625rem;
-  --sidebar: #fafafa;
-  --sidebar-foreground: #1a1a2e;
+  --sidebar: #F9F8F5;
+  --sidebar-foreground: #0D1021;
   --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2ff;
-  --sidebar-accent-foreground: #1a1a2e;
-  --sidebar-border: rgba(26, 26, 46, 0.1);
+  --sidebar-accent: #EEF2FF;
+  --sidebar-accent-foreground: #0D1021;
+  --sidebar-border: rgba(13, 16, 33, 0.09);
   --sidebar-ring: #4f46e5;
 }
 
@@ -105,44 +105,44 @@
   --nucleus-soft: #c7d2fe;
   --nucleus-mist: rgba(199, 210, 254, 0.22);
   --nucleus-aurora: #38bdf8;
-  --nucleus-glow: rgba(165, 180, 252, 0.55);
-  --nucleus-orbit: rgba(165, 180, 252, 0.45);
+  --nucleus-glow: rgba(165, 180, 252, 0.5);
+  --nucleus-orbit: rgba(165, 180, 252, 0.38);
   --nucleus-wordmark-from: #e0e7ff;
   --nucleus-wordmark-to: #a5b4fc;
   --nucleus-wordmark-aurora: #7dd3fc;
-  --nucleus-hub-mid: rgba(165, 180, 252, 0.62);
-  --nucleus-hub-inner: rgba(199, 210, 254, 0.55);
+  --nucleus-hub-mid: rgba(165, 180, 252, 0.58);
+  --nucleus-hub-inner: rgba(199, 210, 254, 0.52);
 
-  --background: #12121a;
-  --foreground: #f0f0f5;
-  --card: #1a1a24;
-  --card-foreground: #f0f0f5;
-  --popover: #1a1a24;
-  --popover-foreground: #f0f0f5;
+  --background: #0A0E1E;
+  --foreground: #F1F5F9;
+  --card: #111827;
+  --card-foreground: #F1F5F9;
+  --popover: #111827;
+  --popover-foreground: #F1F5F9;
   --primary: #6366f1;
   --primary-foreground: #ffffff;
-  --secondary: #252532;
-  --secondary-foreground: #f0f0f5;
-  --muted: #252532;
-  --muted-foreground: rgba(240, 240, 245, 0.58);
-  --accent: #2e2e3d;
-  --accent-foreground: #f0f0f5;
+  --secondary: #1e293b;
+  --secondary-foreground: #F1F5F9;
+  --muted: #1e293b;
+  --muted-foreground: rgba(241, 245, 249, 0.52);
+  --accent: #1e1b4b;
+  --accent-foreground: #F1F5F9;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 11%);
   --ring: #6366f1;
   --chart-1: #6366f1;
   --chart-2: #818cf8;
   --chart-3: #a5b4fc;
   --chart-4: #4f46e5;
   --chart-5: #c7d2fe;
-  --sidebar: #1a1a24;
-  --sidebar-foreground: #f0f0f5;
+  --sidebar: #111827;
+  --sidebar-foreground: #F1F5F9;
   --sidebar-primary: #6366f1;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2e2e3d;
-  --sidebar-accent-foreground: #f0f0f5;
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-accent: #1e1b4b;
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: oklch(1 0 0 / 9%);
   --sidebar-ring: #6366f1;
 }
 
@@ -155,8 +155,93 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
   }
-  label {
-    text-transform: capitalize;
+  section[id] {
+    scroll-margin-top: 5rem;
   }
+}
+
+/* ── Landing animations ────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50%       { transform: scale(1.18); opacity: 0.08; }
+}
+@keyframes data-flow {
+  0%   { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.animate-fade-up   { animation: fade-up  0.65s ease both; }
+.animate-fade-in   { animation: fade-in  0.5s ease both; }
+.animate-pulse-ring { animation: pulse-ring 2.8s ease-in-out infinite; }
+
+/* ── Section rhythm ───────────────────────────────────────── */
+.section-lg  { @apply py-6 md:py-10; }
+.section-md  { @apply py-5 md:py-8; }
+.section-sm  { @apply py-4 md:py-6; }
+.container-tight { @apply max-w-5xl mx-auto px-4 sm:px-6 lg:px-8; }
+.container-wide  { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
+
+/* ── Dark navy section utility ───────────────────────────── */
+.section-dark {
+  background-color: #0D1021;
+  color: #F1F5F9;
+}
+
+/* ── Gradient backgrounds ────────────────────────────────── */
+.bg-mesh {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(79,70,229,0.07) 0%, transparent 55%);
+}
+.bg-mesh-dark {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(99,102,241,0.12) 0%, transparent 60%);
+}
+
+/* ── Eyebrow label ───────────────────────────────────────── */
+.eyebrow {
+  @apply inline-block text-xs font-semibold uppercase tracking-[0.1em] text-primary mb-4;
+}
+
+/* ── Landing pill badge ──────────────────────────────────── */
+.pill {
+  @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full
+         border border-primary/20 bg-primary/6
+         text-xs font-medium text-primary tracking-wide;
+}
+
+/* ── Module / feature card hover ─────────────────────────── */
+.module-card {
+  @apply border border-border bg-card rounded-xl p-5 transition-all duration-200;
+}
+.module-card:hover {
+  @apply border-primary/40 shadow-[0_4px_24px_-6px_rgba(79,70,229,0.15)];
+  transform: translateY(-2px);
+}
+
+/* ── Form focus states ────────────────────────────────────── */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent) !important;
+}
+
+/* ── Hide scrollbar ──────────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
