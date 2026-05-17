@@ -14,6 +14,7 @@ export const COMPANY = {
 export const NAV_ITEMS = [
   { label: "How It Works", href: "#how-it-works" },
   { label: "Modules", href: "#modules" },
+  { label: "Placements", href: "/placements" },
   { label: "Security", href: "#trust" },
   { label: "Pricing", href: "/pricing" },
 ];

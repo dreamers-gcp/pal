@@ -9,6 +9,7 @@ const features = [
   { label: "Financial Analytics", anchor: "#finance-intel" },
   { label: "Scheduling",          anchor: "#scheduling" },
   { label: "Communication",       anchor: "#communication" },
+  { label: "Placements",          anchor: "#placements" },
 ];
 
 export function ProductNav() {
