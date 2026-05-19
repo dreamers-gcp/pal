@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, useScroll, useTransform } from "framer-motion";
@@ -8,18 +9,14 @@ import { NucleusWordmark } from "@/components/nucleus-wordmark";
 
 const links = [
   { label: "How It Works", href: "#how-it-works" },
-  { label: "Features", href: "#attendance" },
-  { label: "Contact Us", href: "#contact" },
+  { label: "Features",     href: "#attendance" },
+  { label: "Contact Us",   href: "#contact" },
 ];
-
-function scrollTo(href: string) {
-  const id = href.replace("#", "");
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-}
 
 export function Nav() {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
   const { scrollY } = useScroll();
   const bgOpacity = useTransform(scrollY, [0, 80], [0, 1]);
   const borderOpacity = useTransform(scrollY, [0, 80], [0, 1]);
@@ -29,6 +26,22 @@ export function Nav() {
     else document.body.style.overflow = "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
+
+  function handleClick(href: string) {
+    // Route links (start with /) → navigate
+    if (href.startsWith("/")) {
+      router.push(href);
+      return;
+    }
+    // Anchor links: if not on home, go home + hash; else smooth scroll
+    if (pathname !== "/") {
+      router.push("/" + href);
+      return;
+    }
+    const id = href.replace("#", "");
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
@@ -47,11 +60,11 @@ export function Nav() {
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-3">
           {links.map((l) => (
             <button
               key={l.href}
-              onClick={() => scrollTo(l.href)}
+              onClick={() => handleClick(l.href)}
               className="text-sm font-medium text-foreground/80 hover:text-foreground border border-border/60 hover:border-border rounded-lg px-3 py-1.5 transition-colors"
             >
               {l.label}
@@ -59,9 +72,15 @@ export function Nav() {
           ))}
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex items-center gap-2">
+          <Link
+            href="/login"
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-border px-4 text-sm font-semibold text-foreground hover:bg-accent transition-colors"
+          >
+            Login
+          </Link>
           <button
-            onClick={() => scrollTo("#contact")}
+            onClick={() => handleClick("#contact")}
             className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
           >
             Book a Demo
@@ -82,14 +101,21 @@ export function Nav() {
           {links.map((l) => (
             <button
               key={l.href}
-              onClick={() => { scrollTo(l.href); setOpen(false); }}
+              onClick={() => { handleClick(l.href); setOpen(false); }}
               className="text-base font-medium text-foreground text-left"
             >
               {l.label}
             </button>
           ))}
+          <Link
+            href="/login"
+            onClick={() => setOpen(false)}
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-border px-5 text-sm font-semibold text-foreground"
+          >
+            Login
+          </Link>
           <button
-            onClick={() => { scrollTo("#contact"); setOpen(false); }}
+            onClick={() => { handleClick("#contact"); setOpen(false); }}
             className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground"
           >
             Book a Demo

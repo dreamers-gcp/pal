@@ -8,6 +8,7 @@ import { FinanceIntel }    from "@/components/landing/finance-intel";
 import { Scheduling }      from "@/components/landing/scheduling";
 import { Communication }   from "@/components/landing/communication";
 import { ErpComplement }   from "@/components/landing/erp-complement";
+import { PlacementCRM }    from "@/components/landing/placement-crm";
 import { Traction }        from "@/components/landing/traction";
 import { CTA }             from "@/components/landing/cta";
 import { Footer }          from "@/components/landing/footer";
@@ -26,6 +27,7 @@ export default function Home() {
         <FinanceIntel />
         <Scheduling />
         <Communication />
+        <PlacementCRM />
         <Traction />
         <CTA />
       </main>
